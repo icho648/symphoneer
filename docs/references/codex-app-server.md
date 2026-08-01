@@ -9,6 +9,13 @@
 - [Codex App Server source](https://github.com/openai/codex/tree/main/codex-rs/app-server)
 - [Codex documentation](https://developers.openai.com/codex/)
 
+## Workbench 采用边界
+
+- `Thread` 是 Agent 的持久上下文，包含多个 `Turn`；`Item` 是消息、命令、编辑和工具事件等运行单元。
+- `Thread` 使用 Symphony `Workspace` 的路径执行，但不拥有目录、分支、所有权或回收生命周期。
+- Workbench V1 将 `threadId` / `turnId` 作为 Attempt 的运行引用；默认一个 Task 的一次 Attempt 关联一个活跃 Agent Session。
+- 同一 Task 多 Thread 的并行聚合、子 Agent 的业务状态和独立合并证据不属于当前 V1；需要真实需求和新的 Workbench 契约。
+
 ## 实现前必须固定的契约
 
 - 实现时使用本地 Codex CLI 的 App Server schema generation 能力生成 TypeScript 契约，不手写可漂移的 Thread、Turn、Item、事件和 Review Schema。

@@ -1,6 +1,6 @@
 # Design Docs
 
-这是规范性设计的索引。只打开当前问题对应的叶子文档；调研、外部契约和执行计划不能自动覆盖这里的确认结论。
+这是规范性设计的索引：产品边界定义产品身份、范围和非目标；系统边界定义事实与控制归属；核心原则定义取舍方式。用户可观察行为和验收见 [`../product-specs/`](../product-specs/)。调研、外部契约和执行计划不能自动覆盖这里的确认结论。
 
 ## 当前文档
 
@@ -8,19 +8,18 @@
 |---|---|---|---|
 | [product-boundary.md](product-boundary.md) | 产品是什么、不是什么 | Accepted | Not verified |
 | [core-beliefs.md](core-beliefs.md) | 哪些原则指导产品和工程取舍 | Accepted | Not verified |
-| [system-boundaries.md](system-boundaries.md) | Task、Attempt、Workspace、Thread、Verification 等事实归谁 | Accepted | Not verified |
+| [system-boundaries.md](system-boundaries.md) | Task、Attempt、Workspace、Thread、Verification 等事实归谁，以及它们如何关联 | Accepted | Not verified |
 
-## 当前顺序
+## 阅读顺序
 
-1. 人工审核已确认的产品边界、系统权威和人工交付流程。
-2. 以 [`../exec-plans/active/symphony-workbench-v1.md`](../exec-plans/active/symphony-workbench-v1.md) 作为实施与验收路线，但不把计划当成已实现事实。
-3. 只有在用户明确进入开发阶段后，才创建代码、依赖、CI、自动化或外部资源。
+1. [product-boundary.md](product-boundary.md)：产品主干、V1 范围和非目标。
+2. [core-beliefs.md](core-beliefs.md)：判断原则。
+3. [system-boundaries.md](system-boundaries.md)：对象关系、权威、证据和控制。
+4. [`../product-specs/manual-delivery-flow.md`](../product-specs/manual-delivery-flow.md)：可观察人工闭环。
 
 ## 后续细化规则
 
-Symphony Runtime、Provider 边界、Web / MCP 访问面和 Phoenix 的方向已确认；但真实 Schema、失败模式和兼容性仍为 `Not verified`。开发时先在 active ExecPlan 记录证据，只在决定稳定且需要长期维护时新增规范性叶子，不提前创建空壳。
-
-项目级 Harness 继续由仓库文档、检查和执行计划承载，不创建 Workbench 产品的 Harness / Finding 规格。
+Symphony Runtime、Provider 边界、Web / MCP 访问面和 Phoenix 的方向已确认；真实 Schema、失败模式和兼容性仍为 `Not verified`。Intent 拆解、Sub-issue 编排和同一 Task 多 Thread 属于后续扩展，不进入当前 V1 核心闭环。
 
 ## 写入规则
 
