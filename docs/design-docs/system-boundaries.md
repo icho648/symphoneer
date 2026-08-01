@@ -25,6 +25,7 @@ Tracker Task / GitHub Issue
 | Diff / Commit / Branch | Git | 保存版本引用，不伪造变更真相 |
 | Verification | 项目原生检查及其 artifact | 独立运行、记录命令、退出状态、版本和输出引用 |
 | ReviewDecision | 人 | 记录决定、依据、责任人和下一动作 |
+| PR / Checks / Review / Merge state | GitHub 原生对象；Merge / Close 的最终决定由人持有 | 重新读取原生状态，保存关联和冲突，不从历史投影重建 |
 | Trace / Evaluation | Phoenix 等诊断系统 | 只保存关联 ID；不可用时不阻塞核心流程 |
 | Historical Projection | Workbench append-only JSONL 和 immutable artifact | 支持重放、查询和 UI，不覆盖原生事实 |
 
@@ -52,6 +53,8 @@ Tracker Task / GitHub Issue
 5. 缺少匹配证据时显示 `Not verified`，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
 
 JSONL 只追加带稳定 ID、来源、时间和 Schema 版本的事件；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
+
+凭据、Token、API key、Cookie、签名 URL、认证头和私密内容不得写入 JSONL、immutable artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入持久化边界前必须脱敏。
 
 ## 控制和安全
 

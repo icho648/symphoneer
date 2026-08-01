@@ -9,9 +9,15 @@
 
 - [GitHub REST API endpoints for issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28)
 - [GitHub REST API endpoints for labels](https://docs.github.com/en/rest/issues/labels?apiVersion=2022-11-28)
+- [GitHub REST API endpoints for sub-issues](https://docs.github.com/en/rest/issues/sub-issues?apiVersion=2022-11-28)
+- [GitHub REST API endpoints for issue dependencies](https://docs.github.com/en/rest/issues/issue-dependencies?apiVersion=2022-11-28)
+- [GitHub REST API endpoints for Projects](https://docs.github.com/en/rest/projects/projects)
+- [GitHub REST API endpoints for Project items](https://docs.github.com/en/rest/projects/items?apiVersion=2022-11-28)
+- [GitHub REST API endpoints for Project fields](https://docs.github.com/en/rest/projects/fields?apiVersion=2026-03-10)
+- [GitHub REST API endpoints for milestones](https://docs.github.com/en/rest/issues/milestones?apiVersion=2022-11-28)
 - [Authenticating to the REST API](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api)
 
-这些官方页面在 2026-08-01 可观察。它们是实现前固定 API 版本、Issue / Pull Request 区分、标签读写和凭据权限的入口，不证明本项目已完成这些契约的选择或 Smoke。
+这些官方页面在 2026-08-01 可观察。它们是实现前固定 API 版本、Issue / Pull Request 区分、标签读写、Sub-issue / Dependency、Projects、Project fields、Milestone 和凭据权限的入口，不证明本项目已完成这些契约的选择或 Smoke。
 
 ## 已确认角色
 
