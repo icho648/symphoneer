@@ -8,6 +8,8 @@
 
 如果本页来自包含 active ExecPlan 的初始 `HEAD`，且 `git status --short` 与 `git remote` 均无输出，则仅 Markdown 的本地 Git 基线已建立；否则它仍是待完成项。后续只有在人工审核 active ExecPlan 并明确要求开发后，才进入代码阶段。
 
+本地 Git 基线统一使用 `main` 作为主分支；托管平台的默认分支是否已同步，必须以对应远端仓库的实际配置为准。
+
 ## 当前状态
 
 | 议题 | Decision status | Implementation evidence | 事实源 |
