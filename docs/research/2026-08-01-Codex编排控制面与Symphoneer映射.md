@@ -106,7 +106,6 @@ GitHub Issue / Task
 
 - [AI Coding 工程化：个人项目的组件边界](2026-07-30-AI-Coding工程化_个人项目边界.md)
 - [OpenAI Symphony 的运行时边界](2026-07-30-symphony-runtime-boundaries.md)
-- [Harness Builder 与 Symphony：一手资料边界](harness-builder-symphony.md)
 - [Agent Orchestrator、Conductor 与 Symphoneer](2026-07-30-agent-orchestrator-conductor-vs-symphoneer.md)
 
 ## 一手核验入口
