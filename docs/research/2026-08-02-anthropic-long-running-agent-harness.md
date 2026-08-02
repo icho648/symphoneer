@@ -34,6 +34,8 @@ Symphoneer 的整个项目 Harness 应吸收哪些长任务开发习惯，而不
 
 Symphoneer 采纳上述工程习惯，作用范围是整个仓库的开发 Harness：
 
+这些采用决定的规范性落点是 [Core Beliefs](../design-docs/core-beliefs.md) 中的 Progressive disclosure、Deep seams、Operationally separate 与工程默认值；`AGENTS.md`、`docs/PLANS.md` 和 active ExecPlan 负责执行导航与交接，不产生新的产品状态。
+
 ```text
 AGENTS.md
 ├─ 给出项目地图和按任务读取路由

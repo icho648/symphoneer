@@ -54,7 +54,7 @@ GitHub Issue
 - [ ] Phase 7：在核心闭环后接入非阻塞 Phoenix 观测。
 - [ ] Follow-up：只在远程仓库和 `pnpm check` 稳定后启用定时检查；只在 Web 需要桌面分发时评估 Electron。
 
-当前增量已完成且只修改 Markdown。下一步是用户审阅文档 Diff；在新的明确开发指令前，不执行 Phase 1。
+当前增量已提交为 Git revision。下一步是用户审阅 committed diff；恢复时先核对记录的 commit、本地 `HEAD` 和干净工作树，在新的明确开发指令前不执行 Phase 1。
 
 ## Surprises & Discoveries
 
@@ -101,7 +101,7 @@ GitHub Issue
 
 ## Outcomes & Retrospective
 
-当前已产生的结果只是：产品边界、系统权威、人工流程、外部采用边界和完整实施计划已被 Markdown 固化并版本化。本轮二次优化已通过本地文档检查，仍等待人工 Diff 审阅；这不证明任何产品行为。
+当前已产生的结果只是：产品边界、系统权威、人工流程、外部采用边界和完整实施计划已被 Markdown 固化并版本化。本轮二次优化已通过本地文档检查并写入 Git 历史，仍等待人工审阅 committed diff；这不证明任何产品行为。
 
 计划只在下列结果全部有直接证据后才可移入 `completed/`：
 
@@ -173,7 +173,7 @@ tests/
 
 ### Phase 0 — 文档与本地 Git 基线
 
-维护规范性决定、本 ExecPlan 和仅 Markdown 的文档基线。本轮补齐 Runtime 拓扑、Agent Runner Seam、日志与测试、Task Board、Anthropic Harness 研究和开发习惯；验证本地链接、分区索引、12 个必需章节、状态语义、冲突术语和变更文件类型。保留 Diff 等待用户审核，不提交、不推送。
+维护规范性决定、本 ExecPlan 和仅 Markdown 的文档基线。本轮补齐 Runtime 拓扑、Agent Runner Seam、日志与测试、Task Board、Anthropic Harness 研究和开发习惯；验证本地链接、分区索引、12 个必需章节、状态语义、冲突术语和变更文件类型。检查通过的 revision 写入 Git 历史；停点以该 commit、本地同一 `HEAD` 和干净工作树为恢复基线。
 
 ### Phase 1 — 项目检查入口与最小 TypeScript workspace
 
@@ -367,7 +367,7 @@ if rg -n 'Decision status: Proposed|## 尚未决定|实现方式未决定|V1 计
 
 人工通过条件：已确认的 design doc 和 product spec 是 `Accepted`；所有代码、GitHub、Codex、Web / MCP、Phoenix 和定时检查行为是 `Not verified`；参考文档分开外部来源状态、项目采用决定和实施证据；计划中的未来命令没有写成已运行事实。第二个 `rg` 应无输出并退出 0。
 
-确认本轮只修改 Markdown，并保留 Diff 供人工审阅：
+提交前确认本轮只修改 Markdown：
 
 ```sh
 git branch --show-current
@@ -395,7 +395,16 @@ exit(hits.empty? ? 0 : 1)
 '
 ```
 
-预期：分支为 `9-文档结构二次优化`；NUL-safe 文件类型检查、`git diff --check` 和冲突词检查无输出并退出 0；`git status` 只列出本轮 Markdown。按本轮约束不暂存、不提交、不推送。
+预期：分支为 `9-文档结构二次优化`；NUL-safe 文件类型检查、`git diff --check` 和冲突词检查无输出并退出 0；提交前 `git status` 只列出本轮 Markdown。
+
+文档 revision 提交后记录可恢复停点：
+
+```sh
+git rev-parse HEAD
+git status --short
+```
+
+预期：`git rev-parse HEAD` 输出本轮记录的 committed revision；`git status --short` 无输出。若任一条件不成立，当前只是未完成的本地增量，不能按已提交停点交接。
 
 ### 每个实施阶段的固定入口
 
@@ -488,7 +497,7 @@ gh label create 'symphony:review' --repo icho648/symphoneer-fixture
 
 ## Idempotence and Recovery
 
-- **文档增量：** 修改前确认工作树，修改后只保留 `.md` Diff；检查失败时保留当前改动并修正文档，不暂存、不提交，也不使用破坏性 reset。
+- **文档增量：** 修改前确认工作树；提交前只允许 `.md` Diff。已提交停点必须记录 Git commit，并同时满足本地 `HEAD` 指向该 commit、工作树干净；检查失败时保留当前改动并修正文档，不使用破坏性 reset。
 - **外部资源：** 创建 fixture、标签或 Issue 前先按精确名称查询。已存在时核对所有权和契约，不重复创建或删除未确认资源。
 - **进程生命周期：** launcher 记录子进程状态并转发停止信号；Web 单独退出只触发连接丢失，不把 Attempt 写成结束。Runtime 重启后先重放 Domain Event，再对账 Tracker、Workspace 和 Provider。
 - **调度所有权：** 对 Task 获取带版本的单一活跃所有权。进程重启后先对账 Tracker、Workspace 和 Codex，再决定恢复、结束旧 Attempt 或创建新 Attempt。
@@ -508,7 +517,7 @@ gh label create 'symphony:review' --repo icho648/symphoneer-fixture
 
 - 本 ExecPlan 及其在 [`index.md`](index.md) 中的 active 索引。
 - [`../../design-docs/index.md`](../../design-docs/index.md)、[`../../product-specs/index.md`](../../product-specs/index.md) 和 [`../../references/index.md`](../../references/index.md) 中的 `Accepted` / `Not verified` 状态。
-- 当前分支、文档 Diff、本地链接 / 索引 / 章节检查、`git diff --check` 和仅 Markdown 文件检查。
+- 本轮记录的 Git commit、本地指向该 commit 的 `HEAD`、干净工作树，以及本地链接 / 索引 / 章节 / 仅 Markdown / `git diff --check` 结果。
 - [`../../research/2026-08-02-anthropic-long-running-agent-harness.md`](../../research/2026-08-02-anthropic-long-running-agent-harness.md) 中的来源、采用与不采用边界。
 - 2026-08-02 本轮检查：本地链接、六个分区索引、ExecPlan 12 章、变更文件类型、旧方案冲突词和 `git diff --check` 均退出 0；产品流程与 ExecPlan 的 Task Board 图逐字一致。
 
