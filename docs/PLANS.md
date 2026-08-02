@@ -1,6 +1,6 @@
 # ExecPlans
 
-本文定义 Symphony Workbench 中 ExecPlan 的编写和维护契约。ExecPlan 是复杂工作的自包含、可恢复、持续更新的执行规格；它不是产品路线图，也不是静态愿望清单。
+本文定义 Symphoneer 中 ExecPlan 的编写和维护契约。ExecPlan 是复杂工作的自包含、可恢复、持续更新的执行规格；它不是产品路线图，也不是静态愿望清单。
 
 ## 何时使用
 

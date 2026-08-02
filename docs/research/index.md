@@ -7,9 +7,9 @@
 | 文档 | 日期 | 当前作用 | 与规范性设计的关系 |
 |---|---|---|---|
 | [AI Coding 工程化：个人项目的组件边界](2026-07-30-AI-Coding工程化_个人项目边界.md) | 2026-07-30 | Evidence、Harness、MCP、Phoenix 的取舍输入 | 旧产品形态已被取代；以 [`product-boundary.md`](../design-docs/product-boundary.md) 为准 |
-| [Agent Orchestrator、Conductor 与 Symphony Workbench](2026-07-30-agent-orchestrator-conductor-vs-symphony-workbench.md) | 2026-07-30 | 同类产品对象与默认心智比较 | 支持产品差异分析，不证明任何集成已实现 |
+| [Agent Orchestrator、Conductor 与 Symphoneer](2026-07-30-agent-orchestrator-conductor-vs-symphoneer.md) | 2026-07-30 | 同类产品对象与默认心智比较 | 支持产品差异分析，不证明任何集成已实现 |
 | [OpenAI Symphony 的运行时边界](2026-07-30-symphony-runtime-boundaries.md) | 2026-07-30 | Scheduler/Runner、Workspace、重试和非目标输入 | 支持 [`system-boundaries.md`](../design-docs/system-boundaries.md)；实现仍未验证 |
-| [Codex 编排控制面与 Workbench 映射](2026-08-01-Codex编排控制面与Workbench映射.md) | 2026-08-01 | Codex 入口、会话与控制原语的分析 | 原始文章不是官方规范；具体行为必须回到官方 Schema 和 Smoke |
+| [Codex 编排控制面与 Symphoneer 映射](2026-08-01-Codex编排控制面与Symphoneer映射.md) | 2026-08-01 | Codex 入口、会话与控制原语的分析 | 原始文章不是官方规范；具体行为必须回到官方 Schema 和 Smoke |
 | [Harness Builder 与 Symphony：一手资料边界](harness-builder-symphony.md) | 2026-07-30 | Harness 与 Symphony 的衔接输入 | 旧的 Harness 产品增强形态只保留为历史输入；当前设计不将其建模为产品对象 |
 
 ## 使用规则

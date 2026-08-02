@@ -30,12 +30,12 @@
 - `Run Attempt`：某个 Issue 的一次执行尝试，包含重试或继续所需的运行信息。
 - `Live Session`：当前 Agent 进程的 Thread / Turn 运行信息。
 
-本项目在此之上增加 Workbench Read Model、独立 Verification、ReviewDecision、Human Handoff 和稳定的 Attempt 历史投影。GitHub Sub-issue、Intent 拆解以及同一 Task 多 Thread 的 `AgentRun` 聚合都不是固定 SPEC 的原生对象，需另行设计和验证。
+本项目在此之上增加 Symphoneer Read Model、独立 Verification、ReviewDecision、Human Handoff 和稳定的 Attempt 历史投影。GitHub Sub-issue、Intent 拆解以及同一 Task 多 Thread 的 `AgentRun` 聚合都不是固定 SPEC 的原生对象，需另行设计和验证。
 
 ## 本项目已决定的扩展
 
-- 固定快照以 Linear 为当前 Tracker 合同；GitHub Issues 是 Symphony Workbench 的 V1 产品决定，不是从该 SPEC 自动继承的已实现能力。
-- Workbench Read Model、Verification、ReviewDecision 和 Human Handoff 超出最小 Scheduler/Runner 的职责，其事实源边界由 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 固化。
+- 固定快照以 Linear 为当前 Tracker 合同；GitHub Issues 是 Symphoneer 的 V1 产品决定，不是从该 SPEC 自动继承的已实现能力。
+- Symphoneer Read Model、Verification、ReviewDecision 和 Human Handoff 超出最小 Scheduler/Runner 的职责，其事实源边界由 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 固化。
 - `WORKFLOW.md` 只在真实 Runtime 实现开始时创建，不提前用占位文档冒充运行契约。
 
 真实兼容性、重试恢复、Workspace 隔离、App Server 协议和安全姿态仍为 `Not verified`。

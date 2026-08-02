@@ -1,18 +1,18 @@
-# Symphony Workbench V1 ExecPlan
+# Symphoneer V1 ExecPlan
 
 > Plan status: Active  
 > Decision status: Accepted  
 > Implementation evidence: Documentation baseline observed; all application, GitHub, Codex, Web/MCP, Phoenix and scheduled-check behavior is Not verified
 > Owner: Repository owner with Codex as implementation agent  
 > Created: 2026-08-01  
-> Last updated: 2026-08-01  
+> Last updated: 2026-08-02
 > Symphony contract baseline: `f8e8b8a670c799f6e0ade7a8c25c4bf4a4a56ec7`
 
 本 ExecPlan 是自包含、可恢复、持续更新的开发规格。它固化实施顺序和验收方法，但不把计划中的命令、界面或外部系统写成已经运行的事实。每次实施停点都必须更新本文档的进度、发现、决定、证据和下一步。
 
 ## Purpose / Big Picture
 
-Symphony Workbench V1 要让个人开发者把一个合格 GitHub Issue 推进到可人工审查的交付物，并且能明确区分 Agent 说了什么、系统观察到什么、项目检查实际证明了什么、最后由谁决定。
+Symphoneer V1 要让个人开发者把一个合格 GitHub Issue 推进到可人工审查的交付物，并且能明确区分 Agent 说了什么、系统观察到什么、项目检查实际证明了什么、最后由谁决定。
 
 用户最终能观察到下列闭环：
 
@@ -21,7 +21,7 @@ GitHub Issue
   -> Symphony eligibility / dispatch / retry / reconciliation
   -> isolated workspace
   -> Codex App Server thread / turn / item
-  -> Workbench-independent project verification
+  -> Symphoneer-independent project verification
   -> GitHub review handoff
   -> human merge, continue, follow-up, or takeover
 ```
@@ -41,6 +41,7 @@ GitHub Issue
 - [x] 2026-08-01：确认 Symphony-first、Web-first、受控 MCP、JSONL 投影、fixture 和 Phoenix 顺序。
 - [x] 2026-08-01：将已确认决定回写到规范性设计、产品规格和引用文档。
 - [x] 2026-08-01：完成本 active ExecPlan 和规范性 Markdown 候选内容。
+- [x] 2026-08-02：将项目与仓库文档身份统一为 Symphoneer，保留 Symphony 外部契约和 `symphony:*` 标签。
 - Phase 0 Git 基线是条件式进度：只有包含本文的初始 `HEAD` 存在，且提交后文件类型、工作树和 remote 检查全部通过时，才视为 Completed / Observed；否则仍是 In progress。
 - [ ] 待用户审核后：明确授权进入代码阶段。
 - [ ] Phase 1：建立项目检查入口和最小 TypeScript workspace。
@@ -57,7 +58,7 @@ GitHub Issue
 ## Surprises & Discoveries
 
 - 2026-08-01 — 初始目录只有 22 个 Markdown 文件，没有 `.git`、应用代码、manifest、锁文件、CI 或非 Markdown 文件。初始文档检查观察到 56 个本地链接且无断链，六个分区无漏索引叶子。
-- 2026-08-01 — 固定 Symphony SPEC 的现有 Tracker 合同面向 Linear，GitHub Issues 是 Workbench 的显式扩展，不能冒充为从 SPEC 自动获得的能力。
+- 2026-08-01 — 固定 Symphony SPEC 的现有 Tracker 合同面向 Linear，GitHub Issues 是 Symphoneer 的显式扩展，不能冒充为从 SPEC 自动获得的能力。
 - 2026-08-01 — 文档结构、repository system of record 和定时检查已构成当前项目的开发基线。
 - 2026-08-01 — Apps SDK UI 组件和 MCP App 宿主桥接是不同契约；选择 OpenAI UI 组件不能单独证明 Codex MCP App UI 兼容。必须在本地 Codex 宿主中做真实 Smoke。
 - 2026-08-01 — Codex App Server 的具体 Schema 会演进，因此实现应由当前本地 CLI 生成 TypeScript 契约，而不是从调研文档手写字段。
@@ -73,13 +74,13 @@ GitHub Issue
 | 2026-08-01 | 产品主干是 Symphony-first 交付闭环 | 用一条可观察、可判定的 Task 交付路径验证价值 | User |
 | 2026-08-01 | TypeScript 实现 Symphony Core Conformance，固定 `f8e8b8a` SPEC | 与 Web / MCP 共享类型，同时保留稳定上游基线 | User |
 | 2026-08-01 | GitHub eligibility 为 `open` + `symphony:ready` + not `symphony:review` | 用原生状态和两个显式标签表达可调度与待审查 | User |
-| 2026-08-01 | Codex App Server 拥有 Thread / Turn / Item；Verification 由 Workbench 独立运行 | Agent 自述和 Turn 完成不能成为自证 oracle | User |
+| 2026-08-01 | Codex App Server 拥有 Thread / Turn / Item；Verification 由 Symphoneer 独立运行 | Agent 自述和 Turn 完成不能成为自证 oracle | User |
 | 2026-08-01 | V1 默认 `Task → Attempt → 一个活跃 Agent Session`；同一 Task 多 Thread 的 `AgentRun` 聚合后置 | 先验证跨 Task 并行和单 Task 可恢复闭环，不把未定义的并发写入带进核心 | User |
 | 2026-08-01 | Human Review 拥有最终验收、Merge、Close 和接管权 | 自动化不替代人的交付决定 | User |
 | 2026-08-01 | Web-first 本地服务，MCP 支持查询与受控操作，Electron 后置 | 先建一个业务入口和一套 UI，再按需增加宿主 | User |
 | 2026-08-01 | MCP 不提供 Commit、Merge 或权限扩大 | 控制面不越过 Git、GitHub 和人的权威 | User |
-| 2026-08-01 | JSONL + immutable artifacts 作为 Workbench 历史投影 | V1 需要可重放证据，但无需引入数据库 | User |
-| 2026-08-01 | 私有 `icho648/symphony-workbench-fixture` 只在真实 Smoke 阶段创建 | 用独立、可控的仓库测试外部写操作，不污染主项目 | User |
+| 2026-08-01 | JSONL + immutable artifacts 作为 Symphoneer 历史投影 | V1 需要可重放证据，但无需引入数据库 | User |
+| 2026-08-01 | 私有 `icho648/symphoneer-fixture` 只在真实 Smoke 阶段创建 | 用独立、可控的仓库测试外部写操作，不污染主项目 | User |
 | 2026-08-01 | Phoenix 在核心闭环后接入且非阻塞 | 观测不应成为业务正确性依赖 | User |
 | 2026-08-01 | 初始提交仅包含 Markdown，不配 remote | 先建立可审核的文档系统记录，不偷跑实施 | User |
 
@@ -94,7 +95,7 @@ GitHub Issue
 - 真实 fixture 上的 Issue 能被正确筛选、调度、执行、独立验证并交给人审查。
 - Web 和 Codex MCP App UI 能读取同一投影，受控操作的幂等、版本与确认边界已被验证。
 - 进程重启、重试、超时、事件损坏和 Tracker 冲突有可演练恢复路径。
-- Phoenix 关闭或发送失败不阻塞核心闭环，且启用时可由 Workbench ID 追溯 Trace。
+- Phoenix 关闭或发送失败不阻塞核心闭环，且启用时可由 Symphoneer ID 追溯 Trace。
 - 文档、检查和真实 Smoke 证据一致，用户完成人工验收。
 
 完成时在本节记录：实际结果、未完成或删除的范围、与原计划的差异、量化证据、人工决定和可复用经验。目前除文档基线外的结果均为 `Not verified`。
@@ -113,9 +114,9 @@ GitHub Issue
 | Workspace | 与 Task / Attempt 关联的隔离工作目录和分支 |
 | Worktree | Workspace 的 Git checkout 实现；Thread 使用其路径，但不拥有其生命周期 |
 | Codex Run | App Server Thread / Turn / Item 及工具事件；V1 默认一个 Attempt 一个活跃 Agent Session |
-| Verification | Workbench 在 Agent 执行后独立运行项目检查得到的结果与 artifact |
+| Verification | Symphoneer 在 Agent 执行后独立运行项目检查得到的结果与 artifact |
 | ReviewDecision | 人基于变更和证据作出的 Merge、继续、Follow-up 或接管决定 |
-| Historical Projection | 由 append-only JSONL 重放得到的 Workbench 查询状态，不是外部系统的原生真相 |
+| Historical Projection | 由 append-only JSONL 重放得到的 Symphoneer 查询状态，不是外部系统的原生真相 |
 | Artifact | 与稳定 ID 关联的不可变输出，例如验证日志、事件片段或差异引用 |
 | Intervention | 需要 Host / 人回答或批准后才能继续的显式停点 |
 
@@ -128,9 +129,9 @@ GitHub Issue
 | Thread、Turn、Item、Agent 运行事件 | Codex App Server |
 | Diff、Commit、Branch | Git |
 | PR、Checks、Review、Merge | GitHub 原生对象与人 |
-| 项目检查结果 | Workbench 独立运行产生的 artifact |
+| 项目检查结果 | Symphoneer 独立运行产生的 artifact |
 | 最终交付决定 | Human Review |
-| 历史查询与 UI 状态 | Workbench JSONL projection |
+| 历史查询与 UI 状态 | Symphoneer JSONL projection |
 | Trace / Span / Evaluation | Phoenix 诊断副本 |
 | Web、MCP、后续 Electron | 访问面，不是事实源 |
 
@@ -139,7 +140,7 @@ GitHub Issue
 ```text
 packages/contracts/       Web、MCP、Runtime 共享的类型和边界验证
 packages/symphony-core/   与固定 SPEC 对齐的调度、工作区与 runner 核心
-apps/workbench/           CLI、本地服务、JSONL 投影、Web 和 MCP
+apps/symphoneer/           CLI、本地服务、JSONL 投影、Web 和 MCP
 ```
 
 如果一个 workspace 就能清晰维护上述依赖方向，不再拆包。Electron 不在该结构中，因为它不属于 V1 验收。
@@ -158,7 +159,7 @@ apps/workbench/           CLI、本地服务、JSONL 投影、Web 和 MCP
 
 ### Phase 2 — 共享契约与 Symphony Core Conformance
 
-在 `packages/contracts` 定义 Task、Attempt、Workspace、CodexEvent、Verification、ReviewDecision、Intervention 和 WorkbenchEvent 的最小边界 Schema。只有跨进程、文件或网络边界的数据使用运行时验证；纯内部状态不重复建模。
+在 `packages/contracts` 定义 Task、Attempt、Workspace、CodexEvent、Verification、ReviewDecision、Intervention 和 SymphoneerEvent 的最小边界 Schema。只有跨进程、文件或网络边界的数据使用运行时验证；纯内部状态不重复建模。
 
 在 `packages/symphony-core` 按固定 SPEC 依次实现 `WORKFLOW.md` 加载与校验、资格判定、调度与并发所有权、Workspace 生命周期、Runner 结果、Retry / backoff 和 reconciliation。首先使用内存 fake tracker / runner 完成确定性测试，不等到 GitHub 才验证核心状态机。
 
@@ -166,13 +167,13 @@ apps/workbench/           CLI、本地服务、JSONL 投影、Web 和 MCP
 
 实现唯一个 GitHub Issues adapter，保留原生 ID 和深链，并对 `open` + `symphony:ready` + not `symphony:review` 做可独立测试的筛选。访问令牌只来自进程环境或本地认证工具，不写入配置、日志、JSONL 或 Phoenix。
 
-先运行 App Server 契约生成命令的 `--help`，再用当前 CLI 生成 TypeScript Schema 并记录 Codex 版本。实现初始化、Thread / Turn 执行、事件观察、超时、取消、审批与中断表达。不在 Runner 中伪造 Verification；Turn 结束后由 Workbench 独立运行 `workbench.verification` 指定的命令。
+先运行 App Server 契约生成命令的 `--help`，再用当前 CLI 生成 TypeScript Schema 并记录 Codex 版本。实现初始化、Thread / Turn 执行、事件观察、超时、取消、审批与中断表达。不在 Runner 中伪造 Verification；Turn 结束后由 Symphoneer 独立运行 `symphoneer.verification` 指定的命令。
 
 本阶段先用本地 fake 仓库和可控失败测试闭环，不创建 GitHub fixture。
 
 ### Phase 4 — JSONL 投影、本地服务与 Web Dashboard
 
-在 `apps/workbench` 建立 append-only JSONL event store 和 immutable artifact store。事件带有稳定 ID、Schema 版本、来源、时间和相关 ID；投影必须可从空目录重放。损坏或不支持的记录不得被静默跳过。
+在 `apps/symphoneer` 建立 append-only JSONL event store 和 immutable artifact store。事件带有稳定 ID、Schema 版本、来源、时间和相关 ID；投影必须可从空目录重放。损坏或不支持的记录不得被静默跳过。
 
 本地 HTTP 服务提供查询、受控操作和 SSE 事件流。先用 Node 原生 HTTP / URL / stream 能力；只在路由、校验或中间件复杂度实际超过它时才引入 Web 框架。Web Dashboard 用 React、Vite、Tailwind 和 `@openai/apps-sdk-ui` 实现 Task Board、Attempt Inspector、Intervention 和 Handoff 四个最小视图，保留键盘、焦点、对比度和语义标记等无障碍基线。
 
@@ -188,19 +189,19 @@ apps/workbench/           CLI、本地服务、JSONL 投影、Web 和 MCP
 
 ### Phase 6 — 私有 fixture 真实 E2E Smoke
 
-在进入本阶段时再确认当前 GitHub 账号和目标名称不冲突，然后创建 `icho648/symphony-workbench-fixture` 私有仓库。fixture 只包含一个最小 TypeScript 应用、一条 `pnpm check`、一份 `WORKFLOW.md` 和所需标签。
+在进入本阶段时再确认当前 GitHub 账号和目标名称不冲突，然后创建 `icho648/symphoneer-fixture` 私有仓库。fixture 只包含一个最小 TypeScript 应用、一条 `pnpm check`、一份 `WORKFLOW.md` 和所需标签。
 
-创建一个小型功能 Issue，让它经过资格门禁、Attempt、Workspace、Codex、PR、独立 Verification、`symphony:review` 写回和人工 Review。人手工 Merge / Close，然后验证 Workbench 对账到终态并清理本地 Workspace。不删除 fixture 仓库，使它保留为可重现测试资产。
+创建一个小型功能 Issue，让它经过资格门禁、Attempt、Workspace、Codex、PR、独立 Verification、`symphony:review` 写回和人工 Review。人手工 Merge / Close，然后验证 Symphoneer 对账到终态并清理本地 Workspace。不删除 fixture 仓库，使它保留为可重现测试资产。
 
 ### Phase 7 — Phoenix 非阻塞观测
 
-只在 Phase 6 核心 Smoke 通过后安装 Phoenix / OpenTelemetry 相关客户端。Phoenix 作为外部可选 sidecar，Workbench 不内嵌或复制 Phoenix UI。Attempt 是根 span，Turn 和 Verification 是子 span，工具调用使用 tool span；所有 span 保留 Workbench Task / Attempt / Turn / Verification ID。
+只在 Phase 6 核心 Smoke 通过后安装 Phoenix / OpenTelemetry 相关客户端。Phoenix 作为外部可选 sidecar，Symphoneer 不内嵌或复制 Phoenix UI。Attempt 是根 span，Turn 和 Verification 是子 span，工具调用使用 tool span；所有 span 保留 Symphoneer Task / Attempt / Turn / Verification ID。
 
 对 prompt、输出、工具参数和日志做默认脱敏；不发送 Token、私有代码、原始 Issue 秘密、完整命令输出或未审查的工具 payload。无 endpoint、超时、网络失败或 exporter 异常都只记录受控诊断，不改变业务状态。
 
 ## Concrete Steps
 
-所有命令默认在 `/Users/icho/求职/projects/symphony-workbench` 执行。未到达的阶段命令只是计划，状态为 `Not verified`；执行者必须在当时的 `Progress` 和 `Artifacts and Notes` 记录实际命令、版本和输出。
+所有命令默认在 `/Users/icho/求职/projects/symphoneer` 执行。未到达的阶段命令只是计划，状态为 `Not verified`；执行者必须在当时的 `Progress` 和 `Artifacts and Notes` 记录实际命令、版本和输出。
 
 ### Phase 0 命令
 
@@ -280,7 +281,7 @@ expected = [
   "Artifacts and Notes",
   "Interfaces and Dependencies"
 ]
-actual = File.readlines("docs/exec-plans/active/symphony-workbench-v1.md").map do |line|
+actual = File.readlines("docs/exec-plans/active/symphoneer-v1.md").map do |line|
   line[/\A## (.+?)\s*\z/, 1]
 end.compact
 abort("ExecPlan H2 mismatch: #{actual.inspect}") unless actual == expected
@@ -310,7 +311,7 @@ git init -b main
 git add -- '*.md'
 git diff --cached --name-only
 git diff --cached --name-only -z | ruby -e 'paths = STDIN.read.split("\0"); bad = paths.reject { |path| path.end_with?(".md") }; puts bad; exit(bad.empty? ? 0 : 1)'
-git commit -m 'docs: establish symphony workbench development plan'
+git commit -m 'docs: establish symphoneer development plan'
 git branch --show-current
 git diff-tree --root --no-commit-id --name-only -r -z HEAD | ruby -e 'paths = STDIN.read.split("\0"); bad = paths.reject { |path| path.end_with?(".md") }; puts bad; exit(bad.empty? ? 0 : 1)'
 git status --short
@@ -357,10 +358,10 @@ pnpm test
 
 ```sh
 gh auth status
-gh repo view icho648/symphony-workbench-fixture
-gh repo create icho648/symphony-workbench-fixture --private
-gh label create 'symphony:ready' --repo icho648/symphony-workbench-fixture
-gh label create 'symphony:review' --repo icho648/symphony-workbench-fixture
+gh repo view icho648/symphoneer-fixture
+gh repo create icho648/symphoneer-fixture --private
+gh label create 'symphony:ready' --repo icho648/symphoneer-fixture
+gh label create 'symphony:review' --repo icho648/symphoneer-fixture
 ```
 
 `gh repo view` 预期在首次创建前报告仓库不存在；如果已存在，停止创建并先核对所有权和内容。创建后用非交互命令推送最小 fixture，再用 `gh issue create` 创建一个边界清晰的 Issue 并加 `symphony:ready`。不在命令行、日志或计划中打印 Token。
@@ -423,10 +424,10 @@ gh label create 'symphony:review' --repo icho648/symphony-workbench-fixture
 - [`../../design-docs/index.md`](../../design-docs/index.md)、[`../../product-specs/index.md`](../../product-specs/index.md) 和 [`../../references/index.md`](../../references/index.md) 中的 `Accepted` / `Not verified` 状态。
 - 初始提交的 `git show --name-only HEAD`、`git status --short` 和无 remote 检查。
 
-代码阶段的默认本地数据根目录计划为 `.workbench/`，在第一个实现提交中加入 `.gitignore`，不在当前文档提交中创建。最小布局为：
+代码阶段的默认本地数据根目录计划为 `.symphoneer/`，在第一个实现提交中加入 `.gitignore`，不在当前文档提交中创建。最小布局为：
 
 ```text
-.workbench/
+.symphoneer/
   events.jsonl
   artifacts/
     <attempt-id>/
@@ -442,13 +443,13 @@ JSONL 事件只包含查询和重放必需的结构化字段；大输出使用�
 
 ### Repository-owned workflow contract
 
-`WORKFLOW.md` 在 Phase 1 创建时是目标仓库拥有的运行契约。下列形状是已决定的 Workbench 扩展方向，不是已运行配置；具体字段必须经固定 SPEC、Schema 和测试确认。
+`WORKFLOW.md` 在 Phase 1 创建时是目标仓库拥有的运行契约。下列形状是已决定的 Symphoneer 扩展方向，不是已运行配置；具体字段必须经固定 SPEC、Schema 和测试确认。
 
 ```yaml
 tracker:
   kind: github
   provider:
-    repo: icho648/symphony-workbench-fixture
+    repo: icho648/symphoneer-fixture
     token: $GITHUB_TOKEN
   active_states: [open]
   terminal_states: [closed]
@@ -462,7 +463,7 @@ codex:
   approval_policy: on-request
   turn_timeout_ms: 3600000
   stall_timeout_ms: 300000
-workbench:
+symphoneer:
   eligibility:
     required_labels: [symphony:ready]
     excluded_labels: [symphony:review]
@@ -473,11 +474,11 @@ workbench:
       timeout_ms: 120000
 ```
 
-Prompt 和交接策略继续由 repository-owned `WORKFLOW.md` 表达。当 Verification 通过并准备交接时，工作流使用受限的 GitHub 原生工具添加 `symphony:review`；Workbench 必须重新读取 Tracker 后才进入等待人工审查状态。
+Prompt 和交接策略继续由 repository-owned `WORKFLOW.md` 表达。当 Verification 通过并准备交接时，工作流使用受限的 GitHub 原生工具添加 `symphony:review`；Symphoneer 必须重新读取 Tracker 后才进入等待人工审查状态。
 
 ### Shared contracts
 
-`packages/contracts` 只导出下列跨边界契约：Task summary、eligibility result、Attempt snapshot、Workspace reference、Codex event envelope、Verification result、Review decision、Intervention、Workbench event envelope、projection version 和 API error。每个契约使用稳定 ID、显式 Schema 版本和来源；内部不跨边界的状态不为了“共享”再造一层 DTO。
+`packages/contracts` 只导出下列跨边界契约：Task summary、eligibility result、Attempt snapshot、Workspace reference、Codex event envelope、Verification result、Review decision、Intervention、Symphoneer event envelope、projection version 和 API error。每个契约使用稳定 ID、显式 Schema 版本和来源；内部不跨边界的状态不为了“共享”再造一层 DTO。
 
 ### Local HTTP and SSE surface
 

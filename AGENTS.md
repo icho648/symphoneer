@@ -1,4 +1,4 @@
-# Symphony Workbench — Agent Map
+# Symphoneer — Agent Map
 
 这是本项目的 Agent 导航文件，不是完整设计说明。按当前任务选择一个入口，只读取对应索引和必要叶子文档；不要递归加载整个 `docs/`。
 
