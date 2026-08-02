@@ -2,13 +2,13 @@
 
 > Decision status: Accepted  
 > Implementation evidence: Not verified  
-> 产品名：**Symphony Workbench**
+> 产品名：**Symphoneer**
 
 ## 一句话定位
 
-Symphony Workbench 是一个本地优先的 Coding Agent 交付工作台：以 Tracker Task 为入口，以 OpenAI Symphony 为调度与协调核心，以 Codex App Server 为首版 Agent Runtime，把合格任务推进到独立验证和人工决定。
+Symphoneer 是一个本地优先的 Coding Agent 交付工作台：以 Tracker Task 为入口，以 OpenAI Symphony 为调度与协调核心，以 Codex App Server 为首版 Agent Runtime，把合格任务推进到独立验证和人工决定。
 
-这是非官方项目，不使用 `OpenAI Symphony Workbench` 名称，也不暗示 OpenAI 认可或维护本项目。
+这是非官方项目，不以 OpenAI 官方项目或品牌名义发布，也不暗示 OpenAI 认可或维护本项目。
 
 ## 用户和问题
 
@@ -37,10 +37,10 @@ GitHub Issue
 | 对象 | 作用 | 权威来源 |
 |---|---|---|
 | Task | 持久的任务意图和原生状态 | GitHub Issue |
-| Attempt | 针对一个 Task 的一次执行尝试；承载重试、Workspace、运行引用和结果 | Symphony Runtime；Workbench 保存历史投影 |
+| Attempt | 针对一个 Task 的一次执行尝试；承载重试、Workspace、运行引用和结果 | Symphony Runtime；Symphoneer 保存历史投影 |
 | Workspace | 实际工作目录、仓库、分支、宿主机和所有权；通常由 Git worktree 实现 | Symphony Runtime |
 | Thread / Turn / Item | Agent 的上下文、工作轮次和运行事件 | Codex App Server |
-| Verification | 项目原生检查的独立结果和 artifact | Workbench |
+| Verification | 项目原生检查的独立结果和 artifact | Symphoneer |
 | ReviewDecision | Merge、继续、Follow-up、接管或 Close 的最终决定 | 人 |
 
 `Thread` 使用 Workspace 的路径工作，但不拥有 Workspace 生命周期；`Attempt` 不是普通 Session 状态，而是把 Task、执行现场、运行上下文和证据绑定起来的执行对象。详细权威边界见 [`system-boundaries.md`](system-boundaries.md)。
@@ -50,22 +50,22 @@ GitHub Issue
 ```text
 GitHub Issues  →  Symphony Runtime  →  Codex App Server
        ↑                 ↓                    ↓
-       └── 原生任务事实   Workbench 投影/控制   Thread/Turn/Item 事件
+       └── 原生任务事实   Symphoneer 投影/控制   Thread/Turn/Item 事件
 ```
 
 - **GitHub Issues：** V1 Tracker，保存任务意图、原生状态、标签、协作记录和 PR/Review 关联。
 - **Symphony Runtime：** 负责资格判断、派发、并发、重试、对账和 Workspace 生命周期。
 - **Codex App Server：** 负责 Thread、Turn、工具调用和 Agent 运行事件。
-- **Workbench：** 提供 Task 看板、Attempt/Workspace/Verification 投影、受控操作和人工交接。
+- **Symphoneer：** 提供 Task 看板、Attempt/Workspace/Verification 投影、受控操作和人工交接。
 - **Codex App：** 承接需要完整 Chat、Terminal、Diff 或持续人工引导的工作。
 
-Workbench 可以缓存或投影 Tracker 数据，但 Tracker 冲突时以原生状态为准；Attempt、Workspace、Verification 和运行证据留在执行域，不把完整运行日志塞回 Issue。
+Symphoneer 可以缓存或投影 Tracker 数据，但 Tracker 冲突时以原生状态为准；Attempt、Workspace、Verification 和运行证据留在执行域，不把完整运行日志塞回 Issue。
 
 ## GitHub 原生能力的采用边界
 
 - **Issue / Sub-issue / Dependency：** 表达任务和真正独立的交付物；不是 Thread 日志。
 - **Labels：** 用于分类、风险和粗粒度调度门禁。V1 使用 `symphony:ready` 和 `symphony:review`，不为每个 Thread 建状态标签。
-- **Projects：** 提供计划、聚合状态和筛选视图；Thread、Workspace 和 Verification 细节仍在 Workbench。
+- **Projects：** 提供计划、聚合状态和筛选视图；Thread、Workspace 和 Verification 细节仍在 Symphoneer。
 - **Milestones：** 表示版本或交付目标，不表示 Session、Attempt 或 Agent 数量。
 
 ## Intent 拆解和多 Thread（后续扩展）
@@ -91,7 +91,7 @@ Intent
 
 ## 人工接管
 
-Workbench 只能在当前 Turn 结束后暂停自动重试，并关联持久化 `threadId`；人工在 Codex App 中完成修改后，必须明确执行 `Return to Automation`。Symphony 和 Codex App 不得同时控制同一个活跃 Turn。深链、暂停、恢复和交还在 Smoke 前均为 `Not verified`。
+Symphoneer 只能在当前 Turn 结束后暂停自动重试，并关联持久化 `threadId`；人工在 Codex App 中完成修改后，必须明确执行 `Return to Automation`。Symphony 和 Codex App 不得同时控制同一个活跃 Turn。深链、暂停、恢复和交还在 Smoke 前均为 `Not verified`。
 
 ## 访问面和扩展
 

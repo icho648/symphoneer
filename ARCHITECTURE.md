@@ -19,7 +19,7 @@ docs/
   research/                  带日期的调研输入
   exec-plans/                复杂任务的活计划和完成记录
     active/
-      symphony-workbench-v1.md  已确认的 V1 开发与验收计划
+      symphoneer-v1.md  已确认的 V1 开发与验收计划
 ```
 
 当前没有应用代码、包管理器、数据库、测试、CI、部署配置或生成流水线，因此也没有可以记录的代码模块、依赖方向或运行时 Codemap。
@@ -34,6 +34,6 @@ docs/
 
 ## 目标系统设计
 
-计划中的产品边界见 [`docs/design-docs/product-boundary.md`](docs/design-docs/product-boundary.md)，已确认的对象与职责见 [`docs/design-docs/system-boundaries.md`](docs/design-docs/system-boundaries.md)，实施顺序见 [`docs/exec-plans/active/symphony-workbench-v1.md`](docs/exec-plans/active/symphony-workbench-v1.md)。这些文件描述已接受的设计和未执行的计划，不代表已经存在相应模块或真实集成。
+计划中的产品边界见 [`docs/design-docs/product-boundary.md`](docs/design-docs/product-boundary.md)，已确认的对象与职责见 [`docs/design-docs/system-boundaries.md`](docs/design-docs/system-boundaries.md)，实施顺序见 [`docs/exec-plans/active/symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)。这些文件描述已接受的设计和未执行的计划，不代表已经存在相应模块或真实集成。
 
 代码出现后，本文件应改为真实 Codemap：列出稳定模块、关键入口、允许的依赖方向、跨系统边界和横切关注点，并删除已经失效的 docs-only 描述。
