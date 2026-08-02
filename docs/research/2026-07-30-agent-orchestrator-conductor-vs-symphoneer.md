@@ -1,8 +1,8 @@
-# Agent Orchestrator、Conductor 与 Symphony Workbench
+# Agent Orchestrator、Conductor 与 Symphoneer
 
 核实日期：2026-07-30
 
-> **Decision（2026-08-01）：** 本文的产品对比仍作为输入；将 Workbench 定位为
+> **Decision（2026-08-01）：** 本文的产品对比仍作为输入；将 Symphoneer 定位为
 > Evidence/Harness Sidecar 的旧建议已经被取代。当前产品以 Symphony Runtime 为
 > 核心，Evidence 与 Harness 是增强能力。以
 > [`product-boundary.md`](../design-docs/product-boundary.md) 为准。
@@ -16,12 +16,12 @@
 - 闭源 Conductor：[`conductor.build`](https://www.conductor.build/) 的 macOS
   Coding Agent 桌面产品，并提供 Beta Cloud API。
 - 当前方案：本地
-  [`Symphony Workbench`](../design-docs/product-boundary.md)
+  [`Symphoneer`](../design-docs/product-boundary.md)
   规划文档；尚未实现，所有真实集成仍为 `Not verified`。
 
 ## 核心判断
 
-当前 Workbench 的基础主干与两者高度重叠：
+当前 Symphoneer 的基础主干与两者高度重叠：
 
 ```text
 任务/Issue
@@ -33,16 +33,16 @@
 ```
 
 因此，多 Agent、worktree、任务看板、实时终端、重试、PR/CI/Review 集成不能作为
-Workbench 的主要差异。
+Symphoneer 的主要差异。
 
-Workbench 仍有独立空间，但必须收窄到：
+Symphoneer 仍有独立空间，但必须收窄到：
 
 > 将一次交付的 Task、Run、独立验证证据、人工决定和当时生效的 repo-local Harness
 > 修订关联起来，并把重复失败转成可审核的 Harness Finding。
 
 ## 对比
 
-| 维度 | Agent Orchestrator | Conductor | 当前 Workbench 方案 |
+| 维度 | Agent Orchestrator | Conductor | 当前 Symphoneer 方案 |
 |---|---|---|---|
 | 产品形态 | 开源、跨平台 Agent IDE + 本地 daemon | 闭源 macOS App + Cloud API | 计划中的本地研究/求职 Demo |
 | 核心模型 | Project → Issue/Prompt → Session → Worktree → PR | Project → Workspace/Branch → Chat → Review | Task → Run → Verification → Human Review → Finding |
@@ -95,7 +95,7 @@ Workbench 仍有独立空间，但必须收窄到：
 - [Checks](https://www.conductor.build/docs/reference/checks)
 - [Conductor API](https://www.conductor.build/docs/api)
 
-## 当前 Workbench 不能再主打什么
+## 当前 Symphoneer 不能再主打什么
 
 - “一个页面管理多个 Agent”；
 - “每个 Agent 一个 Worktree”；
@@ -125,7 +125,7 @@ Workbench 仍有独立空间，但必须收窄到：
 如果目标是学习完整 Agent 工程链路，可以保留一个最小
 GitHub Issues + Codex App Server Conductor，但应把它视为内部基础设施。
 
-如果目标是形成独立产品差异，应考虑把 Workbench 做成 AO、Conductor 或 Symphony
+如果目标是形成独立产品差异，应考虑把 Symphoneer 做成 AO、Conductor 或 Symphony
 运行结果之上的 Evidence/Harness Sidecar，而不是重做完整 Agent IDE。
 
 V1 只需证明一个故事：

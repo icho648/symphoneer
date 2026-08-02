@@ -1,4 +1,4 @@
-# Symphony Workbench
+# Symphoneer
 
 > 一个计划中的、以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台与求职 Demo。
 
@@ -18,7 +18,7 @@
 | 第一条人工交付流程 | Accepted | Not verified | [`manual-delivery-flow.md`](docs/product-specs/manual-delivery-flow.md) |
 | Symphony、Codex、GitHub 的采用方向 | Accepted | Not verified | [`references/`](docs/references/) |
 
-决定已固化为规范性文档，实施顺序、验收和恢复要求见 [`symphony-workbench-v1.md`](docs/exec-plans/active/symphony-workbench-v1.md)。它是计划，不是已实现证据。
+决定已固化为规范性文档，实施顺序、验收和恢复要求见 [`symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)。它是计划，不是已实现证据。
 
 ## 从哪里开始
 
@@ -29,7 +29,7 @@
 - 外部契约：[`docs/references/index.md`](docs/references/index.md)
 - 调研快照：[`docs/research/index.md`](docs/research/index.md)
 - ExecPlan 规则：[`docs/PLANS.md`](docs/PLANS.md)
-- 当前开发计划：[`docs/exec-plans/active/symphony-workbench-v1.md`](docs/exec-plans/active/symphony-workbench-v1.md)
+- 当前开发计划：[`docs/exec-plans/active/symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)
 
 ## 已确认边界
 
@@ -37,7 +37,7 @@
 
 - 产品围绕 Tracker Task 的交付推进和人工掌控，而不是 Agent 数量组织。
 - Symphony Runtime 是计划中的运行核心，Codex App Server 是首版 Agent Runtime。
-- GitHub Issues 是 V1 Tracker；Workbench 不替代 Tracker、Pull Request、Code Review 或 Codex App。
+- GitHub Issues 是 V1 Tracker；Symphoneer 不替代 Tracker、Pull Request、Code Review 或 Codex App。
 - V1 以本地服务和 Web Dashboard 为主操作面，MCP 提供查询和受控操作；Electron 后置。
 - Phoenix 只在 Symphony 交付闭环完成后作为非阻塞诊断扩展。
 - 先形成一条可观察、可判定的人工基线，再决定自动化范围。

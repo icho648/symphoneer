@@ -13,7 +13,7 @@
 
 - Issue 原生状态为 `open`，包含 `symphony:ready`，不包含 `symphony:review`。
 - Issue 说明任务意图和可观察成功条件。
-- `WORKFLOW.md` 通过 `workbench.verification` 指定项目原生检查；缺少检查时保持 `Not verified`。
+- `WORKFLOW.md` 通过 `symphoneer.verification` 指定项目原生检查；缺少检查时保持 `Not verified`。
 - 用户拥有仓库、PR 和最终 Merge 权限。
 
 ## 用户流程
@@ -23,7 +23,7 @@
 3. **开始 Attempt**：创建一次执行尝试，关联 Task、Workspace 和 Codex `threadId`。
 4. **观察执行**：区分 Runtime Event、Agent Statement、命令输出和外部系统状态。
 5. **独立验证**：Turn 结束后运行项目检查，保存命令、退出状态、精确版本和 artifact 引用。
-6. **进入 Review**：证据完整且 Tracker 允许时写入 `symphony:review`，再由 Workbench 投影为等待人工审查。
+6. **进入 Review**：证据完整且 Tracker 允许时写入 `symphony:review`，再由 Symphoneer 投影为等待人工审查。
 7. **人工决定**：选择 Merge / Close、继续或重试、创建 Follow-up，或转入 Codex App 接管。
 8. **结束或交接**：记录决定、责任人和下一动作；Tracker 仍保存 Issue、PR、Review、Merge 和 Close 的原生状态。
 

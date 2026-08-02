@@ -16,7 +16,7 @@ Tracker Task / GitHub Issue
       └── ReviewDecision：人工决定
 ```
 
-| 对象 | 权威来源 | Workbench 责任 |
+| 对象 | 权威来源 | Symphoneer 责任 |
 |---|---|---|
 | Task | GitHub Issue 的身份、意图、状态、标签和协作记录 | 按原生 ID 投影、筛选和对账，不创建第二套 Task 真相 |
 | Attempt | Symphony 的一次执行生命周期 | 分配稳定 ID，保存开始原因、状态、来源和历史转换 |
@@ -27,7 +27,7 @@ Tracker Task / GitHub Issue
 | ReviewDecision | 人 | 记录决定、依据、责任人和下一动作 |
 | PR / Checks / Review / Merge state | GitHub 原生对象；Merge / Close 的最终决定由人持有 | 重新读取原生状态，保存关联和冲突，不从历史投影重建 |
 | Trace / Evaluation | Phoenix 等诊断系统 | 只保存关联 ID；不可用时不阻塞核心流程 |
-| Historical Projection | Workbench append-only JSONL 和 immutable artifact | 支持重放、查询和 UI，不覆盖原生事实 |
+| Historical Projection | Symphoneer append-only JSONL 和 immutable artifact | 支持重放、查询和 UI，不覆盖原生事实 |
 
 ## 当前 V1 的执行粒度
 
