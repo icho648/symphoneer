@@ -31,6 +31,17 @@
 - ExecPlan 规则：[`docs/PLANS.md`](docs/PLANS.md)
 - 当前开发计划：[`docs/exec-plans/active/symphony-workbench-v1.md`](docs/exec-plans/active/symphony-workbench-v1.md)
 
+## 文档开发环境
+
+本阶段没有应用进程。本地或 Cloud Agent 可运行的入口只有：
+
+```sh
+./scripts/docs-check.sh      # Phase 0 文档校验
+./scripts/docs-preview.sh    # Markdown 预览，默认 http://127.0.0.1:4173/
+```
+
+Cloud Agent 安装与预览终端定义见 [`.cursor/environment.json`](.cursor/environment.json)。通过文档校验不等于产品行为已验证。
+
 ## 已确认边界
 
 完整结论只维护在 [`product-boundary.md`](docs/design-docs/product-boundary.md)。这里仅保留最短摘要：

@@ -5,7 +5,7 @@
 > Implementation evidence: Documentation baseline observed; all application, GitHub, Codex, Web/MCP, Phoenix and scheduled-check behavior is Not verified
 > Owner: Repository owner with Codex as implementation agent  
 > Created: 2026-08-01  
-> Last updated: 2026-08-01  
+> Last updated: 2026-08-02
 > Symphony contract baseline: `f8e8b8a670c799f6e0ade7a8c25c4bf4a4a56ec7`
 
 本 ExecPlan 是自包含、可恢复、持续更新的开发规格。它固化实施顺序和验收方法，但不把计划中的命令、界面或外部系统写成已经运行的事实。每次实施停点都必须更新本文档的进度、发现、决定、证据和下一步。
@@ -42,6 +42,7 @@ GitHub Issue
 - [x] 2026-08-01：将已确认决定回写到规范性设计、产品规格和引用文档。
 - [x] 2026-08-01：完成本 active ExecPlan 和规范性 Markdown 候选内容。
 - Phase 0 Git 基线是条件式进度：只有包含本文的初始 `HEAD` 存在，且提交后文件类型、工作树和 remote 检查全部通过时，才视为 Completed / Observed；否则仍是 In progress。
+- [x] 2026-08-02：为 docs-only 阶段建立开发环境入口（`.cursor/environment.json`、`scripts/docs-check.sh`、`scripts/docs-preview.sh`），并跑通文档校验与本地预览服务。这不授权进入应用代码阶段。
 - [ ] 待用户审核后：明确授权进入代码阶段。
 - [ ] Phase 1：建立项目检查入口和最小 TypeScript workspace。
 - [ ] Phase 2：实现共享契约和 Symphony Core Conformance。
@@ -52,11 +53,12 @@ GitHub Issue
 - [ ] Phase 7：在核心闭环后接入非阻塞 Phoenix 观测。
 - [ ] Follow-up：只在远程仓库和 `pnpm check` 稳定后启用定时检查；只在 Web 需要桌面分发时评估 Electron。
 
-当前下一步只是用户审核本计划。在新的明确开发指令前，不执行 Phase 1。
+当前下一步仍是用户审核本计划并明确授权后才进入 Phase 1。2026-08-02 的环境搭建只覆盖文档校验与预览，不启动 TypeScript workspace。
 
 ## Surprises & Discoveries
 
 - 2026-08-01 — 初始目录只有 22 个 Markdown 文件，没有 `.git`、应用代码、manifest、锁文件、CI 或非 Markdown 文件。初始文档检查观察到 56 个本地链接且无断链，六个分区无漏索引叶子。
+- 2026-08-02 — Cloud Agent 默认镜像未预装 `ruby`，而 Phase 0 校验命令依赖 Ruby 标准库；环境 `install` 现会幂等安装 `ruby`，并用 `scripts/docs-check.sh` / `scripts/docs-preview.sh` 证明 docs-only 开发面可运行。
 - 2026-08-01 — 固定 Symphony SPEC 的现有 Tracker 合同面向 Linear，GitHub Issues 是 Workbench 的显式扩展，不能冒充为从 SPEC 自动获得的能力。
 - 2026-08-01 — 文档结构、repository system of record 和定时检查已构成当前项目的开发基线。
 - 2026-08-01 — Apps SDK UI 组件和 MCP App 宿主桥接是不同契约；选择 OpenAI UI 组件不能单独证明 Codex MCP App UI 兼容。必须在本地 Codex 宿主中做真实 Smoke。
@@ -437,6 +439,13 @@ gh label create 'symphony:review' --repo icho648/symphony-workbench-fixture
 JSONL 事件只包含查询和重放必需的结构化字段；大输出使用内容摘要和相对 artifact 引用。每个 artifact 记录创建时间、内容类型、字节数、摘要和产生者；不包含凭据或无界限的原始供应商 payload。
 
 每个阶段停点在本节追加最小证据摘要：提交或 Diff 引用、执行过的命令、退出状态、直接证据位置、未验证项和下一步。不粘贴无界限日志，也不用一个综合评分代替具体 AC 证据。
+
+### 2026-08-02 — docs-only development environment
+
+- Commands: `./scripts/docs-check.sh`; `./scripts/docs-preview.sh` then `curl -fsS http://127.0.0.1:4173/healthz` and `curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:4173/`
+- Expected / observed: docs-check exits 0 with `PASS: docs-only Phase 0 validation suite`; preview returns `ok` on `/healthz` and `200` on `/`
+- Artifacts: `/opt/cursor/artifacts/env-setup/`
+- Still Not verified: application runtime, `pnpm check`, Web / MCP, GitHub / Codex / Phoenix
 
 ## Interfaces and Dependencies
 

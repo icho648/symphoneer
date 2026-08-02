@@ -11,6 +11,12 @@
 AGENTS.md                    Agent 导航、范围和工作规则
 README.md                    人类入口与当前阶段
 ARCHITECTURE.md              当前物理结构和稳定文档边界
+.cursor/
+  environment.json           Cloud Agent 安装与 docs preview 终端
+.gitignore                   忽略本地 docs preview 生成物
+scripts/
+  docs-check.sh              Phase 0 文档校验入口
+  docs-preview.sh            Markdown 目录预览 HTTP 服务
 docs/
   PLANS.md                   ExecPlan 编写与维护契约
   design-docs/               产品和架构决定
@@ -22,7 +28,7 @@ docs/
       symphony-workbench-v1.md  已确认的 V1 开发与验收计划
 ```
 
-当前没有应用代码、包管理器、数据库、测试、CI、部署配置或生成流水线，因此也没有可以记录的代码模块、依赖方向或运行时 Codemap。
+当前没有应用产品代码、包管理器 workspace、数据库、测试套件、CI 或部署流水线，因此也没有产品运行时 Codemap。仓库只提供文档校验与 Markdown 预览作为开发环境可运行面；`pnpm check` / `pnpm dev` 仍属 Phase 1+ 计划项。
 
 ## 稳定边界
 

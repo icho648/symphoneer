@@ -1,0 +1,10 @@
+{
+  "install": "command -v ruby >/dev/null || (sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ruby); command -v rg >/dev/null; ruby -v; node -v; pnpm -v",
+  "terminals": [
+    {
+      "name": "docs-preview",
+      "command": "./scripts/docs-preview.sh",
+      "description": "Serve the Markdown docs tree preview on http://127.0.0.1:4173"
+    }
+  ]
+}
