@@ -3,10 +3,12 @@
 核验日期：2026-07-30  
 范围：OpenAI Harness Engineering、OpenAI Symphony、QoderAI Better Harness。
 
-> **Decision（2026-08-01）：** 本文保留为 Harness 与 Symphony 衔接的调研输入；
-> 当前产品核心已经确定为 Symphony Runtime，Harness Builder 收敛为主循环中的
-> 可选 Harness Workshop，而不是独立控制面。以
-> [`product-boundary.md`](../design-docs/product-boundary.md) 为准。
+> **Decision（2026-08-01，已取代）：** 本文只保留为 Harness 与 Symphony 衔接的历史
+> 调研输入。旧的“Harness Builder / 可选 Harness Workshop”产品增强形态已从当前
+> 设计中移除，不再建模为产品对象。以
+> [`product-boundary.md`](../design-docs/product-boundary.md) 与
+> [`index.md`](index.md) 为准；下文中的 Workshop / Builder 叙述均属历史方案，
+> 不代表现行范围。
 
 ## 结论
 

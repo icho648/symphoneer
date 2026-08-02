@@ -38,7 +38,6 @@
 - 产品围绕 Tracker Task 的交付推进和人工掌控，而不是 Agent 数量组织。
 - Symphony Runtime 是计划中的运行核心，Codex App Server 是首版 Agent Runtime。
 - GitHub Issues 是 V1 Tracker；Workbench 不替代 Tracker、Pull Request、Code Review 或 Codex App。
-- Harness 是本项目自身的开发基建，不是 Workbench 产品功能。
 - V1 以本地服务和 Web Dashboard 为主操作面，MCP 提供查询和受控操作；Electron 后置。
 - Phoenix 只在 Symphony 交付闭环完成后作为非阻塞诊断扩展。
 - 先形成一条可观察、可判定的人工基线，再决定自动化范围。

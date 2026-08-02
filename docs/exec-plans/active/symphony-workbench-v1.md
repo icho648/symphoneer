@@ -2,7 +2,7 @@
 
 > Plan status: Active  
 > Decision status: Accepted  
-> Implementation evidence: Documentation baseline observed; all application, GitHub, Codex, Web/MCP, Phoenix and scheduled-Harness behavior is Not verified  
+> Implementation evidence: Documentation baseline observed; all application, GitHub, Codex, Web/MCP, Phoenix and scheduled-check behavior is Not verified
 > Owner: Repository owner with Codex as implementation agent  
 > Created: 2026-08-01  
 > Last updated: 2026-08-01  
@@ -26,8 +26,6 @@ GitHub Issue
   -> human merge, continue, follow-up, or takeover
 ```
 
-V1 的产品主干是 Symphony-first 任务交付，不是 Harness 评估或管理产品。Harness 只是本项目的开发基建：仓库导航、规范性文档、项目检查、证据记录，以及在远程仓库和检查稳定后才启用的定时巡检。
-
 产品交付顺序是：
 
 1. TypeScript Symphony Core 与独立 Verification 形成可测闭环。
@@ -36,23 +34,23 @@ V1 的产品主干是 Symphony-first 任务交付，不是 Harness 评估或管�
 4. 专用私有 fixture 验证真实 GitHub / Codex 端到端流程。
 5. Phoenix 作为非阻塞诊断和评测扩展接入。
 
-本计划的非目标包括：Harness Workshop 或 Finding 产品化、通用 Provider 平台、数据库、消息队列、LangGraph、多租户、云托管、自动 Merge、复制 Phoenix UI，以及在 V1 核心验收前创建 Electron 宿主。
+本计划的非目标包括：通用 Provider 平台、数据库、消息队列、LangGraph、多租户、云托管、自动 Merge、复制 Phoenix UI，以及在 V1 核心验收前创建 Electron 宿主。
 
 ## Progress
 
-- [x] 2026-08-01：确认 Symphony-first、项目级 Harness、Web-first、受控 MCP、JSONL 投影、fixture 和 Phoenix 顺序。
+- [x] 2026-08-01：确认 Symphony-first、Web-first、受控 MCP、JSONL 投影、fixture 和 Phoenix 顺序。
 - [x] 2026-08-01：将已确认决定回写到规范性设计、产品规格和引用文档。
 - [x] 2026-08-01：完成本 active ExecPlan 和规范性 Markdown 候选内容。
 - Phase 0 Git 基线是条件式进度：只有包含本文的初始 `HEAD` 存在，且提交后文件类型、工作树和 remote 检查全部通过时，才视为 Completed / Observed；否则仍是 In progress。
 - [ ] 待用户审核后：明确授权进入代码阶段。
-- [ ] Phase 1：建立项目级 Harness 和最小 TypeScript workspace。
+- [ ] Phase 1：建立项目检查入口和最小 TypeScript workspace。
 - [ ] Phase 2：实现共享契约和 Symphony Core Conformance。
 - [ ] Phase 3：打通 GitHub Tracker、Workspace、Codex App Server 和独立 Verification。
 - [ ] Phase 4：实现 JSONL 历史投影、本地服务和 Web Dashboard。
 - [ ] Phase 5：实现受控 MCP 查询与操作。
 - [ ] Phase 6：创建私有 fixture 并完成真实 E2E Smoke。
 - [ ] Phase 7：在核心闭环后接入非阻塞 Phoenix 观测。
-- [ ] Follow-up：只在远程仓库和 `pnpm check` 稳定后启用 Harness 定时巡检；只在至少两个项目复用后评估 Skill；只在 Web 需要桌面分发时评估 Electron。
+- [ ] Follow-up：只在远程仓库和 `pnpm check` 稳定后启用定时检查；只在 Web 需要桌面分发时评估 Electron。
 
 当前下一步只是用户审核本计划。在新的明确开发指令前，不执行 Phase 1。
 
@@ -60,7 +58,7 @@ V1 的产品主干是 Symphony-first 任务交付，不是 Harness 评估或管�
 
 - 2026-08-01 — 初始目录只有 22 个 Markdown 文件，没有 `.git`、应用代码、manifest、锁文件、CI 或非 Markdown 文件。初始文档检查观察到 56 个本地链接且无断链，六个分区无漏索引叶子。
 - 2026-08-01 — 固定 Symphony SPEC 的现有 Tracker 合同面向 Linear，GitHub Issues 是 Workbench 的显式扩展，不能冒充为从 SPEC 自动获得的能力。
-- 2026-08-01 — 文档结构、repository system of record 和定时检查已能构成 Harness 雏形，但这不构成独立产品需求。对当前仓库最小的解法是先用这套基建完成产品。
+- 2026-08-01 — 文档结构、repository system of record 和定时检查已构成当前项目的开发基线。
 - 2026-08-01 — Apps SDK UI 组件和 MCP App 宿主桥接是不同契约；选择 OpenAI UI 组件不能单独证明 Codex MCP App UI 兼容。必须在本地 Codex 宿主中做真实 Smoke。
 - 2026-08-01 — Codex App Server 的具体 Schema 会演进，因此实现应由当前本地 CLI 生成 TypeScript 契约，而不是从调研文档手写字段。
 - 2026-08-01 — Phoenix 只能是可丢失的诊断副本。如果它变成 Task 或 Review 事实源，核心闭环就会被非必需外部服务阻塞。
@@ -73,14 +71,13 @@ V1 的产品主干是 Symphony-first 任务交付，不是 Harness 评估或管�
 | 日期 | 决定 | 理由 | 责任人 |
 |---|---|---|---|
 | 2026-08-01 | 产品主干是 Symphony-first 交付闭环 | 用一条可观察、可判定的 Task 交付路径验证价值 | User |
-| 2026-08-01 | Harness 是本项目开发基建，不是产品功能 | 文档、检查和定时巡检先解决本仓库问题，无需建设另一个管理产品 | User |
-| 2026-08-01 | 至少两个项目出现稳定重复需求前不提取 Harness Skill | 避免从单一样本过早泛化 | User |
 | 2026-08-01 | TypeScript 实现 Symphony Core Conformance，固定 `f8e8b8a` SPEC | 与 Web / MCP 共享类型，同时保留稳定上游基线 | User |
 | 2026-08-01 | GitHub eligibility 为 `open` + `symphony:ready` + not `symphony:review` | 用原生状态和两个显式标签表达可调度与待审查 | User |
 | 2026-08-01 | Codex App Server 拥有 Thread / Turn / Item；Verification 由 Workbench 独立运行 | Agent 自述和 Turn 完成不能成为自证 oracle | User |
+| 2026-08-01 | V1 默认 `Task → Attempt → 一个活跃 Agent Session`；同一 Task 多 Thread 的 `AgentRun` 聚合后置 | 先验证跨 Task 并行和单 Task 可恢复闭环，不把未定义的并发写入带进核心 | User |
 | 2026-08-01 | Human Review 拥有最终验收、Merge、Close 和接管权 | 自动化不替代人的交付决定 | User |
 | 2026-08-01 | Web-first 本地服务，MCP 支持查询与受控操作，Electron 后置 | 先建一个业务入口和一套 UI，再按需增加宿主 | User |
-| 2026-08-01 | MCP 不提供 Commit、Merge、权限扩大或 Harness 修改 | 控制面不越过 Git、GitHub 和人的权威 | User |
+| 2026-08-01 | MCP 不提供 Commit、Merge 或权限扩大 | 控制面不越过 Git、GitHub 和人的权威 | User |
 | 2026-08-01 | JSONL + immutable artifacts 作为 Workbench 历史投影 | V1 需要可重放证据，但无需引入数据库 | User |
 | 2026-08-01 | 私有 `icho648/symphony-workbench-fixture` 只在真实 Smoke 阶段创建 | 用独立、可控的仓库测试外部写操作，不污染主项目 | User |
 | 2026-08-01 | Phoenix 在核心闭环后接入且非阻塞 | 观测不应成为业务正确性依赖 | User |
@@ -114,7 +111,8 @@ V1 的产品主干是 Symphony-first 任务交付，不是 Harness 评估或管�
 | Eligibility | Issue 为 `open`、有 `symphony:ready`、无 `symphony:review` 的可调度判定 |
 | Attempt | Symphony 为某 Task 发起的一次可重试执行尝试 |
 | Workspace | 与 Task / Attempt 关联的隔离工作目录和分支 |
-| Codex Run | App Server Thread / Turn / Item 及工具事件的执行过程 |
+| Worktree | Workspace 的 Git checkout 实现；Thread 使用其路径，但不拥有其生命周期 |
+| Codex Run | App Server Thread / Turn / Item 及工具事件；V1 默认一个 Attempt 一个活跃 Agent Session |
 | Verification | Workbench 在 Agent 执行后独立运行项目检查得到的结果与 artifact |
 | ReviewDecision | 人基于变更和证据作出的 Merge、继续、Follow-up 或接管决定 |
 | Historical Projection | 由 append-only JSONL 重放得到的 Workbench 查询状态，不是外部系统的原生真相 |
@@ -152,7 +150,7 @@ apps/workbench/           CLI、本地服务、JSONL 投影、Web 和 MCP
 
 建立规范性决定、本 ExecPlan 和仅 Markdown 的初始提交。验证所有本地链接、分区索引、12 个必需章节、状态语义和提交文件类型。停在这个提交，等待用户审核。
 
-### Phase 1 — 项目级 Harness 与最小 TypeScript workspace
+### Phase 1 — 项目检查入口与最小 TypeScript workspace
 
 在新授权后创建首个实现提交：`package.json`、workspace 配置、`.gitignore`、TypeScript 配置和 `WORKFLOW.md`。只安装当前阶段使用的依赖。建立当前已有行为所需的 `pnpm check` 和 `pnpm test` 入口：`pnpm check` 串联格式/静态检查、类型检查、最小测试、Markdown 本地链接、索引覆盖、ExecPlan 章节和架构依赖方向。不为尚未存在的 Web / MCP 消费者创建占位脚本。
 
@@ -302,7 +300,7 @@ if rg -n 'Decision status: Proposed|## 尚未决定|实现方式未决定|V1 计
 find . -type f ! -path './.git/*' ! -name '*.md' -print
 ```
 
-人工通过条件：已确认的 design doc 和 product spec 是 `Accepted`；所有代码、GitHub、Codex、Web / MCP、Phoenix 和定时 Harness 行为是 `Not verified`；参考文档分开外部来源状态、项目采用决定和实施证据；计划中的未来命令没有写成已运行事实。第二个 `rg` 和 `find` 均应无输出并退出 0。
+人工通过条件：已确认的 design doc 和 product spec 是 `Accepted`；所有代码、GitHub、Codex、Web / MCP、Phoenix 和定时检查行为是 `Not verified`；参考文档分开外部来源状态、项目采用决定和实施证据；计划中的未来命令没有写成已运行事实。第二个 `rg` 和 `find` 均应无输出并退出 0。
 
 上述检查通过后才建立 Git 基线：
 
@@ -387,7 +385,7 @@ gh label create 'symphony:review' --repo icho648/symphony-workbench-fixture
 | AC-05 | Verification 证据包含命令、退出状态、必要输出、时间和对应版本 | artifact Schema 测试和 fixture 抽查 | Not verified |
 | AC-06 | JSONL 可从空投影重放，损坏记录有明确停止/恢复路径 | golden event replay、截断尾记录、未知 Schema 版本测试 | Not verified |
 | AC-07 | Web 和 MCP 展示同一投影，实时更新不创建第二套业务状态 | API contract 测试、SSE 断线重连、Web / MCP 对照 | Not verified |
-| AC-08 | MCP 变更操作有版本/前置条件、幂等键、状态复读和 Host 确认，且无 Commit / Merge / Harness mutation | 重复请求、过期版本、取消确认测试；工具列表审计 | Not verified |
+| AC-08 | MCP 变更操作有版本/前置条件、幂等键、状态复读和 Host 确认，且无 Commit / Merge / 权限扩大 | 重复请求、过期版本、取消确认测试；工具列表审计 | Not verified |
 | AC-09 | Tracker 与投影冲突时展示来源差异并停止危险推进 | 修改 fixture Issue 模拟竞争写，检查无静默覆盖 | Not verified |
 | AC-10 | 真实 fixture 能追溯 Issue -> Attempt -> Workspace -> Codex -> Verification -> PR / Review，人仍负责 Merge / Close | 保留链接和 ID 的真实 E2E Smoke + Human Review | Not verified |
 | AC-11 | Phoenix 关闭或失败不阻塞闭环；启用时 Trace 可关联且已脱敏 | disabled / unreachable / enabled 三组 Smoke 和人工抽查 | Not verified |

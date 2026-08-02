@@ -21,6 +21,17 @@
 - Rich Web UI、多租户控制面、通用 Workflow Engine 和内建 Ticket/PR 业务逻辑不是核心目标。
 - 结构化日志是最低可观测要求；人类可读 Dashboard 是可选状态面，不能成为正确性依赖。
 
+## 官方对象与本项目扩展
+
+固定 SPEC 的核心对象包括：
+
+- `Issue`：适配器提供的可调度工作项，不要求来自某一种 Tracker。
+- `Workspace`：分配给 Issue 的工作目录。
+- `Run Attempt`：某个 Issue 的一次执行尝试，包含重试或继续所需的运行信息。
+- `Live Session`：当前 Agent 进程的 Thread / Turn 运行信息。
+
+本项目在此之上增加 Workbench Read Model、独立 Verification、ReviewDecision、Human Handoff 和稳定的 Attempt 历史投影。GitHub Sub-issue、Intent 拆解以及同一 Task 多 Thread 的 `AgentRun` 聚合都不是固定 SPEC 的原生对象，需另行设计和验证。
+
 ## 本项目已决定的扩展
 
 - 固定快照以 Linear 为当前 Tracker 合同；GitHub Issues 是 Symphony Workbench 的 V1 产品决定，不是从该 SPEC 自动继承的已实现能力。
