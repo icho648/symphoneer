@@ -37,8 +37,8 @@ GitHub Issue
 | 对象 | 作用 | 权威来源 |
 |---|---|---|
 | Task | 持久的任务意图和原生状态 | GitHub Issue |
-| Attempt | 针对一个 Task 的一次执行尝试；承载重试、Workspace、运行引用和结果 | Symphony Runtime；Symphoneer 保存历史投影 |
-| Workspace | 实际工作目录、仓库、分支、宿主机和所有权；通常由 Git worktree 实现 | Symphony Runtime |
+| Attempt | 针对一个 Task 的一次执行尝试；承载重试、Workspace、运行引用和结果 | Symphoneer Runtime 的 Symphony Core；Symphoneer 保存历史投影 |
+| Workspace | 实际工作目录、仓库、分支、宿主机和所有权；通常由 Git worktree 实现 | Symphoneer Runtime 的 Symphony Core |
 | Thread / Turn / Item | Agent 的上下文、工作轮次和运行事件 | Codex App Server |
 | Verification | 项目原生检查的独立结果和 artifact | Symphoneer |
 | ReviewDecision | Merge、继续、Follow-up、接管或 Close 的最终决定 | 人 |
@@ -48,13 +48,13 @@ GitHub Issue
 ## 系统分工
 
 ```text
-GitHub Issues  →  Symphony Runtime  →  Codex App Server
-       ↑                 ↓                    ↓
-       └── 原生任务事实   Symphoneer 投影/控制   Thread/Turn/Item 事件
+GitHub Issues → Symphoneer Runtime → Codex App Server
+      ↑               ↓                     ↓
+      └─ 原生任务事实  调度/投影/控制          Thread/Turn/Item 事件
 ```
 
 - **GitHub Issues：** V1 Tracker，保存任务意图、原生状态、标签、协作记录和 PR/Review 关联。
-- **Symphony Runtime：** 负责资格判断、派发、并发、重试、对账和 Workspace 生命周期。
+- **Symphoneer Runtime：** 以固定 Symphony SPEC 为一致性基线，负责资格判断、派发、并发、重试、对账和 Workspace 生命周期。
 - **Codex App Server：** 负责 Thread、Turn、工具调用和 Agent 运行事件。
 - **Symphoneer：** 提供 Task 看板、Attempt/Workspace/Verification 投影、受控操作和人工交接。
 - **Codex App：** 承接需要完整 Chat、Terminal、Diff 或持续人工引导的工作。
@@ -91,23 +91,35 @@ Intent
 
 ## 人工接管
 
-Symphoneer 只能在当前 Turn 结束后暂停自动重试，并关联持久化 `threadId`；人工在 Codex App 中完成修改后，必须明确执行 `Return to Automation`。Symphony 和 Codex App 不得同时控制同一个活跃 Turn。深链、暂停、恢复和交还在 Smoke 前均为 `Not verified`。
+`pause` 请求中断当前 Run，保留 Workspace 和 Provider Session 引用，并停止自动继续；它不冻结 Runtime 进程，也不承诺 Provider 能恢复到任意指令边界。人工接管前必须确认当前 Run 已中断；交还自动化时必须显式确认修改已保存且没有其他活跃控制者。深链、中断、恢复和交还在 Smoke 前均为 `Not verified`。
 
 ## 访问面和扩展
 
-- 本地服务是唯一业务入口；Web Dashboard 和 MCP 复用同一契约和投影。
+- 独立的 Node.js + TypeScript Runtime 是唯一业务入口；它是由 launcher 持有生命周期的长期前台进程，不自行 daemonize，也不与 Next.js 同进程。
+- 普通 Next.js 进程只承载 Web UI / BFF，通过 loopback HTTP / SSE 访问 Runtime；CLI 是同一 Runtime 的薄客户端，不复制 Scheduler。
+- 关闭浏览器或重启 Next.js 不改变 Attempt；明确退出父 launcher 时才向 Runtime 和 Web 转发停止信号。
+- 不使用 Next.js custom server。Electron 后置；未来如采用，由 Main 进程启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口访问它。
+- Web Dashboard、CLI 和 MCP 复用同一契约、投影和授权判断。
 - MCP V1 支持查询 Task / Attempt，以及受控的 refresh、dispatch、pause、retry 和 intervention response；不执行 Commit、Merge 或权限扩大。
 - Phoenix 是核心闭环之后的可选、非阻塞诊断副本。
-- Electron 只有在 Web-first 闭环稳定且出现真实需求后再评估。
+
+## Agent Runner Seam
+
+- V1 只有 `CodexAppServerAdapter` 和测试 Fake，不建立 Provider factory、通用事件全集或 capability 注册表。
+- `Attempt` 是 Symphoneer 业务对象；`threadId`、`turnId` 等只作为 Provider 引用保存。
+- Adapter 保留 Codex 原生 Thread / Turn / Item 事件，只向 Scheduler 提炼开始、介入、完成和失败所需语义。
+- [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript) 与 [OpenCode HTTP/SSE Server](https://opencode.ai/docs/server/) 只记录为未来可行性。第二个生产 Adapter 获得明确采用决定后，才提炼公共能力；缺失能力必须显示 `unsupported`。
+- 工具白名单或权限模式不能被表述为与文件系统、网络 sandbox 等价。
 
 ## 明确非目标
 
 - 重写任何 Agent Loop，或替代 GitHub Issues、Pull Request、Code Review 和 Merge。
 - 成为通用 Workflow Engine、分布式任务调度器或多租户控制面。
 - 首版同时支持多个 Tracker、Runtime、模型 Adapter 或云部署。
+- 为未来 Provider、Electron、数据库、队列或多 Agent 预建占位包、空 Interface 和配置。
 - 复制 Phoenix UI、用综合分数评价 Agent，或自动替用户修改项目规则、权限和 CI。
 - 在核心交付闭环前引入 LangGraph、数据库、消息队列或 Electron。
 
 ## 当前完成边界
 
-当前只有产品、架构、外部采用边界、人工流程和 ExecPlan 文档。Symphony、GitHub、Codex App Server、Web/MCP、真实 Workspace、Verification、效率和求职效果均为 `Not verified`。
+当前只有产品、架构、外部采用边界、人工流程和 ExecPlan 文档。Symphony、GitHub、Codex App Server、Web / CLI / MCP、真实 Workspace、Verification 和效率均为 `Not verified`。

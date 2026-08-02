@@ -44,7 +44,7 @@ Symphoneer 仍有独立空间，但必须收窄到：
 
 | 维度 | Agent Orchestrator | Conductor | 当前 Symphoneer 方案 |
 |---|---|---|---|
-| 产品形态 | 开源、跨平台 Agent IDE + 本地 daemon | 闭源 macOS App + Cloud API | 计划中的本地研究/求职 Demo |
+| 产品形态 | 开源、跨平台 Agent IDE + 本地 daemon | 闭源 macOS App + Cloud API | 计划中的本地优先 Coding Agent 交付工作台 |
 | 核心模型 | Project → Issue/Prompt → Session → Worktree → PR | Project → Workspace/Branch → Chat → Review | Task → Run → Verification → Human Review → Finding |
 | Agent | 23 个终端 Agent Adapter；独立 Orchestrator/Worker 角色 | Claude Code、Codex、Cursor、OpenCode | V1 只计划 Codex App Server |
 | Task Source | GitHub、GitLab、Linear、自由 Prompt | 手工 Workspace，可从 Issue/PR/Branch 开始 | V1 计划 GitHub Issues |
