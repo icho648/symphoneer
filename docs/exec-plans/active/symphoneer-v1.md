@@ -2,7 +2,7 @@
 
 > Plan status: Active  
 > Decision status: Accepted  
-> Implementation evidence: Documentation baseline observed; all application, GitHub, Codex, Runtime/Web, MCP, Phoenix and scheduled-check behavior is Not verified
+> Implementation evidence: All application, GitHub, Codex, Runtime/Web, MCP, Phoenix and scheduled-check behavior is Not verified
 > Owner: Repository owner with Codex as implementation agent  
 > Created: 2026-08-01  
 > Last updated: 2026-08-02
@@ -42,7 +42,6 @@ GitHub Issue
 - [x] 2026-08-01：将已确认决定回写到规范性设计、产品规格和引用文档。
 - [x] 2026-08-01：完成本 active ExecPlan 和规范性 Markdown 候选内容。
 - [x] 2026-08-02：将项目与仓库文档身份统一为 Symphoneer，保留 Symphony 外部契约和 `symphony:*` 标签。
-- [x] 2026-08-02：初始 Markdown 基线已存在于 Git 分支；当前优化开始前工作树干净。
 - [x] 2026-08-02：完成全项目文档二次优化；本地链接、分区索引、ExecPlan 12 章、仅 Markdown、冲突词、两处 Task Board 图一致性和 Diff 检查均通过。
 - [ ] 待用户审核后：明确授权进入代码阶段。
 - [ ] Phase 1：建立项目检查入口和最小 TypeScript workspace。
@@ -54,7 +53,7 @@ GitHub Issue
 - [ ] Phase 7：在核心闭环后接入非阻塞 Phoenix 观测。
 - [ ] Follow-up：只在远程仓库和 `pnpm check` 稳定后启用定时检查；只在 Web 需要桌面分发时评估 Electron。
 
-当前已审阅的文档基线是 Git commit `7d570f4c4e189d01805a57d601fb5c6fac60efea`。下一步是用户审阅 committed diff；恢复时先核对该基线、本地 `HEAD` 和干净工作树，在新的明确开发指令前不执行 Phase 1。
+当前增量已提交为 Git revision。下一步是用户审阅 committed diff；恢复时先核对记录的 commit、本地 `HEAD` 和干净工作树，在新的明确开发指令前不执行 Phase 1。
 
 ## Surprises & Discoveries
 
@@ -101,7 +100,7 @@ GitHub Issue
 
 ## Outcomes & Retrospective
 
-当前已产生的结果只是：产品边界、系统权威、人工流程、外部采用边界和完整实施计划已被 Markdown 固化并版本化。本轮二次优化的已审阅基线是 Git commit `7d570f4c4e189d01805a57d601fb5c6fac60efea`，并已通过本地文档检查；这不证明任何产品行为。
+当前已产生的结果只是：产品边界、系统权威、人工流程、外部采用边界和完整实施计划已被 Markdown 固化并版本化。本轮二次优化已通过本地文档检查并写入 Git 历史，仍等待人工审阅 committed diff；这不证明任何产品行为。
 
 计划只在下列结果全部有直接证据后才可移入 `completed/`：
 
@@ -111,7 +110,7 @@ GitHub Issue
 - Phoenix 关闭或发送失败不阻塞核心闭环，且启用时可由 Symphoneer ID 追溯 Trace。
 - 文档、检查和真实 Smoke 证据一致，用户完成人工验收。
 
-完成时在本节记录：实际结果、未完成或删除的范围、与原计划的差异、量化证据、人工决定和可复用经验。目前除文档基线外的结果均为 `Not verified`。
+完成时在本节记录：实际结果、未完成或删除的范围、与原计划的差异、量化证据、人工决定和可复用经验。目前所有产品与实现行为均为 `Not verified`。
 
 ## Context and Orientation
 
@@ -171,9 +170,9 @@ tests/
 
 ## Plan of Work
 
-### Phase 0 — 文档与本地 Git 基线
+### Phase 0 — 文档整理与本地 Git 检查
 
-维护规范性决定、本 ExecPlan 和仅 Markdown 的文档基线。本轮补齐 Runtime 拓扑、Agent Runner Seam、日志与测试、Task Board、Anthropic Harness 研究和开发习惯；验证本地链接、分区索引、12 个必需章节、状态语义、冲突术语和变更文件类型。已审阅 revision 为 Git commit `7d570f4c4e189d01805a57d601fb5c6fac60efea`；停点以该基线、本地对应的 `HEAD` 和干净工作树为恢复基线。
+维护规范性决定、本 ExecPlan 和仅 Markdown 的文档内容。本轮补齐 Runtime 拓扑、Agent Runner Seam、日志与测试、Task Board、Anthropic Harness 研究和开发习惯；验证本地链接、分区索引、12 个必需章节、状态语义、冲突术语和变更文件类型。检查通过的 revision 写入 Git 历史；停点以该 commit、本地同一 `HEAD` 和干净工作树为恢复依据。
 
 ### Phase 1 — 项目检查入口与最小 TypeScript workspace
 
@@ -397,17 +396,14 @@ exit(hits.empty? ? 0 : 1)
 
 预期：分支为 `9-文档结构二次优化`；NUL-safe 文件类型检查、`git diff --check` 和冲突词检查无输出并退出 0；提交前 `git status` 只列出本轮 Markdown。
 
-当前文档基线记录为：Git commit `7d570f4c4e189d01805a57d601fb5c6fac60efea`（Record committed documentation revision baseline）。恢复时核对该固定基线，而不是依赖未来代码阶段的 `HEAD`。
-
 文档 revision 提交后记录可恢复停点：
 
 ```sh
-git show --stat --oneline 7d570f4c4e189d01805a57d601fb5c6fac60efea
 git rev-parse HEAD
 git status --short
 ```
 
-预期：`git show` 能定位固定文档基线；恢复文档时本地 `HEAD` 指向该基线且 `git status --short` 无输出。进入代码阶段后，仍以固定基线作为文档恢复点，不要求未来 `HEAD` 永远停在该 commit。若基线不存在或工作树不符合当前阶段，不能按已提交停点交接。
+预期：`git rev-parse HEAD` 输出本轮记录的 committed revision；`git status --short` 无输出。若任一条件不成立，当前只是未完成的本地增量，不能按已提交停点交接。
 
 ### 每个实施阶段的固定入口
 
@@ -500,7 +496,7 @@ gh label create 'symphony:review' --repo icho648/symphoneer-fixture
 
 ## Idempotence and Recovery
 
-- **文档增量：** 修改前确认工作树；提交前只允许 `.md` Diff。已提交停点必须记录固定文档基线 Git commit，并在对应阶段满足本地 `HEAD` 与该基线一致、工作树干净；进入代码阶段后不改写该恢复点。检查失败时保留当前改动并修正文档，不使用破坏性 reset。
+- **文档增量：** 修改前确认工作树；提交前只允许 `.md` Diff。已提交停点必须记录 Git commit，并同时满足本地 `HEAD` 指向该 commit、工作树干净；检查失败时保留当前改动并修正文档，不使用破坏性 reset。
 - **外部资源：** 创建 fixture、标签或 Issue 前先按精确名称查询。已存在时核对所有权和契约，不重复创建或删除未确认资源。
 - **进程生命周期：** launcher 记录子进程状态并转发停止信号；Web 单独退出只触发连接丢失，不把 Attempt 写成结束。Runtime 重启后先重放 Domain Event，再对账 Tracker、Workspace 和 Provider。
 - **调度所有权：** 对 Task 获取带版本的单一活跃所有权。进程重启后先对账 Tracker、Workspace 和 Codex，再决定恢复、结束旧 Attempt 或创建新 Attempt。
@@ -516,11 +512,11 @@ gh label create 'symphony:review' --repo icho648/symphoneer-fixture
 
 ## Artifacts and Notes
 
-当前文档基线的最小证据是：
+当前文档工作的最小证据是：
 
 - 本 ExecPlan 及其在 [`index.md`](index.md) 中的 active 索引。
 - [`../../design-docs/index.md`](../../design-docs/index.md)、[`../../product-specs/index.md`](../../product-specs/index.md) 和 [`../../references/index.md`](../../references/index.md) 中的 `Accepted` / `Not verified` 状态。
-- 固定文档基线 Git commit `7d570f4c4e189d01805a57d601fb5c6fac60efea`、对应阶段本地指向该 commit 的 `HEAD`、干净工作树，以及本地链接 / 索引 / 章节 / 仅 Markdown / `git diff --check` 结果。
+- 本轮记录的 Git commit、本地指向该 commit 的 `HEAD`、干净工作树，以及本地链接 / 索引 / 章节 / 仅 Markdown / `git diff --check` 结果。
 - [`../../research/2026-08-02-anthropic-long-running-agent-harness.md`](../../research/2026-08-02-anthropic-long-running-agent-harness.md) 中的来源、采用与不采用边界。
 - 2026-08-02 本轮检查：本地链接、六个分区索引、ExecPlan 12 章、变更文件类型、旧方案冲突词和 `git diff --check` 均退出 0；产品流程与 ExecPlan 的 Task Board 图逐字一致。
 
