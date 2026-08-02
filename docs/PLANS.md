@@ -27,6 +27,7 @@
 - **结果导向：** 说明用户最终能做什么，以及如何观察它真实工作。
 - **可验证：** 给出准确命令、工作目录、预期结果和失败判定。
 - **可恢复：** 说明重复执行、失败重试、危险步骤和安全恢复方式。
+- **增量化：** 把工作拆成可独立观察和验收的小步，每一步都有明确输入、产物和下一步。
 
 ## 必需章节
 
@@ -48,9 +49,12 @@
 ## 维护规则
 
 - 开始实施前补齐上下文和验收，不把关键决定留给执行者猜测。
-- 每次停止时更新 `Progress`；发现与原计划不符时同时更新对应章节。
+- 开始或恢复时先检查工作树、最近 Diff 和 active ExecPlan，只加载当前增量需要的事实源；不要依赖上一段会话仍在上下文中。
+- 每次只推进一个可判定增量；先写明本步完成条件，再实施并运行对应检查。
+- 每次停止时更新 `Progress`、已运行命令及结果、未完成工作和唯一明确的下一步；发现与原计划不符时同时更新 `Surprises & Discoveries` 与 `Decision Log`。
+- 交接状态必须足以让新的 Agent 从仓库恢复：记录当前路径、版本或分支、关键产物、失败原文、重试入口和不可重复的外部动作。
 - 未执行的测试、Smoke 或外部集成必须写成 `Not verified`，不能用计划中的命令冒充结果。
 - 只有目标行为已经产生且所需验证完成后，才把计划移入 `completed/`。
 - 计划完成或废弃时记录结果和原因，不把过期 active plan 留作导航入口。
 
-官方方法来源：[Using PLANS.md for multi-hour problem solving](https://developers.openai.com/cookbook/articles/codex_exec_plans)。本契约按本项目当前规模做了收缩。
+这些规则同时吸收 [Using PLANS.md for multi-hour problem solving](https://developers.openai.com/cookbook/articles/codex_exec_plans) 与 [`2026-08-02-anthropic-long-running-agent-harness.md`](research/2026-08-02-anthropic-long-running-agent-harness.md) 中适合本项目的上下文整理、增量任务、进度交接和可验证验收习惯。Planner、Evaluator 和多 Agent Harness 不因此成为 Symphoneer 产品功能。

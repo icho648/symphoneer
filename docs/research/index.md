@@ -10,6 +10,7 @@
 | [Agent Orchestrator、Conductor 与 Symphoneer](2026-07-30-agent-orchestrator-conductor-vs-symphoneer.md) | 2026-07-30 | 同类产品对象与默认心智比较 | 支持产品差异分析，不证明任何集成已实现 |
 | [OpenAI Symphony 的运行时边界](2026-07-30-symphony-runtime-boundaries.md) | 2026-07-30 | Scheduler/Runner、Workspace、重试和非目标输入 | 支持 [`system-boundaries.md`](../design-docs/system-boundaries.md)；实现仍未验证 |
 | [Codex 编排控制面与 Symphoneer 映射](2026-08-01-Codex编排控制面与Symphoneer映射.md) | 2026-08-01 | Codex 入口、会话与控制原语的分析 | 原始文章不是官方规范；具体行为必须回到官方 Schema 和 Smoke |
+| [Anthropic 长时运行 Agent Harness](2026-08-02-anthropic-long-running-agent-harness.md) | 2026-08-02 | 渐进上下文、增量任务、进度交接、恢复与可执行验收 | 支持整个项目 Harness；Planner、Evaluator 与多 Agent 不进入产品范围 |
 
 ## 使用规则
 

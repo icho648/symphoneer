@@ -12,12 +12,33 @@
 | 外部契约与采用边界 | `docs/references/index.md` | 对应来源文档 |
 | 调研输入与历史方案 | `docs/research/index.md` | 对应日期快照 |
 | 复杂任务与执行计划 | `docs/PLANS.md` | `docs/exec-plans/active/` 中的对应计划 |
+| 实现结构、测试与工程约束 | 对应 active ExecPlan | `docs/design-docs/core-beliefs.md`、`docs/design-docs/system-boundaries.md` |
 
 ## ExecPlan 触发
 
 - 多小时任务、重大重构或进入应用实现前，先完整阅读 `docs/PLANS.md`，再创建或更新一个自包含的 active ExecPlan。
 - 小型文档修订、单个事实核对和索引修复不创建 ExecPlan。
 - active ExecPlan 必须持续记录进度、发现、决定、验证和恢复方式；静态愿望清单不属于 `active/`。
+
+## 项目 Harness
+
+本项目的 Harness 是仓库内的渐进式工作上下文，不是产品 Runtime 的一部分：
+
+```text
+AGENTS.md
+├─ 路由到 design docs / product specs / references / research
+├─ 复杂任务进入 docs/PLANS.md
+└─ active ExecPlan
+   ├─ 当前增量任务和明确下一步
+   ├─ Progress / Discoveries / Decisions
+   ├─ 可恢复交接状态
+   └─ 可执行验收和真实证据
+```
+
+- 开始或恢复复杂任务时，先确认工作树状态，读取 active ExecPlan 和当前增量涉及的事实源，不递归加载无关文档。
+- 每次只推进一个可判定的增量；实现、检查和证据必须对应同一验收目标。
+- 停止前更新完成项、未完成项、发现、决定、已运行命令、失败信息、明确下一步和安全恢复方式。
+- Planner、Evaluator 或多 Agent Harness 可以辅助开发，但不是 Symphoneer 的产品对象、状态或 V1 功能。
 
 ## 事实源边界
 
@@ -38,4 +59,4 @@
 - 修改或新增文档时，更新所属分区的 `index.md`；只有人类入口发生变化时才更新 `README.md`。
 - 研究材料必须链接到它支持或质疑的设计文档；外部契约记录来源和核验日期。
 - 当前阶段只讨论架构和 Markdown；不要自行安装依赖、创建应用代码或声称真实运行已验证。
-- 代码出现后，再根据真实模块和失败模式增加结构测试、CI、生成物和局部 `AGENTS.md`。
+- 代码出现后，按 active ExecPlan 中的真实 Module、Seam 和失败模式增加集中测试、CI、生成物和必要的局部 `AGENTS.md`，不提前搭空结构。

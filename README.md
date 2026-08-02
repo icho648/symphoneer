@@ -1,12 +1,10 @@
 # Symphoneer
 
-> 一个计划中的、以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台与求职 Demo。
+> 一个计划中的、以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台。
 
 ## 当前阶段
 
-本轮只允许建立文档化产品契约和本地 Git 基线：没有应用代码、依赖、CI、自动化或外部资源，也没有运行 Symphony、Codex App Server、Phoenix 或 MCP Server。
-
-如果本页来自包含 active ExecPlan 的初始 `HEAD`，且 `git status --short` 与 `git remote` 均无输出，则仅 Markdown 的本地 Git 基线已建立；否则它仍是待完成项。后续只有在人工审核 active ExecPlan 并明确要求开发后，才进入代码阶段。
+当前分支只维护文档化产品契约和 active ExecPlan：没有应用代码、依赖、测试、CI、自动化或外部资源，也没有运行 Symphony、Codex App Server、Next.js、Phoenix 或 MCP Server。后续只有在人工审核计划并明确要求开发后，才进入代码阶段。
 
 ## 当前状态
 
@@ -36,10 +34,12 @@
 完整结论只维护在 [`product-boundary.md`](docs/design-docs/product-boundary.md)。这里仅保留最短摘要：
 
 - 产品围绕 Tracker Task 的交付推进和人工掌控，而不是 Agent 数量组织。
-- Symphony Runtime 是计划中的运行核心，Codex App Server 是首版 Agent Runtime。
+- Symphoneer Runtime 以固定 Symphony SPEC 为调度与协调核心，Codex App Server 是首版 Agent Runtime。
 - GitHub Issues 是 V1 Tracker；Symphoneer 不替代 Tracker、Pull Request、Code Review 或 Codex App。
-- V1 以本地服务和 Web Dashboard 为主操作面，MCP 提供查询和受控操作；Electron 后置。
+- V1 规划为独立的 Node.js + TypeScript Runtime 与普通 Next.js Web 进程；CLI 和 Web 都是 Runtime 的客户端，不使用 Next.js custom server。
+- Codex App Server 是唯一 V1 生产 Agent Adapter；Claude Agent SDK、OpenCode Server 和 Electron 仅保留后续评估入口。
+- Web Dashboard 是主操作面，MCP 提供查询和受控操作；Electron 后置。
 - Phoenix 只在 Symphony 交付闭环完成后作为非阻塞诊断扩展。
 - 先形成一条可观察、可判定的人工基线，再决定自动化范围。
 
-所有真实运行、兼容性、质量、效率和求职效果仍为 `Not verified`。
+所有真实运行、兼容性、质量和效率仍为 `Not verified`。

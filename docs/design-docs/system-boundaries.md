@@ -5,6 +5,30 @@
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
 
+## Runtime 进程拓扑
+
+```text
+pnpm dev / future Electron Main
+├─ Node.js + TypeScript Runtime
+│  ├─ Scheduler
+│  ├─ Attempt / Workspace / Verification
+│  ├─ Tracker Adapter
+│  ├─ Agent Runner
+│  └─ loopback HTTP / SSE
+└─ ordinary Next.js process
+   └─ Web UI / BFF
+
+Browser → Next.js BFF → Runtime
+CLI ─────────────────→ Runtime
+```
+
+本文后续的 Runtime 指 Symphoneer Runtime 进程；`packages/symphony-core` 是其中遵循固定 Symphony SPEC 的核心 Module。
+
+- Runtime 是由 launcher 持有生命周期的长期前台进程：输出 stdout / stderr，不自行 daemonize，不创建 PID 文件或后台 `start / stop / status` 系统。
+- Runtime 与 Next.js 分进程运行，不使用 [Next.js custom server](https://nextjs.org/docs/app/guides/custom-server)。关闭浏览器或重启 Web 不改变 Attempt；明确退出父 launcher 时才向两个子进程转发停止信号。
+- CLI 和 Web 都是 Runtime 的客户端，不复制 Scheduler 或业务状态机。loopback HTTP / SSE 的鉴权、端口发现和断线恢复仍待实现验证。
+- Electron 不是 V1 前提；未来如采用，按其[进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)由 Main 启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口通信。
+
 ## 对象关系
 
 ```text
@@ -19,8 +43,8 @@ Tracker Task / GitHub Issue
 | 对象 | 权威来源 | Symphoneer 责任 |
 |---|---|---|
 | Task | GitHub Issue 的身份、意图、状态、标签和协作记录 | 按原生 ID 投影、筛选和对账，不创建第二套 Task 真相 |
-| Attempt | Symphony 的一次执行生命周期 | 分配稳定 ID，保存开始原因、状态、来源和历史转换 |
-| Workspace | Symphony 的路径、分支、宿主机、所有权和回收规则 | 保存引用，检测竞争所有者、脏目录和来源不一致 |
+| Attempt | Symphoneer Runtime 中 Symphony Core 的一次执行生命周期 | 分配稳定 ID，保存开始原因、状态、来源和历史转换 |
+| Workspace | Symphoneer Runtime 中 Symphony Core 的路径、分支、宿主机、所有权和回收规则 | 保存引用，检测竞争所有者、脏目录和来源不一致 |
 | Thread / Turn / Item | Codex App Server | 保存原生 ID 和必要事件，不把 Turn 完成当成验收 |
 | Diff / Commit / Branch | Git | 保存版本引用，不伪造变更真相 |
 | Verification | 项目原生检查及其 artifact | 独立运行、记录命令、退出状态、版本和输出引用 |
@@ -36,6 +60,26 @@ Tracker Task / GitHub Issue
 - 多个独立 Task 可以并行；同一 Task 的并行 Attempt、Workspace 或活跃 Turn 必须有明确所有权，当前不允许未定义的并发写入。
 - 同一 Task 多 Thread 的 `AgentRun` 聚合是未来扩展，不是固定 Symphony SPEC 的 V1 对象。只有需要独立写入、验证和合并时才引入它。
 
+## Agent Runner Seam
+
+Scheduler 只依赖一个小的 Agent Runner Interface；V1 的真实 Adapter 是 Codex App Server，测试使用 Fake：
+
+```text
+startOrContinue(request) → RunHandle
+
+RunHandle
+├─ events
+├─ interrupt()
+├─ respondToIntervention(requestRef, decision)
+└─ completion
+```
+
+- `Attempt` 是 Symphoneer 业务对象；`threadId`、`turnId` 和未来 Provider 的 Session ID 只是运行引用，不能成为核心状态机的身份。
+- Codex Adapter 保留原生 Thread / Turn / Item 事件，并只向 Scheduler 提炼开始、介入、完成和失败所需语义。
+- `pause` 调用当前 `RunHandle.interrupt()`，保留 Workspace 和 Session 引用并停止自动继续；它不冻结 Runtime 进程，也不保证任意 Provider 都能无损恢复。
+- 不预建 Provider factory、通用事件全集或 capability 注册表。第二个生产 Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
+- 工具权限或白名单不能冒充文件系统、网络 sandbox 或宿主审批。每个生产 Adapter 未来必须通过共享契约测试和一条真实 Smoke；Fake 只验证本项目逻辑。
+
 ## Workspace、Worktree 和 Thread
 
 - `Workspace` 是执行资源：至少包含实际路径、仓库、分支、宿主机和所有权。
@@ -44,21 +88,27 @@ Tracker Task / GitHub Issue
 - 同一 Workspace 可以被同一 Attempt 的连续 Turn 使用；并行写入者必须使用不同 Worktree。
 - Retry 或恢复前必须重新核对仓库、分支、HEAD、未提交改动和所有权；不能因为 Thread 仍存在就直接复用目录。
 
-## 事实、投影和证据
+## 事实、日志、投影和证据
 
-1. `Runtime Event` 只证明某个事件被观察到。
-2. `Agent Statement` 和 Codex Turn 完成不是独立验证器。
-3. `Verification` 必须运行 `WORKFLOW.md` 声明的项目检查，并绑定精确版本和 artifact。
-4. GitHub、Git、Runtime、Codex 和 Phoenix 的原生事实不由历史投影覆盖。
-5. 缺少匹配证据时显示 `Not verified`，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
+| 记录 | 用途 | 持久性与证明范围 |
+|---|---|---|
+| Runtime Log | 结构化运行诊断；关联 Task、Attempt、Workspace 和 Provider 引用 | 可轮转；只证明某条诊断被记录 |
+| Domain Event | Task 投影、Attempt 和 Workspace 等业务状态变化 | append-only、带稳定 ID 和 Schema 版本，可重放查询投影 |
+| Verification Artifact | 命令、工具版本、精确代码版本、退出状态和必要输出 | immutable；只证明对应检查在绑定版本上的结果 |
+| Trace | Phoenix 等系统中的调试与评估副本 | 可选、可丢失，不参与调度或验收判定 |
 
-JSONL 只追加带稳定 ID、来源、时间和 Schema 版本的事件；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
+1. `Agent Statement`、Codex Turn 完成和 Runtime Log 不是独立验证器。
+2. `Verification` 必须运行 `WORKFLOW.md` 声明的项目检查，并绑定精确版本和 artifact。
+3. GitHub、Git、Runtime、Codex 和 Phoenix 的原生事实不由历史投影覆盖。
+4. 缺少匹配证据时显示 `Not verified`，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
 
-凭据、Token、API key、Cookie、签名 URL、认证头和私密内容不得写入 JSONL、immutable artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入持久化边界前必须脱敏。
+JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
+
+凭据、Token、API key、Cookie、签名 URL、认证头、私有源码全文、原始 Provider payload 和未经脱敏的错误原因不得写入 Runtime Log、Domain Event、Verification Artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入任何记录边界前必须最小化并脱敏。
 
 ## 控制和安全
 
-- Web 和 MCP 复用同一本地服务、契约和授权判断。
+- Web、CLI 和 MCP 复用同一个 Runtime、共享契约和授权判断。
 - refresh、dispatch、pause、retry 和 intervention response 必须带目标版本或前置条件、幂等键和 Host 确认。
 - MCP 不提供 Commit、Merge 或权限扩大。
 - Tracker、第三方页面、日志和 Agent 输出都是不可信输入，不能直接成为高优先级系统指令。
@@ -69,4 +119,4 @@ JSONL 只追加带稳定 ID、来源、时间和 Schema 版本的事件；大输
 
 Tracker 与执行投影冲突时，展示来源差异并停止危险写回；Retry、Cancel、Timeout、失联、进程重启和人工接管必须能对账。调度重试不等于业务 exactly-once。
 
-真实 Schema、权限、Workspace 隔离、Codex 生命周期、JSONL 恢复、Web/MCP 共用状态和 Phoenix 脱敏均在 Smoke 前保持 `Not verified`。
+真实 Schema、权限、Workspace 隔离、Codex 生命周期、JSONL 恢复、Web / CLI / MCP 共用状态和 Phoenix 脱敏均在 Smoke 前保持 `Not verified`。
