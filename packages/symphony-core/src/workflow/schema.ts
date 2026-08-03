@@ -21,9 +21,9 @@ export const RawWorkflowConfigSchema = z
       .default({ interval_ms: 30_000 }),
     workspace: z
       .object({
-        root: z.string().trim().min(1).default("workspaces"),
+        root: z.string().trim().min(1).optional(),
       })
-      .default({ root: "workspaces" }),
+      .default({}),
     hooks: z
       .object({
         after_create: hook,

@@ -1,8 +1,7 @@
 import type { TaskSummary } from "@symphoneer/contracts";
 
-import { evaluateEligibility } from "../eligibility.ts";
-import { terminateRunning } from "./attempt.ts";
-import { normalizeState } from "./policy.ts";
+import { terminateRunning } from "./attempt/index.ts";
+import { evaluateEligibility } from "./eligibility.ts";
 import type { SchedulerState } from "./state.ts";
 import type { CorePolicy } from "./types.ts";
 
@@ -19,20 +18,20 @@ export function reconcile(
   observedAt: string,
 ): ReconcileResult {
   const refreshed = new Map(tasks.map((task) => [task.id, task]));
-  const terminalStates = new Set(policy.terminalStates.map(normalizeState));
   const keptAttemptIds: string[] = [];
   const stoppedAttemptIds: string[] = [];
   const cleanupWorkspaceIds: string[] = [];
 
   for (const [taskId, running] of [...state.running]) {
     const current = refreshed.get(taskId);
-    if (current && evaluateEligibility(current, policy).eligible) {
+    const eligibility = current ? evaluateEligibility(current, policy) : null;
+    if (current && eligibility?.eligible) {
       state.running.set(taskId, { ...running, task: current });
       keptAttemptIds.push(running.attemptId);
       continue;
     }
 
-    const cleanup = current ? terminalStates.has(normalizeState(current.state)) : false;
+    const cleanup = eligibility?.reasons.includes("terminal_state") ?? false;
     const canceled = terminateRunning(
       state,
       taskId,

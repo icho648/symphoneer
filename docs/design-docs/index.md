@@ -8,7 +8,7 @@
 |---|---|---|---|
 | [product-boundary.md](product-boundary.md) | 产品是什么、不是什么 | Accepted | Not verified |
 | [core-beliefs.md](core-beliefs.md) | 哪些原则指导产品、Module、Seam 与测试取舍 | Accepted | Partial — Issue #13, 24 deterministic tests |
-| [system-boundaries.md](system-boundaries.md) | 对象事实归谁，Runtime / Web 如何分进程，以及日志、事件和证据如何分层 | Accepted | Partial — contracts / core / local directory lifecycle |
+| [system-boundaries.md](system-boundaries.md) | 对象事实归谁，Runtime / Web 如何分进程，以及项目契约、软件存储、日志、事件和证据如何分层 | Accepted | Partial — contracts / core / local directory lifecycle / Host workspace injection |
 
 ## 阅读顺序
 

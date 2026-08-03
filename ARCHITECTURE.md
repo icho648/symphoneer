@@ -13,10 +13,6 @@ README.md                    人类入口与当前阶段
 ARCHITECTURE.md              当前物理结构和稳定文档边界
 .symphoneer/
   WORKFLOW.md                进入 Git 的 repository-owned 配置与 Prompt
-  workspaces/                忽略的 Task checkout；当前尚未创建
-  events/                    忽略的 Domain Event 数据；当前尚未实现
-  artifacts/                 忽略的 Verification 产物；当前尚未实现
-  logs/                      忽略的 Runtime 诊断；当前尚未实现
 package.json                 pnpm check / test 入口
 pnpm-workspace.yaml          当前两个 package 的 workspace
 packages/
@@ -27,20 +23,28 @@ packages/
     src/
       scheduler/             Attempt、Turn、retry、reconciliation 与所有权状态机
         index.ts             Scheduler 单一公开 Interface
+        dispatch/            Task 排序、资格复读、并发与 Workspace reservation
+          index.ts           Dispatch 功能入口
+          order.ts           确定性候选排序
+        attempt/             Attempt 与活跃 Turn 生命周期
+          index.ts           Completion / termination 功能入口
+          turn.ts            Turn 绑定和唯一所有权
+        retry/               Retry / continuation 生命周期
+          index.ts           到期、重排、释放与重新 reservation
+          backoff.ts         确定性退避策略
+        eligibility.ts       多种 Scheduler 行为共享的可调度判定
       workflow/              WORKFLOW.md Schema、解析、路径和 Prompt
         index.ts             Workflow 单一公开 Interface
       workspace/             引用、身份登记、本地目录与 lifecycle hook
         index.ts             Workspace 单一公开 Interface
       agent-runner.ts        Agent Runner Interface
-      eligibility.ts         Task eligibility 判定
 scripts/check-project.mjs    链接、索引、ExecPlan、测试位置和依赖方向检查
 tests/
   contracts/                 共享 Schema 与 Agent Runner contract
   core/
-    scheduler/               调度、retry、reconciliation 与所有权场景
+    scheduler/               eligibility、调度、retry、reconciliation 与所有权场景
     workspace/               Workspace 引用、生命周期与安全场景
     workflow.test.ts         Workflow 配置和 Prompt
-    eligibility.test.ts      Task eligibility
   integration/               Fake Runner 到 Core Attempt 的确定性流程
   fixtures/                  测试专用 Fake；不是 Provider 证据
 docs/
@@ -68,9 +72,9 @@ tests ──> contracts + symphony-core + tests/fixtures/FakeAgentRunner
 - `symphony-core` 不依赖 Next.js、GitHub SDK 或 Codex 进程实现。
 - `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一内存写入权威；幂等重放窗口有界。
 - `WorkspaceManager` 用 Node.js 标准库实现本地目录创建/复用、规范路径与身份登记、四个 lifecycle hook、超时和安全回收；它不是 Git worktree manager。
-- `.symphoneer/WORKFLOW.md` 是已验证可解析且进入 Git 的配置文件；没有 Runtime 消费者时，它不能证明动态 reload 或真实执行。
+- `.symphoneer/WORKFLOW.md` 是已验证可解析且进入 Git 的配置文件；Loader 已验证 Host Workspace 根目录优先于 repository 配置，并在两者缺省时遵循固定 SPEC 的系统临时目录默认值。没有 Runtime 消费者时，这不证明操作系统应用目录发现、动态 reload 或真实执行。
 - `FakeAgentRunner` 只位于测试分区，不能升级为 Codex 兼容证据。
-- `scheduler`、`workflow`、`workspace` 各自把内部文件收在同名目录，只通过目录内 `index.ts` 暴露公开 Interface；120 行是 review threshold，不是机械拆分门禁。
+- `scheduler`、`workflow`、`workspace` 各自把内部文件收在同名目录，只通过 Module 根 `index.ts` 暴露公开 Interface。Scheduler 再按 dispatch / attempt / retry 行为聚类；功能目录 `index.ts` 承担主入口，命名文件保存辅助职责。120 行是 review threshold，不是机械拆分门禁。
 
 ## 稳定边界
 
@@ -78,7 +82,7 @@ tests ──> contracts + symphony-core + tests/fixtures/FakeAgentRunner
 - `design-docs/` 是确认后设计决定的事实源；`research/` 和 `references/` 只提供输入与外部事实。
 - `product-specs/` 用可观察行为定义验收，不代替实现证据。
 - `exec-plans/` 保存执行过程，不升级为产品规范。
-- `.symphoneer/` 收拢产品配置和本地运行数据，但只忽略 `workspaces/`、`events/`、`artifacts/`、`logs/`；不能整体忽略该目录。
+- `.symphoneer/` 只收拢 repository-owned 项目契约与策略并进入 Git；软件管理的 Workspace、Domain Event、Verification Artifact、Runtime Log、Cache 和凭据使用操作系统应用位置，不在目标仓库创建被忽略的运行目录。
 - 代码测试集中在根 `tests/`；package 内不放 colocated 测试。
 - 不存在来源和生成命令的材料不进入 `generated/`；当前不保留该目录。
 

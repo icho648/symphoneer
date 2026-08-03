@@ -6,8 +6,6 @@ tracker:
     token: $GITHUB_TOKEN
   active_states: [open]
   terminal_states: [closed]
-workspace:
-  root: workspaces
 agent:
   max_concurrent_agents: 1
   max_turns: 20

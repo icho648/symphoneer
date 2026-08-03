@@ -4,7 +4,7 @@
 
 | 文档 | 外部来源状态 | 项目采用状态 | Implementation evidence |
 |---|---|---|---|
-| [symphony-spec.md](symphony-spec.md) | Fixed and live source rechecked 2026-08-02 | Core Conformance、Run Attempt、Workspace 边界 accepted | Partial — deterministic Core + local directory lifecycle |
+| [symphony-spec.md](symphony-spec.md) | Fixed source rechecked 2026-08-03 | Core Conformance、Run Attempt、Workspace 边界与 Host 路径注入 accepted | Partial — deterministic Core + local directory lifecycle + loader injection |
 | [codex-app-server.md](codex-app-server.md) | Official protocol README observed 2026-08-02 | Codex Adapter、Thread / Turn / Item 与小 Agent Runner Interface accepted；其他 Provider 未采用 | Not verified |
 | [github-issues.md](github-issues.md) | Official source locators observed 2026-08-01；端点行为待逐项核验 | V1 Tracker、标签门禁、原生元数据分工与 fixture 边界 accepted | Not verified |
 

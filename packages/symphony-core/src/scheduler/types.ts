@@ -5,7 +5,7 @@ import type {
   WorkspaceReference,
 } from "@symphoneer/contracts";
 
-import type { EligibilityPolicy } from "../eligibility.ts";
+import type { EligibilityPolicy } from "./eligibility.ts";
 
 export interface CorePolicy extends EligibilityPolicy {
   maxConcurrentAgents: number;

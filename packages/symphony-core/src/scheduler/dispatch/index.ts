@@ -5,15 +5,16 @@ import {
   type WorkspaceReference,
 } from "@symphoneer/contracts";
 
-import { evaluateEligibility } from "../eligibility.ts";
-import { normalizeState } from "./policy.ts";
-import type { SchedulerState } from "./state.ts";
+import { evaluateEligibility, normalizeTrackerValue } from "../eligibility.ts";
+import type { SchedulerState } from "../state.ts";
 import {
   CoreError,
   type CorePolicy,
   type ReserveAttemptRequest,
   type ReserveDecision,
-} from "./types.ts";
+} from "../types.ts";
+
+export { sortTasksForDispatch } from "./order.ts";
 
 export function reserve(
   state: SchedulerState,
@@ -56,10 +57,10 @@ export function reserve(
   if (state.running.size >= policy.maxConcurrentAgents) {
     reasons.push("global_concurrency_exhausted");
   } else {
-    const taskState = normalizeState(task.state);
+    const taskState = normalizeTrackerValue(task.state);
     const stateLimit = policy.maxConcurrentAgentsByState[taskState];
     const stateRunning = [...state.running.values()].filter(
-      (entry) => normalizeState(entry.task.state) === taskState,
+      (entry) => normalizeTrackerValue(entry.task.state) === taskState,
     ).length;
     if (stateLimit != null && stateRunning >= stateLimit) {
       reasons.push("state_concurrency_exhausted");

@@ -1,10 +1,10 @@
 import { type AttemptSnapshot, type TaskSummary, TaskSummarySchema } from "@symphoneer/contracts";
 import { canonicalizeWorkspaceReference } from "../workspace/index.ts";
-import { attachTurn, finishAttempt } from "./attempt.ts";
+import { attachTurn, finishAttempt } from "./attempt/index.ts";
+import { reserve } from "./dispatch/index.ts";
 import { type ReconcileResult, reconcile } from "./reconcile.ts";
 import { ReplayCache } from "./replay-cache.ts";
-import { reserve } from "./reserve.ts";
-import { dueRetries, transitionRetry } from "./retry.ts";
+import { dueRetries, transitionRetry } from "./retry/index.ts";
 import { snapshot } from "./snapshot.ts";
 import { createSchedulerState } from "./state.ts";
 import {

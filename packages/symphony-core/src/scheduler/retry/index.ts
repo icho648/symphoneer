@@ -1,17 +1,19 @@
 import type { TaskSummary } from "@symphoneer/contracts";
 import { WorkspaceReferenceSchema } from "@symphoneer/contracts";
 
+import { reserve } from "../dispatch/index.ts";
 import { evaluateEligibility } from "../eligibility.ts";
-import { retryDelayMs } from "./policy.ts";
-import { reserve } from "./reserve.ts";
-import type { SchedulerState } from "./state.ts";
+import type { SchedulerState } from "../state.ts";
 import {
   CoreError,
   type CorePolicy,
   type ReserveAttemptRequest,
   type RetryEntry,
   type RetryTransition,
-} from "./types.ts";
+} from "../types.ts";
+import { retryDelayMs } from "./backoff.ts";
+
+export { retryDelayMs } from "./backoff.ts";
 
 export function transitionRetry(
   state: SchedulerState,

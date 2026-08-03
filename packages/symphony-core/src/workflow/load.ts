@@ -15,6 +15,7 @@ export async function loadWorkflow(
     path?: string;
     cwd?: string;
     env?: Readonly<Record<string, string | undefined>>;
+    workspaceRoot?: string;
     supportedTrackerKinds?: readonly string[];
   } = {},
 ) {
@@ -65,7 +66,12 @@ export async function loadWorkflow(
       },
       polling: { intervalMs: raw.polling.interval_ms },
       workspace: {
-        root: resolveWorkspaceRoot(raw.workspace.root, workflowPath, options.env ?? process.env),
+        root: resolveWorkspaceRoot(
+          raw.workspace.root,
+          workflowPath,
+          options.env ?? process.env,
+          options.workspaceRoot,
+        ),
       },
       hooks: {
         afterCreate: raw.hooks.after_create,

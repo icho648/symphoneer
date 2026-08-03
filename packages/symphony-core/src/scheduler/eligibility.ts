@@ -13,25 +13,25 @@ export interface EligibilityPolicy {
   excludedLabels: readonly string[];
 }
 
-const normalize = (value: string) => value.trim().toLowerCase();
+export const normalizeTrackerValue = (value: string) => value.trim().toLowerCase();
 
 export function evaluateEligibility(
   task: TaskSummary,
   policy: EligibilityPolicy,
 ): EligibilityResult {
   const reasons: EligibilityReason[] = [];
-  const state = normalize(task.state);
-  const activeStates = new Set(policy.activeStates.map(normalize));
-  const terminalStates = new Set(policy.terminalStates.map(normalize));
-  const taskLabels = new Set(task.labels.map(normalize));
+  const state = normalizeTrackerValue(task.state);
+  const activeStates = new Set(policy.activeStates.map(normalizeTrackerValue));
+  const terminalStates = new Set(policy.terminalStates.map(normalizeTrackerValue));
+  const taskLabels = new Set(task.labels.map(normalizeTrackerValue));
 
   if (!task.dispatchable) reasons.push("not_dispatchable");
   if (terminalStates.has(state)) reasons.push("terminal_state");
   else if (!activeStates.has(state)) reasons.push("inactive_state");
-  if (!policy.requiredLabels.every((label) => taskLabels.has(normalize(label)))) {
+  if (!policy.requiredLabels.every((label) => taskLabels.has(normalizeTrackerValue(label)))) {
     reasons.push("missing_required_label");
   }
-  if (policy.excludedLabels.some((label) => taskLabels.has(normalize(label)))) {
+  if (policy.excludedLabels.some((label) => taskLabels.has(normalizeTrackerValue(label)))) {
     reasons.push("excluded_label");
   }
 

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "../../packages/contracts/src/index.ts";
@@ -11,7 +13,9 @@ import {
 import { FakeAgentRunner } from "../fixtures/fake-agent-runner.ts";
 
 test("the Fake Runner drives one deterministic core Attempt without Provider claims", async () => {
-  const workflow = await loadWorkflow();
+  const workflow = await loadWorkflow({
+    workspaceRoot: resolve(tmpdir(), "symphoneer-integration-workspaces"),
+  });
   const task: TaskSummary = {
     schemaVersion: CONTRACT_SCHEMA_VERSION,
     id: "task-13",
