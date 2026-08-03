@@ -1,44 +1,38 @@
 # Architecture
 
 > Decision status: Accepted for the current repository shape  
-> Implementation evidence: Observed Issue #13 contracts/core and 24 deterministic tests; application Runtime does not exist
+> Implementation evidence: Observed current repository; application Runtime does not exist
 
-这是当前目录的物理地图，不把后续 Runtime、Adapter 或产品界面写成已经实现。
+这是当前目录的物理 Codemap，不保存目标设计、工程规则或易变化的测试数量。
 
 ## 当前结构
 
 ```text
-AGENTS.md                    Agent 导航、范围和工作规则
+AGENTS.md                    仓库级 Agent 导航和工作规则
 README.md                    人类入口与当前阶段
-ARCHITECTURE.md              当前物理结构和稳定文档边界
+ARCHITECTURE.md              当前物理结构和依赖
 .symphoneer/
   WORKFLOW.md                进入 Git 的 repository-owned 配置与 Prompt
 package.json                 pnpm check / test 入口
 pnpm-workspace.yaml          当前两个 package 的 workspace
 packages/
   contracts/
-    src/                     按执行、验证、人类决定和事件分组的版本化 Zod Schema
-      index.ts               package 单一公开 Interface
+    src/                     版本化边界 Schema
+      index.ts               package 公开 Interface
   symphony-core/
     src/
       scheduler/             Attempt、Turn、retry、reconciliation 与所有权状态机
-        index.ts             Scheduler 单一公开 Interface
-        dispatch/            Task 排序、资格复读、并发与 Workspace reservation
-          index.ts           Dispatch 功能入口
-          order.ts           确定性候选排序
+        index.ts             Scheduler 公开 Interface
+        dispatch/            排序、资格、并发与 Workspace reservation
         attempt/             Attempt 与活跃 Turn 生命周期
-          index.ts           Completion / termination 功能入口
-          turn.ts            Turn 绑定和唯一所有权
         retry/               Retry / continuation 生命周期
-          index.ts           到期、重排、释放与重新 reservation
-          backoff.ts         确定性退避策略
         eligibility.ts       多种 Scheduler 行为共享的可调度判定
       workflow/              WORKFLOW.md Schema、解析、路径和 Prompt
-        index.ts             Workflow 单一公开 Interface
+        index.ts             Workflow 公开 Interface
       workspace/             引用、身份登记、本地目录与 lifecycle hook
-        index.ts             Workspace 单一公开 Interface
+        index.ts             Workspace 公开 Interface
       agent-runner.ts        Agent Runner Interface
-scripts/check-project.mjs    链接、索引、ExecPlan、测试位置和依赖方向检查
+scripts/check-project.mjs    链接、Agent 导航、Plan、测试位置和依赖检查
 tests/
   contracts/                 共享 Schema 与 Agent Runner contract
   core/
@@ -48,14 +42,16 @@ tests/
   integration/               Fake Runner 到 Core Attempt 的确定性流程
   fixtures/                  测试专用 Fake；不是 Provider 证据
 docs/
-  PLANS.md                   ExecPlan 编写与维护契约
+  AGENTS.md                  文档总路由和事实源归属
   design-docs/               产品和架构决定
   product-specs/             用户可观察行为与验收
   references/                外部契约和采用边界
-  research/                  带日期的调研输入
-  exec-plans/                复杂任务的活计划和完成记录
+  research/
+    AGENTS.md                日期快照的按需入口
+  plans/
+    AGENTS.md                Plan 契约、状态和生命周期
     active/
-      symphoneer-v1.md  已确认的 V1 开发与验收计划
+      symphoneer-v1.md       当前 V1 执行计划
 ```
 
 当前没有 `apps/runtime`、`apps/web`、真实 Tracker / Agent Adapter、数据库、队列、CI、部署配置或生成流水线。现有代码只覆盖 Issue #13 的本地 Core seam。
@@ -71,21 +67,11 @@ tests ──> contracts + symphony-core + tests/fixtures/FakeAgentRunner
 - `contracts` 不依赖 Core、Web 或 Provider。
 - `symphony-core` 不依赖 Next.js、GitHub SDK 或 Codex 进程实现。
 - `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一内存写入权威；幂等重放窗口有界。
-- `WorkspaceManager` 用 Node.js 标准库实现本地目录创建/复用、规范路径与身份登记、四个 lifecycle hook、超时和安全回收；它不是 Git worktree manager。
-- `.symphoneer/WORKFLOW.md` 是已验证可解析且进入 Git 的配置文件；Loader 已验证 Host Workspace 根目录优先于 repository 配置，并在两者缺省时遵循固定 SPEC 的系统临时目录默认值。没有 Runtime 消费者时，这不证明操作系统应用目录发现、动态 reload 或真实执行。
+- `WorkspaceManager` 用 Node.js 标准库实现本地目录创建、复用、规范路径、身份登记、lifecycle hook、超时和安全回收；它不是 Git worktree manager。
+- `.symphoneer/WORKFLOW.md` 已验证解析与 Host Workspace root 优先级；没有 Runtime 消费者，因此不证明操作系统应用目录发现、动态 reload 或真实执行。
 - `FakeAgentRunner` 只位于测试分区，不能升级为 Codex 兼容证据。
-- `scheduler`、`workflow`、`workspace` 各自把内部文件收在同名目录，只通过 Module 根 `index.ts` 暴露公开 Interface。Scheduler 再按 dispatch / attempt / retry 行为聚类；功能目录 `index.ts` 承担主入口，命名文件保存辅助职责。120 行是 review threshold，不是机械拆分门禁。
+- Scheduler 当前按 `dispatch / attempt / retry` 行为聚类；公开导出仍由 `scheduler/index.ts` 提供。
 
-## 稳定边界
+## 设计与计划入口
 
-- `AGENTS.md` 负责导航，不复制叶子文档内容。
-- `design-docs/` 是确认后设计决定的事实源；`research/` 和 `references/` 只提供输入与外部事实。
-- `product-specs/` 用可观察行为定义验收，不代替实现证据。
-- `exec-plans/` 保存执行过程，不升级为产品规范。
-- `.symphoneer/` 只收拢 repository-owned 项目契约与策略并进入 Git；软件管理的 Workspace、Domain Event、Verification Artifact、Runtime Log、Cache 和凭据使用操作系统应用位置，不在目标仓库创建被忽略的运行目录。
-- 代码测试集中在根 `tests/`；package 内不放 colocated 测试。
-- 不存在来源和生成命令的材料不进入 `generated/`；当前不保留该目录。
-
-## 目标系统设计
-
-计划中的产品边界见 [`docs/design-docs/product-boundary.md`](docs/design-docs/product-boundary.md)，已确认的对象与职责见 [`docs/design-docs/system-boundaries.md`](docs/design-docs/system-boundaries.md)，实施顺序见 [`docs/exec-plans/active/symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)。只有上文列出的 Issue #13 模块有实现证据；其余目标结构继续是计划。
+产品、架构、规格、外部契约和 Research 路由见 [`docs/AGENTS.md`](docs/AGENTS.md)；当前实施顺序、证据和恢复状态见 [`docs/plans/active/symphoneer-v1.md`](docs/plans/active/symphoneer-v1.md)。目标设计不能从本 Codemap 的目录树反推。

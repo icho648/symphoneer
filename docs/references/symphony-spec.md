@@ -40,4 +40,4 @@
 - Symphoneer 将 repository-owned contract 放在 `.symphoneer/WORKFLOW.md`，并已在 Issue #13 验证解析与模板行为；该项目内路径选择不冒充 Runtime 已存在的证据。
 - 为适配安装软件的存储责任，Symphoneer Loader 接受 Host 显式注入的绝对 Workspace 根目录并令其优先于 repository 配置；未注入时仍遵守固定 SPEC 的 repository 值、环境变量和系统临时目录缺省。未来 Runtime 必须从操作系统应用数据位置提供该 Host 设置，当前真实安装路径仍为 `Not verified`。
 
-Issue #13 的 24 条确定性测试覆盖 Workflow 解析、资格、Attempt 序号与排序、并发所有权、retry/backoff 与有界幂等重放、reconciliation、本地目录 Workspace 的创建/复用/hooks/路径身份/安全回收，以及 Fake Runner。真实 Tracker、进程重启恢复、Git worktree 隔离与脏目录保护、App Server 协议和安全姿态仍为 `Not verified`。
+项目采用与当前实现证据分别见 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 和 [`../plans/active/symphoneer-v1.md`](../plans/active/symphoneer-v1.md)。真实 Tracker、进程重启恢复、Git worktree 隔离与脏目录保护、App Server 协议和安全姿态仍为 `Not verified`。

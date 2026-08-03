@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-当前分支已完成 GitHub Issue #13 的本地范围：最小 TypeScript workspace、版本化共享契约、`.symphoneer/WORKFLOW.md` 校验、Symphony Core 调度状态、本地目录 Workspace 生命周期与测试 Fake。`pnpm check` 是当前唯一全量检查入口，最新本地运行包含 24 条确定性测试。
+当前分支已完成 GitHub Issue #13 的本地范围：最小 TypeScript workspace、版本化共享契约、`.symphoneer/WORKFLOW.md` 校验、Symphony Core 调度状态、本地目录 Workspace 生命周期与测试 Fake。`pnpm check` 是当前唯一全量检查入口。
 
 这仍不是可运行产品：没有真实 GitHub / Codex Adapter、worktree 管理、独立 Verification 执行器、Runtime / Web / MCP、JSONL、fixture、Phoenix、CI 或部署。Fake 只证明本项目契约，不证明 Provider 兼容。
 
@@ -18,7 +18,7 @@
 | 第一条人工交付流程 | Accepted | Not verified | [`manual-delivery-flow.md`](docs/product-specs/manual-delivery-flow.md) |
 | Symphony、Codex、GitHub 的采用方向 | Accepted | Partial — fixed SPEC core subset only | [`references/`](docs/references/) |
 
-决定已固化为规范性文档，实施顺序、验收和恢复要求见 [`symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)。实际实现证据只来自本仓库独立运行的检查；计划文字本身不是证据。
+决定已固化为规范性文档，实施顺序、验收和恢复要求见 [`symphoneer-v1.md`](docs/plans/active/symphoneer-v1.md)。实际实现证据只来自本仓库独立运行的检查；计划文字本身不是证据。
 
 ## 当前实现入口
 
@@ -32,12 +32,10 @@
 
 - Agent 导航和工作规则：[`AGENTS.md`](AGENTS.md)
 - 当前真实仓库结构：[`ARCHITECTURE.md`](ARCHITECTURE.md)
-- 产品与架构决定：[`docs/design-docs/index.md`](docs/design-docs/index.md)
-- 用户可观察流程：[`docs/product-specs/index.md`](docs/product-specs/index.md)
-- 外部契约：[`docs/references/index.md`](docs/references/index.md)
-- 调研快照：[`docs/research/index.md`](docs/research/index.md)
-- ExecPlan 规则：[`docs/PLANS.md`](docs/PLANS.md)
-- 当前开发计划：[`docs/exec-plans/active/symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)
+- 文档总入口和事实源：[`docs/AGENTS.md`](docs/AGENTS.md)
+- 调研快照入口：[`docs/research/AGENTS.md`](docs/research/AGENTS.md)
+- Plan 规则与状态：[`docs/plans/AGENTS.md`](docs/plans/AGENTS.md)
+- 当前开发计划：[`docs/plans/active/symphoneer-v1.md`](docs/plans/active/symphoneer-v1.md)
 
 ## 已确认边界
 

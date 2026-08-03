@@ -1,5 +1,5 @@
 import { existsSync, globSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 
 const failures = [];
 const markdownFiles = globSync("**/*.md", {
@@ -19,21 +19,23 @@ for (const file of markdownFiles) {
   }
 }
 
-for (const directory of [
-  "docs/design-docs",
-  "docs/product-specs",
-  "docs/references",
-  "docs/research",
-  "docs/exec-plans/active",
-  "docs/exec-plans/completed",
+for (const { directory, guidance } of [
+  { directory: "docs/design-docs", guidance: "docs/AGENTS.md" },
+  { directory: "docs/product-specs", guidance: "docs/AGENTS.md" },
+  { directory: "docs/references", guidance: "docs/AGENTS.md" },
+  { directory: "docs/research", guidance: "docs/research/AGENTS.md" },
+  { directory: "docs/plans/active", guidance: "docs/plans/AGENTS.md" },
 ]) {
-  const index = `${directory}/index.md`;
-  const body = readFileSync(index, "utf8");
+  const body = readFileSync(guidance, "utf8");
   for (const leaf of globSync(`${directory}/*.md`)) {
-    if (leaf !== index && !body.includes(`(${leaf.slice(directory.length + 1)})`)) {
-      failures.push(`${leaf}: missing from ${index}`);
-    }
+    if (leaf === guidance) continue;
+    const target = relative(dirname(guidance), leaf).replaceAll("\\", "/");
+    if (!body.includes(`(${target})`)) failures.push(`${leaf}: missing from ${guidance}`);
   }
+}
+
+for (const index of globSync("docs/**/index.md")) {
+  failures.push(`${index}: document navigation must use the nearest AGENTS.md`);
 }
 
 const requiredPlanSections = [
@@ -50,7 +52,7 @@ const requiredPlanSections = [
   "Artifacts and Notes",
   "Interfaces and Dependencies",
 ];
-for (const plan of globSync("docs/exec-plans/active/*.md", { exclude: ["**/index.md"] })) {
+for (const plan of globSync("docs/plans/active/*.md")) {
   const sections = [...readFileSync(plan, "utf8").matchAll(/^## (.+)$/gm)].map((match) => match[1]);
   if (JSON.stringify(sections) !== JSON.stringify(requiredPlanSections)) {
     failures.push(`${plan}: expected the 12 required ExecPlan sections in order`);
@@ -74,5 +76,5 @@ if (failures.length > 0) {
   console.error(failures.join("\n"));
   process.exitCode = 1;
 } else {
-  console.log("project checks: links, indexes, ExecPlan, test placement, dependencies");
+  console.log("project checks: links, Agent navigation, Plan, test placement, dependencies");
 }

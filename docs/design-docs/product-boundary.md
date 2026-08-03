@@ -47,19 +47,7 @@ GitHub Issue
 
 ## 系统分工
 
-```text
-GitHub Issues → Symphoneer Runtime → Codex App Server
-      ↑               ↓                     ↓
-      └─ 原生任务事实  调度/投影/控制          Thread/Turn/Item 事件
-```
-
-- **GitHub Issues：** V1 Tracker，保存任务意图、原生状态、标签、协作记录和 PR/Review 关联。
-- **Symphoneer Runtime：** 以固定 Symphony SPEC 为一致性基线，负责资格判断、派发、并发、重试、对账和 Workspace 生命周期。
-- **Codex App Server：** 负责 Thread、Turn、工具调用和 Agent 运行事件。
-- **Symphoneer：** 提供 Task 看板、Attempt/Workspace/Verification 投影、受控操作和人工交接。
-- **Codex App：** 承接需要完整 Chat、Terminal、Diff 或持续人工引导的工作。
-
-Symphoneer 可以缓存或投影 Tracker 数据，但 Tracker 冲突时以原生状态为准；Attempt、Workspace、Verification 和运行证据留在执行域，不把完整运行日志塞回 Issue。
+GitHub Issues 保存任务事实，Symphoneer Runtime 负责调度、执行投影与控制，Codex App Server 负责 Agent 运行上下文；Symphoneer 提供 Task-first 工作台，Codex App 承接深度人工操作。对象权威、进程拓扑和冲突规则只在 [`system-boundaries.md`](system-boundaries.md) 详细定义。
 
 ## GitHub 原生能力的采用边界
 
@@ -91,25 +79,18 @@ Intent
 
 ## 人工接管
 
-`pause` 请求中断当前 Run，保留 Workspace 和 Provider Session 引用，并停止自动继续；它不冻结 Runtime 进程，也不承诺 Provider 能恢复到任意指令边界。人工接管前必须确认当前 Run 已中断；交还自动化时必须显式确认修改已保存且没有其他活跃控制者。深链、中断、恢复和交还在 Smoke 前均为 `Not verified`。
+人工接管是 V1 可选结果，不改变人拥有最终控制权。具体暂停、交还与失败条件见 [`../product-specs/manual-delivery-flow.md`](../product-specs/manual-delivery-flow.md) 和 [`system-boundaries.md`](system-boundaries.md)；真实深链与恢复在 Smoke 前为 `Not verified`。
 
 ## 访问面和扩展
 
-- 独立的 Node.js + TypeScript Runtime 是唯一业务入口；它是由 launcher 持有生命周期的长期前台进程，不自行 daemonize，也不与 Next.js 同进程。
-- 普通 Next.js 进程只承载 Web UI / BFF，通过 loopback HTTP / SSE 访问 Runtime；CLI 是同一 Runtime 的薄客户端，不复制 Scheduler。
-- 关闭浏览器或重启 Next.js 不改变 Attempt；明确退出父 launcher 时才向 Runtime 和 Web 转发停止信号。
-- 不使用 Next.js custom server。Electron 后置；未来如采用，由 Main 进程启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口访问它。
-- Web Dashboard、CLI 和 MCP 复用同一契约、投影和授权判断。
-- MCP V1 支持查询 Task / Attempt，以及受控的 refresh、dispatch、pause、retry 和 intervention response；不执行 Commit、Merge 或权限扩大。
-- Phoenix 是核心闭环之后的可选、非阻塞诊断副本。
+- Web Dashboard 是主操作面；CLI 与 MCP 复用同一个 Runtime，其中 MCP 只提供查询和受控操作。
+- Codex App 是完整 Chat、Terminal、Diff 与持续人工引导入口，不由 Symphoneer 复制。
+- Electron 和其他生产 Agent Adapter 后置；Phoenix 只在核心闭环后作为非阻塞诊断扩展。
+- Runtime / Web 进程、访问协议、授权和生命周期只在 [`system-boundaries.md`](system-boundaries.md) 定义。
 
 ## Agent Runner Seam
 
-- V1 只有 `CodexAppServerAdapter` 和测试 Fake，不建立 Provider factory、通用事件全集或 capability 注册表。
-- `Attempt` 是 Symphoneer 业务对象；`threadId`、`turnId` 等只作为 Provider 引用保存。
-- Adapter 保留 Codex 原生 Thread / Turn / Item 事件，只向 Scheduler 提炼开始、介入、完成和失败所需语义。
-- [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/typescript) 与 [OpenCode HTTP/SSE Server](https://opencode.ai/docs/server/) 只记录为未来可行性。第二个生产 Adapter 获得明确采用决定后，才提炼公共能力；缺失能力必须显示 `unsupported`。
-- 工具白名单或权限模式不能被表述为与文件系统、网络 sandbox 等价。
+V1 采用 Codex App Server 作为唯一生产 Agent Runtime，并保留一个测试 Fake；不建设通用 Provider 平台。Interface、Provider 引用和安全约束见 [`system-boundaries.md#agent-runner-seam`](system-boundaries.md#agent-runner-seam)，外部协议观察见 [`../references/codex-app-server.md`](../references/codex-app-server.md)。
 
 ## 明确非目标
 
@@ -122,4 +103,4 @@ Intent
 
 ## 当前完成边界
 
-当前只有产品、架构、外部采用边界、人工流程和 ExecPlan 文档。Symphony、GitHub、Codex App Server、Web / CLI / MCP、真实 Workspace、Verification 和效率均为 `Not verified`。
+Issue #13 已有共享契约、Workflow、Core Scheduler、本地目录 Workspace 生命周期和 Agent Runner Fake 的本地确定性证据。真实 GitHub、Codex App Server、Git worktree、独立 Verification、Runtime / Web / MCP、效率和部署仍为 `Not verified`；当前证据见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) 和 active plan。
