@@ -64,7 +64,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.throws(() =>
     atomic.reconcile({
       tasks: [task("60", "urgent"), task("61", "closed")],
-      observedAt: "invalid",
+      observedAt: "2026-08-02T11:59:59.000Z",
       idempotencyKey: "reconcile-atomic-invalid",
     }),
   );

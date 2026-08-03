@@ -9,6 +9,13 @@ export function attachTurn(
 ): AttemptSnapshot {
   const attempt = state.attempts.get(request.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${request.attemptId} does not exist`);
+  const updatedAt = AttemptSnapshotSchema.shape.updatedAt.parse(request.updatedAt);
+  if (Date.parse(updatedAt) < Date.parse(attempt.updatedAt)) {
+    throw new CoreError(
+      "invalid_transition",
+      "Turn update cannot precede the current Attempt state",
+    );
+  }
   const activeTurn = attempt.activeTurn;
   if (activeTurn?.threadId === request.threadId && activeTurn.turnId === request.turnId) {
     return attempt;
@@ -24,7 +31,7 @@ export function attachTurn(
     ...attempt,
     status: "streaming_turn",
     activeTurn: { threadId: request.threadId, turnId: request.turnId },
-    updatedAt: request.updatedAt,
+    updatedAt,
   });
   if (activeTurn) state.activeTurns.delete(activeTurn.turnId);
   state.attempts.set(updated.id, updated);

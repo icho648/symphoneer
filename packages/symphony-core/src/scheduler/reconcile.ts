@@ -4,7 +4,7 @@ import { terminateRunning } from "./attempt/index.ts";
 import { evaluateEligibility } from "./eligibility.ts";
 import { releaseRetry } from "./retry/index.ts";
 import type { SchedulerState } from "./state.ts";
-import type { CorePolicy } from "./types.ts";
+import { CoreError, type CorePolicy } from "./types.ts";
 
 export interface ReconcileResult {
   keptAttemptIds: string[];
@@ -19,6 +19,16 @@ export function reconcile(
   observedAt: string,
 ): ReconcileResult {
   const timestamp = AttemptSnapshotSchema.shape.updatedAt.parse(observedAt);
+  for (const { attemptId } of state.running.values()) {
+    const attempt = state.attempts.get(attemptId);
+    if (!attempt) throw new CoreError("not_found", `Attempt ${attemptId} does not exist`);
+    if (Date.parse(timestamp) < Date.parse(attempt.updatedAt)) {
+      throw new CoreError(
+        "invalid_transition",
+        "Reconciliation cannot precede active Attempt state",
+      );
+    }
+  }
   const refreshed = new Map(tasks.map((task) => [task.id, task]));
   const keptAttemptIds: string[] = [];
   const stoppedAttemptIds: string[] = [];

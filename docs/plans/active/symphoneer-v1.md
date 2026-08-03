@@ -50,7 +50,7 @@ GitHub Issue
 - [x] 2026-08-03 Issue #13 路径复核：曾用 `.symphoneer/` 收拢进入 Git 的 `WORKFLOW.md` 与被忽略的 Workspace / events / artifacts / logs；该临时布局随后被同日“项目归属不等于软件存储责任”的决定取代。
 - [x] 2026-08-03 Issue #13 存储与结构复核：基线 `b9a51ca395e039b9598edeb0863f62ecb12bc352`、工作树干净；repository-owned contract 与软件存储责任已分离，Scheduler 已按 dispatch / attempt / retry 行为整理，Standards / Spec 双轴复审通过，`pnpm check` 为 24/24。
 - [x] 2026-08-03 文档 Harness：把旧 Plan 规则与分区索引收敛为分层 `AGENTS.md`，将计划目录简化为 `plans/`，去除 Codemap、设计和计划中的重复事实；`pnpm check` 通过。
-- [x] 2026-08-03 Issue #13 PR 复审：修复 Workspace hook / 删除所有权、连续 Turn、容量等待计数、失败转换原子性、reconciliation 部分写入、Attempt 成功/failure 与时间顺序、Eligibility 结果一致性；定向回归和全量检查通过。
+- [x] 2026-08-03 Issue #13 PR 复审：修复 Workspace hook / 删除 / 稳定 identity 所有权、连续 Turn、容量等待计数、失败转换原子性、reconciliation 部分写入与时钟前置校验、Attempt / Verification 时间顺序、成功/failure 和 Eligibility 结果一致性；定向回归和全量检查通过。
 - [ ] Phase 3：打通 GitHub Tracker、Workspace、Codex App Server 和独立 Verification。
 - [ ] Phase 4：实现 JSONL 历史投影、独立 Runtime 和普通 Next.js Web Dashboard。
 - [ ] Phase 5：实现受控 MCP 查询与操作。
@@ -90,6 +90,7 @@ GitHub Issue
 - 2026-08-03 — 再次复审发现 reconciliation 会在后续无效时间失败前更新已保留 Task 的缓存状态，且成功 Attempt 可携带 failure。reconciliation 现在进入循环前校验时间，Attempt Schema 直接拒绝成功与 failure 并存；因公开 snapshot 不暴露内部 running Task 缓存，回归通过后续 per-state capacity 决策观察部分写入。
 - 2026-08-03 — `reconciliation.test.ts` 与 `retry.test.ts` 超过 120 行软阈值，但分别集中表达 reconciliation 和 retry 的状态机场景并只经过 Scheduler Interface；本轮保留行为局部性，避免为行数拆出重复 setup 或内部文件镜像。
 - 2026-08-03 — 第四轮 PR 复审发现 `remove()` 可删除活跃 Workspace、Attempt 时间可倒退、Eligibility 布尔值与 reasons 可矛盾。修复落在 Workspace lifecycle guard 和共享 Contract Schema；旧 symlink 安全测试改为先 `finish()` 再删除，以保留真实 retained-only 删除前置条件而不弱化路径防护。
+- 2026-08-03 — 第五轮 PR 复审发现 `workspace_owned` 混合了暂态 owner 与永久 identity 冲突、稳定 Workspace ID 可换路径、连续 Turn 与 Verification 时间可倒退，以及 ISO-valid 旧 reconciliation 时间仍可造成部分写入。Core 现在单列 `workspace_identity_mismatch`、绑定 ID/path、在写入前校验活跃 Attempt 时钟，并在共享 Schema 固化 Verification chronology。
 
 新发现必须记录日期、直接证据和它改变了哪个计划或决定。未证实猜测不进入本节。
 
@@ -400,6 +401,7 @@ Issue #13 本地实现的最小证据是：
 - 主 Agent 最终 `pnpm check`：Biome 检查 61 个文件、TypeScript、项目结构检查和 24 条 contract / core / integration 测试全部退出 0；`git diff --check` 退出 0。该证据不证明安装 Runtime、真实 OS 路径发现、GitHub、Codex、worktree、Verification store 或外部 Smoke。
 - 2026-08-03 PR 复审回归：首批 Workspace retry、连续 Turn 和容量等待场景在 5 条定向测试中准确失败 3 条，修复后 5/5；后续无效 Turn、Attempt finish 和 reconciliation 时间场景在 6 条定向测试中准确失败 3 条，修复后 6/6；第三批 reconciliation 部分写入与 success/failure 冲突先由 6 条定向测试暴露 2 条失败，再补充 capacity 行为断言暴露内部缓存漂移，修复后 6/6。随后 `pnpm check` 的格式、类型、项目结构和 24 条测试全部退出 0。
 - 2026-08-03 第四批 PR 复审回归：活跃 Workspace 删除、Attempt 时间倒退和 Eligibility 矛盾在 5 条定向测试中准确失败 3 条，修复后 5/5；全量检查随后暴露旧 symlink 测试绕过 retained 前置条件，调整为先 `finish()` 后，Workspace 定向测试 3/3、最终 `pnpm check` 24/24。
+- 2026-08-03 第五批 PR 复审回归：Workspace identity/path、连续 Turn 时间、Verification 时间和 ISO-valid 旧 reconciliation 时间在 6 条定向测试中准确失败 5 条，修复后 6/6；`pnpm check` 的格式、类型、项目结构和 24 条测试全部退出 0。
 - 2026-08-03 文档 Harness：`docs/AGENTS.md` 直接路由 Design / Product Specs / References，Research 与 Plans 使用局部 `AGENTS.md`；项目检查拒绝 `docs/**/index.md` 并验证所有叶子路由。最终 `pnpm check` 的格式、类型、项目结构与 24 条测试全部退出 0。
 - 审查实例 `i13_20260802_a`：独立 standards / spec 首轮 findings 全部关闭；复审新增的 Attempt provenance、Workspace identity/path、hook process group 和有界幂等窗口问题已修复并由同一组审查者通过最终复审。
 - 直接证据：[`../../../packages/contracts/src/index.ts`](../../../packages/contracts/src/index.ts)、[`../../../packages/symphony-core/src/index.ts`](../../../packages/symphony-core/src/index.ts) 与 [`../../../tests/`](../../../tests/)。

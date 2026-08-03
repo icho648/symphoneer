@@ -48,6 +48,16 @@ export const VerificationResultSchema = z
         message: "checks that did not run cannot have an exit code",
       });
     }
+    if (
+      verification.finishedAt !== null &&
+      Date.parse(verification.finishedAt) < Date.parse(verification.startedAt)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["finishedAt"],
+        message: "Verification finishedAt cannot precede startedAt",
+      });
+    }
   });
 
 export type VerificationResult = z.infer<typeof VerificationResultSchema>;

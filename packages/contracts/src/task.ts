@@ -32,6 +32,7 @@ export const EligibilityReasonSchema = z.enum([
   "global_concurrency_exhausted",
   "state_concurrency_exhausted",
   "workspace_owned",
+  "workspace_identity_mismatch",
 ]);
 
 export type EligibilityReason = z.infer<typeof EligibilityReasonSchema>;

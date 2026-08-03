@@ -67,17 +67,19 @@ export function reserve(
     }
   }
   const knownWorkspace = state.workspaces.get(workspace.path);
+  const workspaceIdAtAnotherPath = [...state.workspaces.entries()].some(
+    ([path, known]) => known.id === workspace.id && path !== workspace.path,
+  );
   const changedWorkspaceIdentity =
-    knownWorkspace != null &&
-    (knownWorkspace.id !== workspace.id ||
-      knownWorkspace.taskId !== workspace.taskId ||
-      knownWorkspace.path !== workspace.path ||
-      knownWorkspace.repository !== workspace.repository ||
-      knownWorkspace.branch !== workspace.branch ||
-      knownWorkspace.host !== workspace.host);
-  if (state.workspaceOwners.has(workspace.path) || changedWorkspaceIdentity) {
-    reasons.push("workspace_owned");
-  }
+    workspaceIdAtAnotherPath ||
+    (knownWorkspace != null &&
+      (knownWorkspace.id !== workspace.id ||
+        knownWorkspace.taskId !== workspace.taskId ||
+        knownWorkspace.repository !== workspace.repository ||
+        knownWorkspace.branch !== workspace.branch ||
+        knownWorkspace.host !== workspace.host));
+  if (changedWorkspaceIdentity) reasons.push("workspace_identity_mismatch");
+  if (state.workspaceOwners.has(workspace.path)) reasons.push("workspace_owned");
   if (reasons.length > 0) return { kind: "rejected", reasons };
 
   const attempt = AttemptSnapshotSchema.parse({

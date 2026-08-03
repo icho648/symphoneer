@@ -34,7 +34,7 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
       startedAt: "2026-08-02T12:00:01.000Z",
       idempotencyKey: "dispatch-21",
     }),
-    { kind: "rejected", reasons: ["workspace_owned"] },
+    { kind: "rejected", reasons: ["workspace_identity_mismatch", "workspace_owned"] },
   );
 
   const attached = scheduler.attachTurn({
@@ -62,6 +62,15 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
       turnId: "turn-invalid",
       updatedAt: "invalid",
       idempotencyKey: "attach-invalid-turn",
+    }),
+  );
+  assert.throws(() =>
+    scheduler.attachTurn({
+      attemptId: "attempt-20",
+      threadId: "thread-20",
+      turnId: "turn-stale",
+      updatedAt: "2026-08-02T12:00:01.000Z",
+      idempotencyKey: "attach-stale-turn",
     }),
   );
   assert.deepEqual(scheduler.snapshot(), beforeInvalidTurn);
@@ -158,9 +167,24 @@ test("Workspace reservations reject task and stable identity changes", () => {
         startedAt: "2026-08-02T12:00:02.000Z",
         idempotencyKey: `dispatch-24-mismatch-${index}`,
       }),
-      { kind: "rejected", reasons: ["workspace_owned"] },
+      { kind: "rejected", reasons: ["workspace_identity_mismatch"] },
     );
   }
+
+  const movedAttemptId = "attempt-24-moved";
+  const movedWorkspace = workspace("24", movedAttemptId);
+  assert.deepEqual(
+    scheduler.reserveAttempt({
+      task: task("24"),
+      attemptId: movedAttemptId,
+      sequence: 2,
+      startReason: "dispatch",
+      workspace: { ...movedWorkspace, path: `${movedWorkspace.path}-moved` },
+      startedAt: "2026-08-02T12:00:02.000Z",
+      idempotencyKey: "dispatch-24-moved",
+    }),
+    { kind: "rejected", reasons: ["workspace_identity_mismatch"] },
+  );
 
   assert.equal(
     scheduler.reserveAttempt({

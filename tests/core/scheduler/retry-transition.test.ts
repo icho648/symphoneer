@@ -108,6 +108,26 @@ test("RetryQueued transitions atomically enforce due time, refresh state, slots,
   assert.equal(requeued.kind === "requeued" ? requeued.retry.attempt : null, 1);
   assert.equal(exhausted.snapshot().retries.length, 1);
 
+  const identityMismatch = new CoreScheduler(policy);
+  const identityRetry = queueFailedAttempt(identityMismatch, "56");
+  assert.ok(identityRetry);
+  assert.throws(
+    () =>
+      identityMismatch.transitionRetry({
+        taskId: "56",
+        refreshedTask: task("56"),
+        nowMs: identityRetry.dueAtMs,
+        nextAttempt: {
+          attemptId: "attempt-56-2",
+          sequence: 2,
+          workspace: { ...workspace("56", "attempt-56-2"), repository: "icho648/other" },
+          startedAt: "2026-08-02T12:00:12.000Z",
+        },
+        idempotencyKey: "retry-56-mismatched-workspace",
+      }),
+    (error) => error instanceof CoreError && error.code === "invalid_transition",
+  );
+
   const eligible = new CoreScheduler(policy);
   const eligibleRetry = queueFailedAttempt(eligible, "55");
   assert.ok(eligibleRetry);
