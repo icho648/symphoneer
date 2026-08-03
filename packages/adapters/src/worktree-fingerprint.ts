@@ -28,7 +28,7 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
     hashField(hash, String(stats.mode));
     if (stats.isSymbolicLink()) {
       hashField(hash, "symlink");
-      hashField(hash, await readlink(path));
+      hashField(hash, await readlink(path, { encoding: "buffer" }));
     } else if (stats.isFile()) {
       hashField(hash, "file");
       hashField(hash, await hashFile(path));

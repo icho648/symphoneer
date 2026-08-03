@@ -121,6 +121,26 @@ test("Verification frames untracked files independently", async (t) => {
   assert.equal(verification.result.status, "failed");
 });
 
+test("Verification fingerprints symlink targets as bytes", async (t) => {
+  const fixture = await repositoryFixture(t);
+  await symlink(Buffer.from([0x80]), resolve(fixture.repository, "link"));
+
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-symlink-bytes",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      "const fs=require('node:fs'); fs.unlinkSync('link'); fs.symlinkSync(Buffer.from([0x81]), 'link')",
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(verification.result.exitCode, 0);
+  assert.equal(verification.result.status, "failed");
+});
+
 test("Verification binds the Workspace root when cwd is a nested Git repository", async (t) => {
   const fixture = await repositoryFixture(t);
   const nested = resolve(fixture.repository, "nested");

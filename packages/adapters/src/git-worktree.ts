@@ -166,6 +166,7 @@ export class GitWorktreeDriver implements WorkspaceDriver {
       "status",
       "--porcelain=v2",
       "--untracked-files=all",
+      "--ignored",
       "-z",
     ]);
     if (status.stdout.length > 0) {

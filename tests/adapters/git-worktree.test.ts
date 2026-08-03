@@ -116,6 +116,29 @@ test("Git worktree removal refuses dirty state and records a failed cleanup hook
   );
 });
 
+test("Git worktree removal refuses ignored files", async (t) => {
+  const fixture = await repositoryFixture(t);
+  await writeFile(resolve(fixture.repositoryPath, ".gitignore"), "ignored.txt\n");
+  execFileSync("git", ["-C", fixture.repositoryPath, "add", ".gitignore"]);
+  execFileSync("git", ["-C", fixture.repositoryPath, "commit", "-m", "ignore local data"]);
+  const driver = new GitWorktreeDriver({
+    repositoryPath: fixture.repositoryPath,
+    repository: "icho648/symphoneer",
+    baseRevision: "HEAD",
+  });
+  const manager = new WorkspaceManager({ root: fixture.workspaceRoot, driver });
+  const prepared = await manager.prepare(workspaceInput("codex/ignored"));
+  const retained = await manager.finish(prepared.workspace);
+  const ignored = resolve(prepared.workspace.path, "ignored.txt");
+  await writeFile(ignored, "keep\n");
+
+  await assert.rejects(
+    manager.remove(retained.workspace),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_dirty",
+  );
+  await access(ignored);
+});
+
 test("Git worktree recovery rejects identity mismatches and reconciles complete absence", async (t) => {
   const fixture = await repositoryFixture(t);
   const driver = new GitWorktreeDriver({
