@@ -67,10 +67,15 @@ export function reserve(
     }
   }
   const knownWorkspace = state.workspaces.get(workspace.path);
-  if (
-    state.workspaceOwners.has(workspace.path) ||
-    (knownWorkspace != null && knownWorkspace.taskId !== task.id)
-  ) {
+  const changedWorkspaceIdentity =
+    knownWorkspace != null &&
+    (knownWorkspace.id !== workspace.id ||
+      knownWorkspace.taskId !== workspace.taskId ||
+      knownWorkspace.path !== workspace.path ||
+      knownWorkspace.repository !== workspace.repository ||
+      knownWorkspace.branch !== workspace.branch ||
+      knownWorkspace.host !== workspace.host);
+  if (state.workspaceOwners.has(workspace.path) || changedWorkspaceIdentity) {
     reasons.push("workspace_owned");
   }
   if (reasons.length > 0) return { kind: "rejected", reasons };

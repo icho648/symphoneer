@@ -29,7 +29,7 @@ export function finishAttempt(
   const attempt = state.attempts.get(request.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${request.attemptId} does not exist`);
   if (attempt.finishedAt != null) {
-    return { attempt, retry: state.retries.get(attempt.taskId) ?? null };
+    return { attempt, retry: null };
   }
   const running = state.running.get(attempt.taskId);
   if (!running || running.attemptId !== attempt.id) {

@@ -90,7 +90,7 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
   ]);
 });
 
-test("a Workspace cannot be reserved for a different Task", () => {
+test("Workspace reservations reject task and stable identity changes", () => {
   const scheduler = new CoreScheduler(policy);
   assert.throws(
     () =>
@@ -104,5 +104,55 @@ test("a Workspace cannot be reserved for a different Task", () => {
         idempotencyKey: "dispatch-23",
       }),
     (error) => error instanceof CoreError && error.code === "conflict",
+  );
+  scheduler.reserveAttempt({
+    task: task("24"),
+    attemptId: "attempt-24-1",
+    sequence: 1,
+    startReason: "dispatch",
+    workspace: workspace("24", "attempt-24-1"),
+    startedAt: "2026-08-02T12:00:00.000Z",
+    idempotencyKey: "dispatch-24-1",
+  });
+  scheduler.finishAttempt({
+    attemptId: "attempt-24-1",
+    status: "canceled_by_reconciliation",
+    finishedAt: "2026-08-02T12:00:01.000Z",
+    idempotencyKey: "finish-24-1",
+  });
+
+  const mismatches = [
+    { id: "workspace:other" },
+    { repository: "icho648/other" },
+    { branch: "codex/other" },
+    { host: "remote" },
+  ];
+  for (const [index, mismatch] of mismatches.entries()) {
+    const attemptId = `attempt-24-mismatch-${index}`;
+    assert.deepEqual(
+      scheduler.reserveAttempt({
+        task: task("24"),
+        attemptId,
+        sequence: 2,
+        startReason: "dispatch",
+        workspace: { ...workspace("24", attemptId), ...mismatch },
+        startedAt: "2026-08-02T12:00:02.000Z",
+        idempotencyKey: `dispatch-24-mismatch-${index}`,
+      }),
+      { kind: "rejected", reasons: ["workspace_owned"] },
+    );
+  }
+
+  assert.equal(
+    scheduler.reserveAttempt({
+      task: task("24"),
+      attemptId: "attempt-24-2",
+      sequence: 2,
+      startReason: "dispatch",
+      workspace: workspace("24", "attempt-24-2"),
+      startedAt: "2026-08-02T12:00:02.000Z",
+      idempotencyKey: "dispatch-24-2",
+    }).kind,
+    "reserved",
   );
 });
