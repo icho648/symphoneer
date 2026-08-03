@@ -34,14 +34,15 @@ Symphoneer 的整个项目 Harness 应吸收哪些长任务开发习惯，而不
 
 Symphoneer 采纳上述工程习惯，作用范围是整个仓库的开发 Harness：
 
-这些采用决定的规范性落点是 [Core Beliefs](../design-docs/core-beliefs.md) 中的 Progressive disclosure、Deep seams、Operationally separate 与工程默认值；`AGENTS.md`、`docs/PLANS.md` 和 active ExecPlan 负责执行导航与交接，不产生新的产品状态。
+这些采用决定的规范性落点是 [Core Beliefs](../design-docs/core-beliefs.md) 中的 Progressive disclosure、Deep seams 与 Operationally separate；根 `AGENTS.md`、`docs/AGENTS.md`、[`plans/AGENTS.md`](../plans/AGENTS.md) 和 active plan 负责执行导航与交接，不产生新的产品状态。
 
 ```text
 AGENTS.md
-├─ 给出项目地图和按任务读取路由
-├─ 指向研究、设计、规格与外部契约事实源
-└─ 复杂工作进入 docs/PLANS.md
-   └─ active ExecPlan
+└─ docs/AGENTS.md
+   ├─ 路由设计、规格与外部契约
+   ├─ research/AGENTS.md 按需加载日期快照
+   └─ plans/AGENTS.md
+      └─ active plan
       ├─ 当前增量任务与下一步
       ├─ Progress / Discoveries / Decisions
       ├─ 恢复上下文与未解决问题
@@ -50,8 +51,8 @@ AGENTS.md
 
 | 习惯 | 在 Symphoneer 项目 Harness 中的落点 |
 |---|---|
-| 渐进上下文加载 | 根 [`AGENTS.md`](../../AGENTS.md) 只做路由。Agent 先读当前任务对应的索引，再按需读取叶子文档，不递归加载整个 `docs/`。这对应 Anthropic 的高信号最小上下文和 progressive disclosure。[来源](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) |
-| 增量任务 | [`docs/PLANS.md`](../PLANS.md) 要求复杂工作按可独立验收的最小增量推进；active ExecPlan 在任一时刻明确当前增量、完成条件和紧接着的一步，避免一次处理整个产品。[来源](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) |
+| 渐进上下文加载 | 根 [`AGENTS.md`](../../AGENTS.md) 只做仓库路由，[`docs/AGENTS.md`](../AGENTS.md) 路由少量规范叶子；Research 与 Plans 只在任务进入对应目录时加载局部 `AGENTS.md`。这对应 Anthropic 的高信号最小上下文和 progressive disclosure。[来源](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) |
+| 增量任务 | [`plans/AGENTS.md`](../plans/AGENTS.md) 要求复杂工作按可独立验收的最小增量推进；active plan 在任一时刻明确当前增量、完成条件和紧接着的一步，避免一次处理整个产品。[来源](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) |
 | 进度与恢复交接 | 每个停点更新 active ExecPlan 的 `Progress`、`Surprises & Discoveries`、`Decision Log`、`Idempotence and Recovery` 与最小证据，记录工作树状态、已执行检查、失败、未验证项和下一步；聊天记录不是恢复所需的唯一上下文。[来源](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) |
 | 启动时重新定向 | 继续复杂任务时，先按 `AGENTS.md` 定位事实源，核对 Git 状态与 Diff，读取 active ExecPlan 的最新进度和下一步；代码出现后，再运行最小可执行基线检查，基线失败时先恢复。[来源](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) |
 | 可执行验收 | 用户可观察结果写入 `docs/product-specs/`；ExecPlan 把它落实为准确命令、工作目录、预期结果和失败判定。只有实际执行结果才能更新证据状态，计划中的命令不能冒充通过。[来源](https://www.anthropic.com/engineering/harness-design-long-running-apps) |
@@ -63,7 +64,7 @@ AGENTS.md
 - `docs/design-docs/` 保存确认后的产品与架构决定。
 - `docs/product-specs/` 保存用户可观察行为与验收条件。
 - `docs/references/` 保存外部契约、采用边界与核验入口。
-- `docs/exec-plans/` 保存复杂工作的当前执行状态、恢复信息与证据，不成为产品事实源。
+- `docs/plans/` 保存复杂工作的当前执行状态、恢复信息与证据，不成为产品事实源。
 
 代码出现后，项目检查应从真实模块、已有脚本和已观察失败模式中提炼；本快照不提前发明命令、CI 或测试结构。这保留了 Anthropic 所强调的最小有效 Harness，并允许模型或项目条件变化后删除失去作用的流程。[来源](https://www.anthropic.com/engineering/harness-design-long-running-apps)
 
@@ -79,5 +80,5 @@ AGENTS.md
 
 - 本快照不证明上述流程已经被自动执行、强制检查或在长时间开发中有效。
 - 尚未运行真实 Symphoneer Runtime、Coding Agent、项目测试、Smoke 或恢复演练。
-- 本轮已把采用边界同步到 `AGENTS.md`、`docs/PLANS.md`、规范性设计和 active ExecPlan；这只证明文档一致，不证明后续长任务实际遵循或从中受益。
+- 本轮已把采用边界同步到分层 `AGENTS.md`、规范性设计和 active plan；这只证明文档一致，不证明后续长任务实际遵循或从中受益。
 - 后续只有在代码与真实失败模式出现后，才能确定最小项目检查集；在此之前不得把计划中的验收命令标记为已通过。

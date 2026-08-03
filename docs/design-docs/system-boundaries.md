@@ -1,9 +1,11 @@
 # System Boundaries
 
 > Decision status: Accepted  
-> Implementation evidence: Not verified
+> Implementation evidence: Partial — versioned contracts, deterministic Symphony Core and local directory Workspace lifecycle only; external systems remain Not verified
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
+
+Issue #13 已实现 Task、Attempt、Workspace、Verification、ReviewDecision、Intervention 与 Domain Event 的版本化边界 Schema，以及单一 Core Scheduler 权威、Workspace / Turn 所有权、retry/backoff、reconciliation、本地目录创建/复用与 lifecycle hooks、Agent Runner Fake。真实 GitHub、Codex、Git worktree 隔离与脏目录保护、Verification 执行、持久化和 Runtime 仍未实现；下文涉及这些能力时继续视为 `Not verified`。
 
 ## Runtime 进程拓扑
 
@@ -51,7 +53,7 @@ Tracker Task / GitHub Issue
 | ReviewDecision | 人 | 记录决定、依据、责任人和下一动作 |
 | PR / Checks / Review / Merge state | GitHub 原生对象；Merge / Close 的最终决定由人持有 | 重新读取原生状态，保存关联和冲突，不从历史投影重建 |
 | Trace / Evaluation | Phoenix 等诊断系统 | 只保存关联 ID；不可用时不阻塞核心流程 |
-| Historical Projection | Symphoneer append-only JSONL 和 immutable artifact | 支持重放、查询和 UI，不覆盖原生事实 |
+| Historical Projection | Symphoneer 应用数据目录中的 append-only JSONL 和 immutable artifact | 支持重放、查询和 UI，不覆盖原生事实 |
 
 ## 当前 V1 的执行粒度
 
@@ -98,11 +100,27 @@ RunHandle
 | Trace | Phoenix 等系统中的调试与评估副本 | 可选、可丢失，不参与调度或验收判定 |
 
 1. `Agent Statement`、Codex Turn 完成和 Runtime Log 不是独立验证器。
-2. `Verification` 必须运行 `WORKFLOW.md` 声明的项目检查，并绑定精确版本和 artifact。
+2. `Verification` 必须运行 `.symphoneer/WORKFLOW.md` 声明的项目检查，并绑定精确版本和 artifact。
 3. GitHub、Git、Runtime、Codex 和 Phoenix 的原生事实不由历史投影覆盖。
 4. 缺少匹配证据时显示 `Not verified`，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
 
 JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
+
+### 项目归属与软件存储责任
+
+“与某个项目关联”不等于“由该项目仓库保存”。存储位置由数据的写入者、生命周期和恢复责任决定：
+
+| 数据类别 | 所有者与默认位置 | 责任 |
+|---|---|---|
+| Repository contract | 目标仓库 `.symphoneer/`，进入 Git | `WORKFLOW.md`、Prompt 和后续团队共享策略；可审查、可版本化 |
+| Project-scoped runtime data | Symphoneer application data 下的 `projects/<project-id>/` | Domain Event、Verification Artifact、Workspace 与恢复所需元数据；由 Runtime 创建、保留和回收 |
+| Runtime Log | 操作系统的 Symphoneer Logs 目录 | 跨项目诊断、轮转、保留期和脱敏；日志记录携带 project / Task / Attempt 关联 ID |
+| Cache / temporary data | 操作系统 Cache / temporary 目录 | 仅保存可重建内容；系统清理不能导致业务证据或未提交 Workspace 丢失 |
+| Credentials | 操作系统 Keychain 或等价凭据存储 | Runtime 按引用读取；不进入仓库、事件、artifact、日志或 Trace |
+
+macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/projects/<project-id>/`、`~/Library/Logs/Symphoneer/` 与 `~/Library/Caches/Symphoneer/`；其他平台使用各自原生位置，不从仓库路径推导。`project-id` 是 Runtime 分配或登记的稳定身份，不能只用可能冲突的仓库 basename。
+
+固定 Symphony SPEC 仍允许 repository contract 声明 `workspace.root`，并在未声明时回落到系统临时目录。Symphoneer 的安装 Host 必须用更高优先级的应用设置注入已解析的绝对 Workspace 根目录；因此进入 Git 的 `.symphoneer/WORKFLOW.md` 不声明机器存储位置，仓库配置也不能越过 Host 选择任意写入位置。当前 Issue #13 只验证 loader 的 Host 注入优先级、绝对路径约束和上游缺省行为；操作系统目录发现、真实 Runtime 持久化、轮转和恢复仍为 `Not verified`。
 
 凭据、Token、API key、Cookie、签名 URL、认证头、私有源码全文、原始 Provider payload 和未经脱敏的错误原因不得写入 Runtime Log、Domain Event、Verification Artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入任何记录边界前必须最小化并脱敏。
 

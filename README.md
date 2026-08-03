@@ -2,32 +2,26 @@
 
 > 一个计划中的、以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台。
 
-## 当前阶段
+## 项目状态
 
-当前分支只维护文档化产品契约和 active ExecPlan：没有应用代码、依赖、测试、CI、自动化或外部资源，也没有运行 Symphony、Codex App Server、Next.js、Phoenix 或 MCP Server。后续只有在人工审核计划并明确要求开发后，才进入代码阶段。
+Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作范围与验收以 [GitHub Issues](https://github.com/icho648/symphoneer/issues) 为准，跨 Issue 的实施顺序、进度和恢复信息见 [active plan](docs/plans/active/symphoneer-v1.md)；README 不复制易漂移的当前阶段。
 
-## 当前状态
+## 仓库入口
 
-| 议题 | Decision status | Implementation evidence | 事实源 |
-|---|---|---|---|
-| 产品定位与非目标 | Accepted | Not verified | [`product-boundary.md`](docs/design-docs/product-boundary.md) |
-| 核心原则 | Accepted | Not verified | [`core-beliefs.md`](docs/design-docs/core-beliefs.md) |
-| 对象、事实源与职责 | Accepted | Not verified | [`system-boundaries.md`](docs/design-docs/system-boundaries.md) |
-| 第一条人工交付流程 | Accepted | Not verified | [`manual-delivery-flow.md`](docs/product-specs/manual-delivery-flow.md) |
-| Symphony、Codex、GitHub 的采用方向 | Accepted | Not verified | [`references/`](docs/references/) |
+- Repository contract：[`.symphoneer/WORKFLOW.md`](.symphoneer/WORKFLOW.md)
+- 版本化边界 Schema：[`packages/contracts/src/index.ts`](packages/contracts/src/index.ts)
+- Workflow / eligibility / scheduler / WorkspaceManager / Agent Runner：[`packages/symphony-core/src/index.ts`](packages/symphony-core/src/index.ts)
+- 确定性测试：[`tests/`](tests/)
+- 全量检查：`pnpm check`
 
-决定已固化为规范性文档，实施顺序、验收和恢复要求见 [`symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)。它是计划，不是已实现证据。
-
-## 从哪里开始
+## 项目文档
 
 - Agent 导航和工作规则：[`AGENTS.md`](AGENTS.md)
 - 当前真实仓库结构：[`ARCHITECTURE.md`](ARCHITECTURE.md)
-- 产品与架构决定：[`docs/design-docs/index.md`](docs/design-docs/index.md)
-- 用户可观察流程：[`docs/product-specs/index.md`](docs/product-specs/index.md)
-- 外部契约：[`docs/references/index.md`](docs/references/index.md)
-- 调研快照：[`docs/research/index.md`](docs/research/index.md)
-- ExecPlan 规则：[`docs/PLANS.md`](docs/PLANS.md)
-- 当前开发计划：[`docs/exec-plans/active/symphoneer-v1.md`](docs/exec-plans/active/symphoneer-v1.md)
+- 文档总入口和事实源：[`docs/AGENTS.md`](docs/AGENTS.md)
+- 调研快照入口：[`docs/research/AGENTS.md`](docs/research/AGENTS.md)
+- Plan 规则与状态：[`docs/plans/AGENTS.md`](docs/plans/AGENTS.md)
+- 当前开发计划：[`docs/plans/active/symphoneer-v1.md`](docs/plans/active/symphoneer-v1.md)
 
 ## 已确认边界
 

@@ -1,0 +1,22 @@
+{
+  "name": "symphoneer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "check": "pnpm check:format && pnpm check:types && pnpm check:project && pnpm test",
+    "check:format": "biome check .",
+    "check:project": "node scripts/check-project.mjs",
+    "check:types": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.6",
+    "@types/node": "24.13.3",
+    "typescript": "7.0.2"
+  }
+}
