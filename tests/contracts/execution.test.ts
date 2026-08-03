@@ -20,7 +20,7 @@ test("a Task boundary accepts the current schema version and rejects another ver
     },
     title: "Build the core",
     state: "open",
-    labels: ["symphony:ready"],
+    labels: ["symphoneer:ready"],
     dispatchable: true,
   };
 

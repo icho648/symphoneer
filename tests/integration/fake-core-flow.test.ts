@@ -23,7 +23,7 @@ test("the Fake Runner drives one deterministic core Attempt without Provider cla
     },
     title: "Build the core",
     state: "open",
-    labels: ["symphony:ready"],
+    labels: ["symphoneer:ready"],
     dispatchable: true,
   };
   const workspace = createWorkspaceReference({

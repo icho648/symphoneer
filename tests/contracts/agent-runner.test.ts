@@ -17,7 +17,7 @@ const task: TaskSummary = {
   },
   title: "Build the core",
   state: "open",
-  labels: ["symphony:ready"],
+  labels: ["symphoneer:ready"],
   dispatchable: true,
 };
 

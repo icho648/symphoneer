@@ -64,7 +64,7 @@ Symphoneer 可以缓存或投影 Tracker 数据，但 Tracker 冲突时以原生
 ## GitHub 原生能力的采用边界
 
 - **Issue / Sub-issue / Dependency：** 表达任务和真正独立的交付物；不是 Thread 日志。
-- **Labels：** 用于分类、风险和粗粒度调度门禁。V1 使用 `symphony:ready` 和 `symphony:review`，不为每个 Thread 建状态标签。
+- **Labels：** 用于分类、风险和粗粒度调度门禁。V1 使用 `symphoneer:ready` 和 `symphoneer:review`，不为每个 Thread 建状态标签。
 - **Projects：** 提供计划、聚合状态和筛选视图；Thread、Workspace 和 Verification 细节仍在 Symphoneer。
 - **Milestones：** 表示版本或交付目标，不表示 Session、Attempt 或 Agent 数量。
 

@@ -32,7 +32,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   const result = scheduler.reconcile({
     tasks: [
       { ...task("40"), state: "closed" },
-      { ...task("41"), labels: ["symphony:ready", "symphony:review"] },
+      { ...task("41"), labels: ["symphoneer:ready", "symphoneer:review"] },
     ],
     observedAt: "2026-08-02T12:01:00.000Z",
     idempotencyKey: "reconcile-1",
@@ -47,7 +47,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
     scheduler.reconcile({
       tasks: [
         { ...task("40"), state: "closed" },
-        { ...task("41"), labels: ["symphony:ready", "symphony:review"] },
+        { ...task("41"), labels: ["symphoneer:ready", "symphoneer:review"] },
       ],
       observedAt: "2026-08-02T12:01:00.000Z",
       idempotencyKey: "reconcile-1",

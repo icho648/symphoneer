@@ -15,8 +15,8 @@ test("the repository .symphoneer/WORKFLOW.md loads into a validated effective co
 
   assert.equal(workflow.path, resolve(".symphoneer/WORKFLOW.md"));
   assert.equal(workflow.config.tracker.kind, "github");
-  assert.deepEqual(workflow.config.symphoneer.eligibility.requiredLabels, ["symphony:ready"]);
-  assert.deepEqual(workflow.config.symphoneer.eligibility.excludedLabels, ["symphony:review"]);
+  assert.deepEqual(workflow.config.symphoneer.eligibility.requiredLabels, ["symphoneer:ready"]);
+  assert.deepEqual(workflow.config.symphoneer.eligibility.excludedLabels, ["symphoneer:review"]);
   assert.equal(workflow.config.agent.maxConcurrentAgents, 1);
   assert.equal(workflow.config.workspace.root, resolve(".symphoneer/workspaces"));
   assert.equal(workflow.config.hooks.timeoutMs, 60_000);

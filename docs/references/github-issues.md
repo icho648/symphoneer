@@ -24,7 +24,7 @@
 - GitHub Issues 保存 V1 Task 的原生身份、意图、状态和协作记录。
 - Symphoneer 只保存 Task 引用和执行投影，不建立竞争性的 Task 真相。
 - Run、Attempt、Workspace 和验证证据不反向塞入 Issue 作为完整运行日志数据库。
-- V1 只调度原生状态为 `open`、包含 `symphony:ready`、不包含 `symphony:review` 的 Issue。
+- V1 只调度原生状态为 `open`、包含 `symphoneer:ready`、不包含 `symphoneer:review` 的 Issue。
 - 首个真实 E2E 目标是专用私有仓库 `icho648/symphoneer-fixture`；已有创建授权，但只在 Smoke 阶段创建仓库、Issue 和标签。
 
 ## 元数据采用边界

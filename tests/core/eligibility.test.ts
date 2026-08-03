@@ -15,27 +15,27 @@ const baseTask: TaskSummary = {
   },
   title: "Build the core",
   state: "open",
-  labels: ["symphony:ready"],
+  labels: ["symphoneer:ready"],
   dispatchable: true,
 };
 
 const policy = {
   activeStates: ["open"],
   terminalStates: ["closed"],
-  requiredLabels: ["symphony:ready"],
-  excludedLabels: ["symphony:review"],
+  requiredLabels: ["symphoneer:ready"],
+  excludedLabels: ["symphoneer:review"],
 };
 
 test("eligibility covers every state, label, and adapter-owned routing gate", () => {
   const cases: Array<[string, Partial<TaskSummary>, boolean, string[]]> = [
     ["eligible", {}, true, []],
-    ["case-insensitive", { state: " OPEN ", labels: [" Symphony:Ready "] }, true, []],
+    ["case-insensitive", { state: " OPEN ", labels: [" Symphoneer:Ready "] }, true, []],
     ["terminal", { state: "closed" }, false, ["terminal_state"]],
     ["inactive", { state: "backlog" }, false, ["inactive_state"]],
     ["missing label", { labels: [] }, false, ["missing_required_label"]],
     [
       "excluded label",
-      { labels: ["symphony:ready", "symphony:review"] },
+      { labels: ["symphoneer:ready", "symphoneer:review"] },
       false,
       ["excluded_label"],
     ],

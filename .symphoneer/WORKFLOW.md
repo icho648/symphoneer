@@ -19,8 +19,8 @@ codex:
   stall_timeout_ms: 300000
 symphoneer:
   eligibility:
-    required_labels: [symphony:ready]
-    excluded_labels: [symphony:review]
+    required_labels: [symphoneer:ready]
+    excluded_labels: [symphoneer:review]
   verification:
     - id: check
       argv: [pnpm, check]

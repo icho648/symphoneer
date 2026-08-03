@@ -11,7 +11,7 @@
 
 ## 前置条件
 
-- Issue 原生状态为 `open`，包含 `symphony:ready`，不包含 `symphony:review`。
+- Issue 原生状态为 `open`，包含 `symphoneer:ready`，不包含 `symphoneer:review`。
 - Issue 说明任务意图和可观察成功条件。
 - `.symphoneer/WORKFLOW.md` 通过 `symphoneer.verification` 指定项目原生检查；缺少检查时保持 `Not verified`。
 - 用户拥有仓库、PR 和最终 Merge 权限。
@@ -23,7 +23,7 @@
 3. **开始 Attempt**：创建一次执行尝试，关联 Task、Workspace 和 Codex `threadId`。
 4. **观察执行**：区分 Domain Event、Runtime Log、Agent Statement、命令输出和外部系统状态。
 5. **独立验证**：Turn 结束后运行项目检查，保存命令、退出状态、精确版本和 artifact 引用。
-6. **进入 Review**：证据完整且 Tracker 允许时写入 `symphony:review`，再由 Symphoneer 投影为等待人工审查。
+6. **进入 Review**：证据完整且 Tracker 允许时写入 `symphoneer:review`，再由 Symphoneer 投影为等待人工审查。
 7. **人工决定**：选择 Merge / Close、继续或重试、创建 Follow-up，或转入 Codex App 接管。
 8. **结束或交接**：记录决定、责任人和下一动作；Tracker 仍保存 Issue、PR、Review、Merge 和 Close 的原生状态。
 
@@ -59,7 +59,7 @@
 │ Runtime      │ 选中 Task：#128  修复调度器重试逻辑              [打开 GitHub] │
 │ ● Running 2  │                                                               │
 │ Last sync    │ 意图：避免同一 Task 重复创建 Attempt                         │
-│              │ 标签：symphony:ready    Issue 状态：open                     │
+│              │ 标签：symphoneer:ready   Issue 状态：open                     │
 │ Settings     │                                                               │
 │              │ Attempt 02 · Running                                         │
 │              │ Workspace：worktree/task-128       ← 只在这里显示            │

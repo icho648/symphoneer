@@ -86,7 +86,7 @@ GitHub Issue
 |---|---|---|---|
 | 2026-08-01 | 产品主干是 Symphony-first 交付闭环 | 用一条可观察、可判定的 Task 交付路径验证价值 | User |
 | 2026-08-01 | TypeScript 实现 Symphony Core Conformance，固定 `f8e8b8a` SPEC | 与 Web / MCP 共享类型，同时保留稳定上游基线 | User |
-| 2026-08-01 | GitHub eligibility 为 `open` + `symphony:ready` + not `symphony:review` | 用原生状态和两个显式标签表达可调度与待审查 | User |
+| 2026-08-01 | GitHub eligibility 为 `open` + `symphoneer:ready` + not `symphoneer:review` | 用原生状态和两个显式标签表达可调度与待审查 | User |
 | 2026-08-01 | Codex App Server 拥有 Thread / Turn / Item；Verification 由 Symphoneer 独立运行 | Agent 自述和 Turn 完成不能成为自证 oracle | User |
 | 2026-08-01 | V1 默认 `Task → Attempt → 一个活跃 Agent Session`；同一 Task 多 Thread 的 `AgentRun` 聚合后置 | 先验证跨 Task 并行和单 Task 可恢复闭环，不把未定义的并发写入带进核心 | User |
 | 2026-08-01 | Human Review 拥有最终验收、Merge、Close 和接管权 | 自动化不替代人的交付决定 | User |
@@ -135,7 +135,7 @@ GitHub Issue
 | 术语 | 定义 |
 |---|---|
 | Task | GitHub Issue 中的持久工作身份与意图 |
-| Eligibility | Issue 为 `open`、有 `symphony:ready`、无 `symphony:review` 的可调度判定 |
+| Eligibility | Issue 为 `open`、有 `symphoneer:ready`、无 `symphoneer:review` 的可调度判定 |
 | Attempt | Symphoneer Runtime 的 Symphony Core 为某 Task 发起的一次可重试执行尝试 |
 | Workspace | 与 Task / Attempt 关联的隔离工作目录和分支 |
 | Worktree | Workspace 的 Git checkout 实现；Thread 使用其路径，但不拥有其生命周期 |
@@ -194,7 +194,7 @@ tests/
 
 测试统一进入根 `tests/{core,contracts,integration,e2e,fixtures}`，不创建 colocated `*.test.ts`。单元测试集中在状态转换、资格判定、backoff、幂等、解析和 reducer；UI 主要使用交互级测试、可访问性检查和少量 Playwright 主流程，少写组件级单元测试。
 
-本阶段不创建定时器。只有远程仓库存在且 `pnpm check` 经过稳定运行后，才用仓库原生定时工作流每周检查；巡检只报告或更新一个问题，不自动修复，也不自动加 `symphony:ready`。
+本阶段不创建定时器。只有远程仓库存在且 `pnpm check` 经过稳定运行后，才用仓库原生定时工作流每周检查；巡检只报告或更新一个问题，不自动修复，也不自动加 `symphoneer:ready`。
 
 ### Phase 2 — 共享契约与 Symphony Core Conformance
 
@@ -206,7 +206,7 @@ Agent Runner 的最小形状是 `startOrContinue(request) → RunHandle`，其�
 
 ### Phase 3 — GitHub、Workspace、Codex 与独立 Verification 闭环
 
-实现唯一的 GitHub Issues Adapter，保留原生 ID 和深链，并对 `open` + `symphony:ready` + not `symphony:review` 做可独立测试的筛选。访问令牌只来自进程环境或本地认证工具，不写入配置、Runtime Log、Domain Event、artifact 或 Phoenix。
+实现唯一的 GitHub Issues Adapter，保留原生 ID 和深链，并对 `open` + `symphoneer:ready` + not `symphoneer:review` 做可独立测试的筛选。访问令牌只来自进程环境或本地认证工具，不写入配置、Runtime Log、Domain Event、artifact 或 Phoenix。
 
 先运行 App Server 契约生成命令的 `--help`，再用当前 CLI 生成 TypeScript Schema 并记录 Codex 版本。实现 `CodexAppServerAdapter` 的初始化、Thread / Turn 执行、原生事件保存、超时、中断、审批与介入响应。`threadId`、`turnId` 只是 Attempt 的 Provider 引用；`pause` 中断当前 Run、保留 Workspace 与 Session 引用并停止自动继续，不冻结 Runtime 进程。
 
@@ -243,7 +243,7 @@ Task Board 的实现按下图保持 Task、Attempt、Workspace 和证据层级�
 │ Runtime      │ 选中 Task：#128  修复调度器重试逻辑              [打开 GitHub] │
 │ ● Running 2  │                                                               │
 │ Last sync    │ 意图：避免同一 Task 重复创建 Attempt                         │
-│              │ 标签：symphony:ready    Issue 状态：open                     │
+│              │ 标签：symphoneer:ready   Issue 状态：open                     │
 │ Settings     │                                                               │
 │              │ Attempt 02 · Running                                         │
 │              │ Workspace：worktree/task-128       ← 只在这里显示            │
@@ -269,7 +269,7 @@ Task Board 的实现按下图保持 Task、Attempt、Workspace 和证据层级�
 
 在进入本阶段时再确认当前 GitHub 账号和目标名称不冲突，然后创建 `icho648/symphoneer-fixture` 私有仓库。fixture 只包含一个最小 TypeScript 应用、一条 `pnpm check`、一份 `.symphoneer/WORKFLOW.md` 和所需标签。
 
-创建一个小型功能 Issue，让它经过资格门禁、Attempt、Workspace、Codex、PR、独立 Verification、`symphony:review` 写回和人工 Review。人手工 Merge / Close，然后验证 Symphoneer 对账到终态并清理本地 Workspace。不删除 fixture 仓库，使它保留为可重现测试资产。
+创建一个小型功能 Issue，让它经过资格门禁、Attempt、Workspace、Codex、PR、独立 Verification、`symphoneer:review` 写回和人工 Review。人手工 Merge / Close，然后验证 Symphoneer 对账到终态并清理本地 Workspace。不删除 fixture 仓库，使它保留为可重现测试资产。
 
 ### Phase 7 — Phoenix 非阻塞观测
 
@@ -459,13 +459,13 @@ pnpm test
 gh auth status
 gh repo view icho648/symphoneer-fixture
 gh repo create icho648/symphoneer-fixture --private
-gh label create 'symphony:ready' --repo icho648/symphoneer-fixture
-gh label create 'symphony:review' --repo icho648/symphoneer-fixture
+gh label create 'symphoneer:ready' --repo icho648/symphoneer-fixture
+gh label create 'symphoneer:review' --repo icho648/symphoneer-fixture
 ```
 
-`gh repo view` 预期在首次创建前报告仓库不存在；如果已存在，停止创建并先核对所有权和内容。创建后用非交互命令推送最小 fixture，再用 `gh issue create` 创建一个边界清晰的 Issue 并加 `symphony:ready`。不在命令行、日志或计划中打印 Token。
+`gh repo view` 预期在首次创建前报告仓库不存在；如果已存在，停止创建并先核对所有权和内容。创建后用非交互命令推送最小 fixture，再用 `gh issue create` 创建一个边界清晰的 Issue 并加 `symphoneer:ready`。不在命令行、日志或计划中打印 Token。
 
-真实 Smoke 的通过证据必须同时包含：Issue URL、Attempt ID、Workspace / branch、Codex thread ID、Verification 命令与退出状态、PR URL、`symphony:review` 的 Tracker 复读、人工 Review 决定、Merge / Close 的原生链接以及本地清理结果。
+真实 Smoke 的通过证据必须同时包含：Issue URL、Attempt ID、Workspace / branch、Codex thread ID、Verification 命令与退出状态、PR URL、`symphoneer:review` 的 Tracker 复读、人工 Review 决定、Merge / Close 的原生链接以及本地清理结果。
 
 ### Phoenix 检查
 
@@ -478,7 +478,7 @@ gh label create 'symphony:review' --repo icho648/symphoneer-fixture
 | AC | 验收条件 | 验证方式 | 当前状态 |
 |---|---|---|---|
 | AC-00 | 本轮文档二次优化只修改 Markdown，索引完整，ExecPlan 保持 12 个必需章节 | 本地链接、索引、章节、文件类型和 `git diff --check` | Pass — documentation only |
-| AC-01 | 只有 `open` + `symphony:ready` + not `symphony:review` 的 Issue 可调度 | 表格测试所有标签/状态组合，再用 fixture Smoke | Partial — deterministic Pass；fixture Not verified |
+| AC-01 | 只有 `open` + `symphoneer:ready` + not `symphoneer:review` 的 Issue 可调度 | 表格测试所有标签/状态组合，再用 fixture Smoke | Partial — deterministic Pass；fixture Not verified |
 | AC-02 | 同一 Task 没有未定义的并发 Attempt、Workspace 所有者或活跃 Turn | 状态机/并发测试，进程重启对账 Smoke | Partial — strict Attempt sequence, canonical Workspace ownership and Turn ownership Pass；restart Smoke Not verified |
 | AC-03 | Retry、timeout、cancel、失联和重启能对账，不重放已完成外部写入 | fake clock / runner 测试；注入失败的恢复 Smoke | Partial — due-time transition, retry/backoff, bounded in-memory idempotency and reconciliation Pass；persistent/external recovery Not verified |
 | AC-04 | Agent 声明或 Turn 完成不能把未运行/失败检查升级为通过 | 伪造完成声明与失败检查的集成测试 | Partial — Verification Schema rejects false pass；independent executor Not verified |
@@ -592,8 +592,8 @@ codex:
   stall_timeout_ms: 300000
 symphoneer:
   eligibility:
-    required_labels: [symphony:ready]
-    excluded_labels: [symphony:review]
+    required_labels: [symphoneer:ready]
+    excluded_labels: [symphoneer:review]
   verification:
     - id: check
       argv: [pnpm, check]
@@ -601,7 +601,7 @@ symphoneer:
       timeout_ms: 120000
 ```
 
-`workspace.root` 相对 `.symphoneer/WORKFLOW.md` 所在目录解析，所以 `workspaces` 的实际默认位置是仓库内 `.symphoneer/workspaces/`。Prompt 和交接策略继续由该 repository-owned contract 表达。当 Verification 通过并准备交接时，工作流使用受限的 GitHub 原生工具添加 `symphony:review`；Symphoneer 必须重新读取 Tracker 后才进入等待人工审查状态。
+`workspace.root` 相对 `.symphoneer/WORKFLOW.md` 所在目录解析，所以 `workspaces` 的实际默认位置是仓库内 `.symphoneer/workspaces/`。Prompt 和交接策略继续由该 repository-owned contract 表达。当 Verification 通过并准备交接时，工作流使用受限的 GitHub 原生工具添加 `symphoneer:review`；Symphoneer 必须重新读取 Tracker 后才进入等待人工审查状态。
 
 ### Shared contracts
 

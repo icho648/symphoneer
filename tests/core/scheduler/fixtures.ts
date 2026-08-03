@@ -17,7 +17,7 @@ export function task(id: string, state = "open"): TaskSummary {
     },
     title: `Task ${id}`,
     state,
-    labels: ["symphony:ready"],
+    labels: ["symphoneer:ready"],
     dispatchable: true,
   };
 }
@@ -37,8 +37,8 @@ export function workspace(taskId: string, attemptId: string, identifier = `#${ta
 export const policy = {
   activeStates: ["open", "urgent"],
   terminalStates: ["closed"],
-  requiredLabels: ["symphony:ready"],
-  excludedLabels: ["symphony:review"],
+  requiredLabels: ["symphoneer:ready"],
+  excludedLabels: ["symphoneer:review"],
   maxConcurrentAgents: 2,
   maxConcurrentAgentsByState: { open: 1, urgent: 1 },
   maxRetryBackoffMs: 300_000,

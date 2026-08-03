@@ -69,7 +69,7 @@ test("RetryQueued transitions atomically enforce due time, refresh state, slots,
   assert.deepEqual(
     unroutable.transitionRetry({
       taskId: "52",
-      refreshedTask: { ...task("52"), labels: ["symphony:ready", "symphony:review"] },
+      refreshedTask: { ...task("52"), labels: ["symphoneer:ready", "symphoneer:review"] },
       nowMs: unroutableRetry.dueAtMs,
       idempotencyKey: "retry-52-unroutable",
     }),
