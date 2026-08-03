@@ -48,6 +48,18 @@ test("eligibility, events, projection versions, and API errors stay versioned", 
     }).eligible,
     false,
   );
+  for (const result of [
+    { eligible: true, reasons: ["terminal_state"] },
+    { eligible: false, reasons: [] },
+  ]) {
+    assert.throws(() =>
+      EligibilityResultSchema.parse({
+        schemaVersion: CONTRACT_SCHEMA_VERSION,
+        taskId: "task-13",
+        ...result,
+      }),
+    );
+  }
   assert.equal(PROJECTION_SCHEMA_VERSION, 1);
   assert.equal(
     DomainEventEnvelopeSchema.parse({

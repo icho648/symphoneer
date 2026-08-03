@@ -36,11 +36,21 @@ export const EligibilityReasonSchema = z.enum([
 
 export type EligibilityReason = z.infer<typeof EligibilityReasonSchema>;
 
-export const EligibilityResultSchema = z.object({
-  schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
-  taskId: NonEmptyString,
-  eligible: z.boolean(),
-  reasons: z.array(EligibilityReasonSchema),
-});
+export const EligibilityResultSchema = z
+  .object({
+    schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
+    taskId: NonEmptyString,
+    eligible: z.boolean(),
+    reasons: z.array(EligibilityReasonSchema),
+  })
+  .superRefine((result, context) => {
+    if (result.eligible !== (result.reasons.length === 0)) {
+      context.addIssue({
+        code: "custom",
+        path: ["eligible"],
+        message: "eligible must match whether reasons is empty",
+      });
+    }
+  });
 
 export type EligibilityResult = z.infer<typeof EligibilityResultSchema>;

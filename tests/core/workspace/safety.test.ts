@@ -73,13 +73,14 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
 
   const safeManager = new WorkspaceManager({ root });
   const prepared = await safeManager.prepare({ ...input, attemptId: "attempt-safe" });
+  const finished = await safeManager.finish(prepared.workspace);
   const target = resolve(root, "symlink-target");
   await mkdir(target);
   await writeFile(resolve(target, "keep.txt"), "keep");
   await rm(prepared.workspace.path, { recursive: true });
   await symlink(target, prepared.workspace.path, "dir");
   await assert.rejects(
-    safeManager.remove(prepared.workspace),
+    safeManager.remove(finished.workspace),
     (error) => error instanceof WorkspaceError && error.code === "workspace_not_directory",
   );
   assert.equal(await readFile(resolve(target, "keep.txt"), "utf8"), "keep");

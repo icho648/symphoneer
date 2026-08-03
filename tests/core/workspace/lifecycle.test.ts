@@ -34,6 +34,10 @@ test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministic
   const created = await manager.prepare(input);
   assert.equal(created.createdNow, true);
   await assert.rejects(
+    manager.remove(created.workspace),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
+  );
+  await assert.rejects(
     manager.prepare({ ...input, attemptId: "attempt-13-concurrent" }),
     (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
   );

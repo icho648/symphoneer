@@ -93,6 +93,23 @@ export const AttemptSnapshotSchema = z
         message: "successful Attempts cannot have a failure",
       });
     }
+    if (Date.parse(attempt.updatedAt) < Date.parse(attempt.startedAt)) {
+      context.addIssue({
+        code: "custom",
+        path: ["updatedAt"],
+        message: "Attempt updatedAt cannot precede startedAt",
+      });
+    }
+    if (
+      attempt.finishedAt != null &&
+      Date.parse(attempt.finishedAt) < Date.parse(attempt.updatedAt)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["finishedAt"],
+        message: "Attempt finishedAt cannot precede updatedAt",
+      });
+    }
   });
 
 export type AttemptSnapshot = z.infer<typeof AttemptSnapshotSchema>;

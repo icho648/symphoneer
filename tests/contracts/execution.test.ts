@@ -56,6 +56,18 @@ test("Attempt and Workspace boundaries reject conflicting active ownership", () 
   assert.equal(AttemptSnapshotSchema.parse(attempt).activeTurn?.turnId, "turn-13");
   assert.throws(() => AttemptSnapshotSchema.parse({ ...attempt, activeTurn: null }));
   assert.throws(() =>
+    AttemptSnapshotSchema.parse({ ...attempt, updatedAt: "2026-08-02T11:59:59.000Z" }),
+  );
+  assert.throws(() =>
+    AttemptSnapshotSchema.parse({
+      ...attempt,
+      status: "failed",
+      activeTurn: null,
+      finishedAt: "2026-08-02T12:00:00.500Z",
+      failure: "runner failed",
+    }),
+  );
+  assert.throws(() =>
     AttemptSnapshotSchema.parse({
       ...attempt,
       status: "succeeded",

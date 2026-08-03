@@ -92,6 +92,12 @@ export class WorkspaceManager {
 
   async remove(workspaceInput: WorkspaceReference): Promise<FinishedWorkspace> {
     const workspace = this.#registry.require(workspaceInput);
+    if (workspace.state !== "retained" || workspace.ownerAttemptId !== null) {
+      throw new WorkspaceError(
+        "workspace_identity_mismatch",
+        `Workspace ${workspace.id} is still actively owned`,
+      );
+    }
     await assertWorkspaceDirectory(workspace.path);
     const hookFailures = await this.#hooks.runBestEffort("beforeRemove", workspace.path);
     await assertWorkspaceDirectory(workspace.path);
