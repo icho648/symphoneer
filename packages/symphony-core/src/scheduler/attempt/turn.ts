@@ -20,14 +20,13 @@ export function attachTurn(
   if (state.activeTurns.has(request.turnId) || (threadOwner && threadOwner !== attempt.id)) {
     throw new CoreError("conflict", "Thread or Turn already has another active owner");
   }
-  if (activeTurn) state.activeTurns.delete(activeTurn.turnId);
-
   const updated = AttemptSnapshotSchema.parse({
     ...attempt,
     status: "streaming_turn",
     activeTurn: { threadId: request.threadId, turnId: request.turnId },
     updatedAt: request.updatedAt,
   });
+  if (activeTurn) state.activeTurns.delete(activeTurn.turnId);
   state.attempts.set(updated.id, updated);
   state.activeTurns.set(request.turnId, {
     attemptId: updated.id,

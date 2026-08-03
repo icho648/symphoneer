@@ -54,6 +54,17 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
     }),
     attached,
   );
+  const beforeInvalidTurn = scheduler.snapshot();
+  assert.throws(() =>
+    scheduler.attachTurn({
+      attemptId: "attempt-20",
+      threadId: "thread-20",
+      turnId: "turn-invalid",
+      updatedAt: "invalid",
+      idempotencyKey: "attach-invalid-turn",
+    }),
+  );
+  assert.deepEqual(scheduler.snapshot(), beforeInvalidTurn);
   scheduler.reserveAttempt({
     task: task("22"),
     attemptId: "attempt-22",

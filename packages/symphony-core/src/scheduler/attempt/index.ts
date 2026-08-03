@@ -81,11 +81,6 @@ export function terminateRunning(
   if (!running) throw new CoreError("not_found", `Task ${taskId} is not running`);
   const attempt = state.attempts.get(running.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${running.attemptId} does not exist`);
-  if (attempt.activeTurn) {
-    state.activeTurns.delete(attempt.activeTurn.turnId);
-    state.activeThreads.delete(attempt.activeTurn.threadId);
-  }
-
   const finished = AttemptSnapshotSchema.parse({
     ...attempt,
     status,
@@ -99,6 +94,10 @@ export function terminateRunning(
     state: workspaceState,
     ownerAttemptId: null,
   });
+  if (attempt.activeTurn) {
+    state.activeTurns.delete(attempt.activeTurn.turnId);
+    state.activeThreads.delete(attempt.activeTurn.threadId);
+  }
   state.attempts.set(finished.id, finished);
   state.workspaces.set(workspace.path, workspace);
   state.running.delete(taskId);

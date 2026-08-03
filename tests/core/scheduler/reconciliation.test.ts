@@ -29,6 +29,16 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
     });
   }
 
+  const beforeInvalidReconciliation = scheduler.snapshot();
+  assert.throws(() =>
+    scheduler.reconcile({
+      tasks: [{ ...task("40"), state: "closed" }],
+      observedAt: "invalid",
+      idempotencyKey: "reconcile-invalid",
+    }),
+  );
+  assert.deepEqual(scheduler.snapshot(), beforeInvalidReconciliation);
+
   const result = scheduler.reconcile({
     tasks: [
       { ...task("40"), state: "closed" },
