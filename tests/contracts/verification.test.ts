@@ -38,4 +38,17 @@ test("Verification cannot claim pass without an independent zero exit status", (
     }).status,
     "not_verified",
   );
+  for (const evidence of [
+    { finishedAt: result.finishedAt, artifactRef: null },
+    { finishedAt: null, artifactRef: result.artifactRef },
+  ]) {
+    assert.throws(() =>
+      VerificationResultSchema.parse({
+        ...result,
+        status: "not_run",
+        exitCode: null,
+        ...evidence,
+      }),
+    );
+  }
 });

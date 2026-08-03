@@ -1,5 +1,8 @@
-import type { TaskSummary } from "@symphoneer/contracts";
-import { WorkspaceReferenceSchema } from "@symphoneer/contracts";
+import {
+  AttemptSnapshotSchema,
+  type TaskSummary,
+  WorkspaceReferenceSchema,
+} from "@symphoneer/contracts";
 
 import { reserve } from "../dispatch/index.ts";
 import { evaluateEligibility } from "../eligibility.ts";
@@ -48,6 +51,13 @@ export function transitionRetry(
   }
   if (!request.nextAttempt) {
     throw new CoreError("invalid_transition", "An eligible retry requires its next Attempt");
+  }
+  const startedAt = AttemptSnapshotSchema.shape.startedAt.parse(request.nextAttempt.startedAt);
+  if (Date.parse(startedAt) > request.nowMs) {
+    throw new CoreError(
+      "invalid_transition",
+      "Retry Attempt cannot start after its transition clock",
+    );
   }
 
   const decision = reserve(

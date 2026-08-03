@@ -131,6 +131,22 @@ test("RetryQueued transitions atomically enforce due time, refresh state, slots,
   const eligible = new CoreScheduler(policy);
   const eligibleRetry = queueFailedAttempt(eligible, "55");
   assert.ok(eligibleRetry);
+  assert.throws(
+    () =>
+      eligible.transitionRetry({
+        taskId: "55",
+        refreshedTask: task("55"),
+        nowMs: eligibleRetry.dueAtMs,
+        nextAttempt: {
+          attemptId: "attempt-55-future",
+          sequence: 2,
+          workspace: workspace("55", "attempt-55-future"),
+          startedAt: "2026-08-02T12:00:13.000Z",
+        },
+        idempotencyKey: "retry-55-future",
+      }),
+    (error) => error instanceof CoreError && error.code === "invalid_transition",
+  );
   assert.equal(
     eligible.transitionRetry({
       taskId: "55",

@@ -50,7 +50,7 @@ GitHub Issue
 - [x] 2026-08-03 Issue #13 路径复核：曾用 `.symphoneer/` 收拢进入 Git 的 `WORKFLOW.md` 与被忽略的 Workspace / events / artifacts / logs；该临时布局随后被同日“项目归属不等于软件存储责任”的决定取代。
 - [x] 2026-08-03 Issue #13 存储与结构复核：基线 `b9a51ca395e039b9598edeb0863f62ecb12bc352`、工作树干净；repository-owned contract 与软件存储责任已分离，Scheduler 已按 dispatch / attempt / retry 行为整理，Standards / Spec 双轴复审通过，`pnpm check` 为 24/24。
 - [x] 2026-08-03 文档 Harness：把旧 Plan 规则与分区索引收敛为分层 `AGENTS.md`，将计划目录简化为 `plans/`，去除 Codemap、设计和计划中的重复事实；`pnpm check` 通过。
-- [x] 2026-08-03 Issue #13 PR 复审：修复 Workspace hook 后复检 / 删除 / 稳定 identity 所有权、连续 Turn、容量等待计数、失败转换原子性、reconciliation 部分写入与时钟前置校验、Attempt / Verification / Intervention 时间顺序、Verification exit status、成功/failure 和 Eligibility 结果一致性；定向回归和全量检查通过。
+- [x] 2026-08-03 Issue #13 PR 复审：修复 Workspace hook 后复检 / 删除 / 稳定 identity 所有权、连续 Turn、容量等待计数与未来 start、失败转换原子性、reconciliation 部分写入与时钟前置校验、Attempt / Verification / Intervention 时间顺序、Verification 完整证据与 exit status、成功/failure 和 Eligibility 结果一致性；定向回归和全量检查通过。
 - [ ] Phase 3：打通 GitHub Tracker、Workspace、Codex App Server 和独立 Verification。
 - [ ] Phase 4：实现 JSONL 历史投影、独立 Runtime 和普通 Next.js Web Dashboard。
 - [ ] Phase 5：实现受控 MCP 查询与操作。
@@ -92,6 +92,7 @@ GitHub Issue
 - 2026-08-03 — 第四轮 PR 复审发现 `remove()` 可删除活跃 Workspace、Attempt 时间可倒退、Eligibility 布尔值与 reasons 可矛盾。修复落在 Workspace lifecycle guard 和共享 Contract Schema；旧 symlink 安全测试改为先 `finish()` 再删除，以保留真实 retained-only 删除前置条件而不弱化路径防护。
 - 2026-08-03 — 第五轮 PR 复审发现 `workspace_owned` 混合了暂态 owner 与永久 identity 冲突、稳定 Workspace ID 可换路径、连续 Turn 与 Verification 时间可倒退，以及 ISO-valid 旧 reconciliation 时间仍可造成部分写入。Core 现在单列 `workspace_identity_mismatch`、绑定 ID/path、在写入前校验活跃 Attempt 时钟，并在共享 Schema 固化 Verification chronology。
 - 2026-08-03 — 第六轮 PR 复审发现 setup hook 可在成功退出前替换 Workspace 路径、failed Verification 可带 exit code 0、Intervention 决定可早于请求。`prepare()` 现在在全部 setup hooks 后最终复检路径；共享 Schema 固化 `passed ⇔ exitCode 0` 与 Intervention chronology。
+- 2026-08-03 — 第七轮 PR 复审发现未运行 Verification 可保留半份 completion evidence，且 Retry 可创建时间晚于 transition clock 的活跃 Attempt。Verification Schema 现在要求执行状态与 completion time / artifact 分别等价；Retry 在占用 claim 和 capacity 前校验 proposed start。
 
 新发现必须记录日期、直接证据和它改变了哪个计划或决定。未证实猜测不进入本节。
 
@@ -404,6 +405,7 @@ Issue #13 本地实现的最小证据是：
 - 2026-08-03 第四批 PR 复审回归：活跃 Workspace 删除、Attempt 时间倒退和 Eligibility 矛盾在 5 条定向测试中准确失败 3 条，修复后 5/5；全量检查随后暴露旧 symlink 测试绕过 retained 前置条件，调整为先 `finish()` 后，Workspace 定向测试 3/3、最终 `pnpm check` 24/24。
 - 2026-08-03 第五批 PR 复审回归：Workspace identity/path、连续 Turn 时间、Verification 时间和 ISO-valid 旧 reconciliation 时间在 6 条定向测试中准确失败 5 条，修复后 6/6；`pnpm check` 的格式、类型、项目结构和 24 条测试全部退出 0。
 - 2026-08-03 第六批 PR 复审回归：hook 后路径替换、failed/zero-exit Verification 和 Intervention 逆序决定在 5 条定向测试中准确失败 3 条，修复后 5/5；`pnpm check` 的格式、类型、项目结构和 24 条测试全部退出 0。
+- 2026-08-03 第七批 PR 复审回归：未运行检查的半份 evidence 与未来 Retry start 在 2 条定向测试中均准确失败，修复后 2/2；`pnpm check` 的格式、类型、项目结构和 24 条测试全部退出 0。
 - 2026-08-03 文档 Harness：`docs/AGENTS.md` 直接路由 Design / Product Specs / References，Research 与 Plans 使用局部 `AGENTS.md`；项目检查拒绝 `docs/**/index.md` 并验证所有叶子路由。最终 `pnpm check` 的格式、类型、项目结构与 24 条测试全部退出 0。
 - 审查实例 `i13_20260802_a`：独立 standards / spec 首轮 findings 全部关闭；复审新增的 Attempt provenance、Workspace identity/path、hook process group 和有界幂等窗口问题已修复并由同一组审查者通过最终复审。
 - 直接证据：[`../../../packages/contracts/src/index.ts`](../../../packages/contracts/src/index.ts)、[`../../../packages/symphony-core/src/index.ts`](../../../packages/symphony-core/src/index.ts) 与 [`../../../tests/`](../../../tests/)。

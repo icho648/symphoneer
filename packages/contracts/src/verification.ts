@@ -27,11 +27,11 @@ export const VerificationResultSchema = z
   })
   .superRefine((verification, context) => {
     const ran = verification.status !== "not_run" && verification.status !== "not_verified";
-    if (ran !== (verification.finishedAt !== null && verification.artifactRef !== null)) {
+    if (ran !== (verification.finishedAt !== null) || ran !== (verification.artifactRef !== null)) {
       context.addIssue({
         code: "custom",
         path: ["finishedAt"],
-        message: "executed checks require completion time and immutable artifact reference",
+        message: "only executed checks have completion time and immutable artifact reference",
       });
     }
     if ((verification.status === "passed") !== (verification.exitCode === 0)) {
