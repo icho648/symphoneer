@@ -8,6 +8,7 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   const topLevel = (await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim();
   if (!topLevel) throw new Error("Git worktree root could not be read");
   const root = resolve(topLevel);
+  await assertNoDirtySubmodules(root);
   const hash = createHash("sha256");
   hash.update("tracked\0");
   await hashGitDiff(root, hash);
@@ -47,6 +48,17 @@ async function hashFile(path: Buffer): Promise<Uint8Array> {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
   return hash.digest();
+}
+
+async function assertNoDirtySubmodules(cwd: string): Promise<void> {
+  const status = await gitOutput(cwd, [
+    "submodule",
+    "foreach",
+    "--quiet",
+    "--recursive",
+    "git status --porcelain=v2 --untracked-files=all",
+  ]);
+  if (status.trim()) throw new Error("Dirty submodules cannot be fingerprinted safely");
 }
 
 export function splitNull(output: Uint8Array): Buffer[] {

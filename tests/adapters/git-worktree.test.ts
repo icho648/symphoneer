@@ -139,6 +139,45 @@ test("Git worktree removal refuses ignored files", async (t) => {
   await access(ignored);
 });
 
+test("Git worktree preparation rolls back after stale identity validation", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const driver = new GitWorktreeDriver({
+    repositoryPath: fixture.repositoryPath,
+    repository: "icho648/symphoneer",
+    baseRevision: "HEAD",
+  });
+  const manager = new WorkspaceManager({ root: fixture.workspaceRoot, driver });
+  const input = workspaceInput("codex/stale-create");
+  const prepared = await manager.prepare(input);
+  const retained = await manager.finish(prepared.workspace);
+  const released = await manager.remove(retained.workspace);
+
+  execFileSync("git", ["-C", fixture.repositoryPath, "commit", "--allow-empty", "-m", "advance"]);
+  const advanced = execFileSync("git", ["-C", fixture.repositoryPath, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
+  execFileSync("git", [
+    "-C",
+    fixture.repositoryPath,
+    "update-ref",
+    "refs/heads/codex/stale-create",
+    advanced,
+  ]);
+
+  await assert.rejects(
+    manager.prepare(input),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
+  );
+  await assert.rejects(access(prepared.workspace.path));
+  assert.doesNotMatch(
+    execFileSync("git", ["-C", fixture.repositoryPath, "worktree", "list", "--porcelain"], {
+      encoding: "utf8",
+    }),
+    new RegExp(prepared.workspace.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+  );
+  assert.equal((await manager.remove(released.workspace)).workspace.state, "released");
+});
+
 test("Git worktree recovery rejects identity mismatches and reconciles complete absence", async (t) => {
   const fixture = await repositoryFixture(t);
   const driver = new GitWorktreeDriver({

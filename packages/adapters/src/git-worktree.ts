@@ -106,9 +106,22 @@ export class GitWorktreeDriver implements WorkspaceDriver {
             await this.#resolvedBaseRevision(),
           ];
     await runGit(this.#repositoryPath, args);
-    const observation = await this.assertReady(workspace);
-    this.#assertExpected(workspace, observation);
-    return { createdNow: true, ...observation };
+    try {
+      const observation = await this.assertReady(workspace);
+      this.#assertExpected(workspace, observation);
+      return { createdNow: true, ...observation };
+    } catch (error) {
+      try {
+        await runGit(this.#repositoryPath, ["worktree", "remove", workspace.path]);
+      } catch (cleanupError) {
+        throw new WorkspaceError(
+          "workspace_git_failed",
+          `Workspace ${workspace.id} could not be rolled back after validation failed`,
+          { cause: cleanupError },
+        );
+      }
+      throw error;
+    }
   }
 
   async recover(workspace: WorkspaceReference) {

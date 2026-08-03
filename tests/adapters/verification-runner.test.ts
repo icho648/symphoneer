@@ -150,6 +150,43 @@ test("Fingerprint parser preserves raw untracked pathnames", () => {
   );
 });
 
+test("Verification rejects dirty submodules before executing", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const submodule = resolve(fixture.base, "submodule");
+  execFileSync("git", ["init", "-b", "main", submodule]);
+  execFileSync("git", ["-C", submodule, "config", "user.name", "Symphoneer Test"]);
+  execFileSync("git", ["-C", submodule, "config", "user.email", "test@example.com"]);
+  await writeFile(resolve(submodule, "nested.txt"), "baseline\n");
+  execFileSync("git", ["-C", submodule, "add", "nested.txt"]);
+  execFileSync("git", ["-C", submodule, "commit", "-m", "nested baseline"]);
+  execFileSync("git", [
+    "-C",
+    fixture.repository,
+    "-c",
+    "protocol.file.allow=always",
+    "submodule",
+    "add",
+    submodule,
+    "nested",
+  ]);
+  execFileSync("git", ["-C", fixture.repository, "commit", "-m", "add submodule"]);
+  await writeFile(resolve(fixture.repository, "nested", "nested.txt"), "changed\n");
+  const marker = resolve(fixture.repository, "must-not-run.txt");
+
+  await assert.rejects(
+    new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+      attemptId: "attempt-dirty-submodule",
+      checkId: "check",
+      argv: [process.execPath, "-e", "require('node:fs').writeFileSync('must-not-run.txt', 'ran')"],
+      cwd: ".",
+      workspacePath: fixture.repository,
+      timeoutMs: 5_000,
+    }),
+    /Dirty submodules cannot be fingerprinted safely/,
+  );
+  await assert.rejects(access(marker));
+});
+
 test("Verification binds the Workspace root when cwd is a nested Git repository", async (t) => {
   const fixture = await repositoryFixture(t);
   const nested = resolve(fixture.repository, "nested");
