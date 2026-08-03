@@ -102,6 +102,8 @@ codex app-server generate-json-schema --help
 
 这些命令是入口，不是计划中的缓存结果。实现每次只推进一个可判定 Acceptance，并将 Diff、命令、退出状态、未验证项和下一步写入关联 PR/Issue。未到达的后续 Issue 不创建空包、空脚本或外部 fixture。
 
+恢复验收从当前 Git worktree 的仓库根目录执行。`git status --short`、`git branch --show-current` 和各命令的退出状态写入关联 PR/Issue；`git diff --check` 必须退出 0 且无输出，`pnpm check` 必须退出 0。涉及 Codex App Server 时，四个 `codex` 命令也必须退出 0 并输出对应的版本、帮助或 Schema；任一命令失败、工具不可用或缺少匹配的 PR/CI/Smoke 证据，恢复门槛保持 `Not verified`，不得仅凭 Git 状态继续判定通过。
+
 ## Validation and Acceptance
 
 | Gate | Scope | Required evidence |
@@ -125,7 +127,7 @@ codex app-server generate-json-schema --help
 ## Artifacts and Notes
 
 - Issue/PR、CI、Smoke artifact 和人工决定是当前证据的事实源；必要时只引用不可变链接、提交或 artifact。
-- 恢复时从 Git 读取提交、分支、工作树和验证结果；本计划不记录当前测试数量、认领人、分支名或某次命令的退出状态。
+- 恢复时从 Git 读取提交、分支和工作树；验证结果必须从关联 PR/CI/Smoke artifact 或重新执行的命令读取。本计划不记录当前测试数量、认领人、分支名或某次命令的退出状态。
 - 详细外部契约和产品边界只引用 [docs/AGENTS.md](../../AGENTS.md) 路由的叶子文档；不在本节复制。
 
 ## Interfaces and Dependencies
