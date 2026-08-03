@@ -37,7 +37,6 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 
 - GitHub 依赖是原生关系而不是计划文本；开始、恢复和决定是否可以推进时必须实时读取依赖接口。
 - 共享 Workspace 并发语义若仍有未决 Review 选择，在实现该路径前必须实时读取相关 PR 线程并完成决定。
-- 2026-08-03 — 已确认相同 Workspace 的并发 `prepare()` 采用合并等待：相同请求共享一次初始化及其成功/失败结果，避免 `after_create` 未完成时返回可复用 Workspace。该语义已在 `WorkspaceManager` 和生命周期回归测试中落地。
 - 仓库结构和外部契约会随 Issue 演进；实现前读取 [ARCHITECTURE.md](../../../ARCHITECTURE.md)、对应 Interface 和外部契约叶子文档。
 
 未验证的外部行为继续标记为 Not verified，不因 Issue、计划或 Fake 测试而升级。
@@ -48,7 +47,6 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 - active plan 只保留 V1 总览、依赖、Review Gate、本地恢复信息和证据索引。
 - Review 按共享验收边界合并：Gate A = #13 + #14 Core/Execution；Gate B = #15 + #16 Runtime/Product Surface；Gate C = #17 真实 E2E 与 Human Review；Gate D = #18 Phoenix；最后由 #12 做 V1 整体验收。
 - #14 只实现其 Issue 明确授权的 Adapter、Workspace、Codex 和 Verification 边界；不提前实现 Runtime/Web/MCP/fixture/Phoenix。
-- 相同 Workspace 的并发 `prepare()` 采用合并等待；仅完全相同的初始化请求共享 Promise，不同稳定身份仍按 Workspace 冲突处理。
 - Planner、Evaluator 和多 Agent Harness 是开发方法，不是 Symphoneer 产品对象、状态或 V1 功能。
 
 ## Outcomes & Retrospective
