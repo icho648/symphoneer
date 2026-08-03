@@ -82,27 +82,7 @@ Issue 实现的入口是实时 GitHub Issue/PR/依赖状态、本地 Git 状态�
 
 ## Concrete Steps
 
-Issue-driven 增量的固定入口：
-
-```sh
-git status --short
-git branch --show-current
-git diff --check
-pnpm check
-```
-
-涉及 Codex App Server 时，依据当前本机 CLI 重新运行：
-
-```sh
-codex --version
-codex app-server --help
-codex app-server generate-ts --help
-codex app-server generate-json-schema --help
-```
-
-这些命令是入口，不是计划中的缓存结果。实现每次只推进一个可判定 Acceptance，并将 Diff、命令、退出状态、未验证项和下一步写入关联 PR/Issue。未到达的后续 Issue 不创建空包、空脚本或外部 fixture。
-
-恢复验收从当前 Git worktree 的仓库根目录执行。`git status --short`、`git branch --show-current` 和各命令的退出状态写入关联 PR/Issue；`git diff --check` 必须退出 0 且无输出，`pnpm check` 必须退出 0。涉及 Codex App Server 时，四个 `codex` 命令也必须退出 0 并输出对应的版本、帮助或 Schema；任一命令失败、工具不可用或缺少匹配的 PR/CI/Smoke 证据，恢复门槛保持 `Not verified`，不得仅凭 Git 状态继续判定通过。
+Issue-driven 增量的具体命令、工作目录、预期结果和失败标准由关联 Issue/PR 承载；本计划只记录跨 Issue 顺序、Review Gate 和特殊证据边界，不缓存某次检查结果。
 
 ## Validation and Acceptance
 
@@ -127,7 +107,7 @@ codex app-server generate-json-schema --help
 ## Artifacts and Notes
 
 - Issue/PR、CI、Smoke artifact 和人工决定是当前证据的事实源；必要时只引用不可变链接、提交或 artifact。
-- 恢复时从 Git 读取提交、分支和工作树；验证结果必须从关联 PR/CI/Smoke artifact 或重新执行的命令读取。本计划不记录当前测试数量、认领人、分支名或某次命令的退出状态。
+- 恢复时从 Git 读取提交、分支和工作树；本计划不记录当前测试数量、认领人、分支名或某次命令的退出状态。
 - 详细外部契约和产品边界只引用 [docs/AGENTS.md](../../AGENTS.md) 路由的叶子文档；不在本节复制。
 
 ## Interfaces and Dependencies
