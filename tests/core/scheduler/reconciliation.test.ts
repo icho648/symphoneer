@@ -153,6 +153,40 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   );
 });
 
+test("terminal reconciliation accepts a later retained Workspace observation", () => {
+  const scheduler = new CoreScheduler(policy);
+  const owned = workspace("46", "attempt-46");
+  scheduler.reserveAttempt({
+    task: task("46"),
+    attemptId: "attempt-46",
+    sequence: 1,
+    startReason: "dispatch",
+    workspace: owned,
+    startedAt: "2026-08-02T12:00:00.000Z",
+    idempotencyKey: "dispatch-46",
+  });
+
+  scheduler.reconcile({
+    tasks: [{ ...task("46"), state: "closed" }],
+    observedAt: "2026-08-02T12:00:01.000Z",
+    idempotencyKey: "reconcile-46",
+  });
+  const observed = {
+    ...retained(owned),
+    gitHead: "b".repeat(40),
+    worktreeFingerprint: "b".repeat(64),
+  };
+  scheduler.finishAttempt({
+    attemptId: "attempt-46",
+    status: "canceled_by_reconciliation",
+    finishedAt: "2026-08-02T12:00:02.000Z",
+    workspace: observed,
+    idempotencyKey: "finish-46",
+  });
+
+  assert.equal(scheduler.snapshot().workspaces[0]?.worktreeFingerprint, "b".repeat(64));
+});
+
 test("the in-memory idempotency replay window stays bounded", () => {
   const scheduler = new CoreScheduler(policy);
   for (let index = 0; index <= 1_000; index += 1) {

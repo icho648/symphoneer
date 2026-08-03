@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   CONTRACT_SCHEMA_VERSION,
@@ -229,8 +230,33 @@ function execute(argv: string[], cwd: string, timeoutMs: number): Promise<Execut
         stderrSha256: stderrHash.digest("hex"),
       });
     });
-    processHandle.once("close", (code) => finish(code));
+    processHandle.once("close", (code) => {
+      void (async () => {
+        if (settled) return;
+        const pid = processHandle.pid;
+        const groupExited = pid == null || (await waitForProcessGroupExit(pid, timeoutMs + 1_000));
+        finish(groupExited ? code : null);
+      })();
+    });
   });
+}
+
+async function waitForProcessGroupExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (processGroupExists(pid)) {
+    if (Date.now() >= deadline) return false;
+    await delay(10);
+  }
+  return true;
+}
+
+function processGroupExists(pid: number): boolean {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
+  }
 }
 
 function readGitHead(cwd: string): Promise<string> {

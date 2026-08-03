@@ -118,6 +118,30 @@ test("Verification keeps zero exit from passing when ignored state changes", asy
   assert.equal(verification.result.status, "failed");
 });
 
+test("Verification waits for detached descendants before observing the workspace", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const worker = "setTimeout(() => require('node:fs').writeFileSync('late.txt', 'late\\n'), 500)";
+
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-detached-descendant",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      [
+        "const { spawn } = require('node:child_process');",
+        `const child = spawn(process.execPath, ['-e', ${JSON.stringify(worker)}], { stdio: 'ignore' });`,
+        "child.unref();",
+      ].join(" "),
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 2_000,
+  });
+  assert.equal(verification.result.exitCode, 0);
+  assert.equal(verification.result.status, "failed");
+});
+
 test("Verification frames untracked files independently", async (t) => {
   const fixture = await repositoryFixture(t);
   const ambiguous = resolve(fixture.repository, "A");

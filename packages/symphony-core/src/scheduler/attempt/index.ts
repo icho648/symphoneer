@@ -130,6 +130,13 @@ export function finishAttempt(
   const attempt = state.attempts.get(request.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${request.attemptId} does not exist`);
   if (attempt.finishedAt != null) {
+    const workspace = [...state.workspaces.values()].find(
+      (candidate) => candidate.id === attempt.workspaceId,
+    );
+    if (!workspace)
+      throw new CoreError("not_found", `Workspace ${attempt.workspaceId} does not exist`);
+    const refreshedWorkspace = retainedWorkspace(workspace, request.workspace);
+    state.workspaces.set(refreshedWorkspace.path, refreshedWorkspace);
     return { attempt, retry: null };
   }
   const running = state.running.get(attempt.taskId);
