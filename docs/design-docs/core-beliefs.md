@@ -1,7 +1,7 @@
 # Core Beliefs
 
 > Decision status: Accepted  
-> Implementation evidence: Not verified
+> Implementation evidence: Partial — Issue #13 deterministic contracts/core checks; real adapters and Runtime remain Not verified
 
 1. **Task-first**：持久身份是 Tracker Task；Attempt 是一次可重试的执行尝试；Thread 是运行上下文，不是业务任务。
 2. **Human authority**：自动化扩大执行能力，不替代资格、接管、验收、Merge 和 Close 判断。
@@ -19,4 +19,4 @@
 - 测试集中放在根 `tests/`，优先覆盖状态转换、资格判定、backoff、幂等、解析和 reducer；UI 少写组件级单元测试，以交互、可访问性和少量主流程为准。
 - 不为未来 Provider、Electron、数据库、队列或多 Agent 创建占位包、空 Interface 或配置。
 
-这些原则指导设计取舍，但尚未由代码、CI 或 Smoke 证明。对象权威见 [`system-boundaries.md`](system-boundaries.md)，用户流程见 [`../product-specs/manual-delivery-flow.md`](../product-specs/manual-delivery-flow.md)，具体实现顺序见 active ExecPlan。
+Issue #13 已用根 `tests/` 和 `pnpm check` 覆盖共享契约、Workflow、资格判定、Attempt 序号与并发所有权、retry、reconciliation、本地目录 Workspace 生命周期与 Fake Runner；这 24 条测试只为对应原则提供本地确定性证据。真实 Adapter、Git worktree 隔离、Runtime、CI 和 Smoke 仍未证明。对象权威见 [`system-boundaries.md`](system-boundaries.md)，用户流程见 [`../product-specs/manual-delivery-flow.md`](../product-specs/manual-delivery-flow.md)，具体实施状态见 active ExecPlan。

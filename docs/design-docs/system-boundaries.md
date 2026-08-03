@@ -1,9 +1,11 @@
 # System Boundaries
 
 > Decision status: Accepted  
-> Implementation evidence: Not verified
+> Implementation evidence: Partial — versioned contracts, deterministic Symphony Core and local directory Workspace lifecycle only; external systems remain Not verified
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
+
+Issue #13 已实现 Task、Attempt、Workspace、Verification、ReviewDecision、Intervention 与 Domain Event 的版本化边界 Schema，以及单一 Core Scheduler 权威、Workspace / Turn 所有权、retry/backoff、reconciliation、本地目录创建/复用与 lifecycle hooks、Agent Runner Fake。真实 GitHub、Codex、Git worktree 隔离与脏目录保护、Verification 执行、持久化和 Runtime 仍未实现；下文涉及这些能力时继续视为 `Not verified`。
 
 ## Runtime 进程拓扑
 

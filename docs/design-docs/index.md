@@ -7,8 +7,8 @@
 | 文档 | 回答什么 | Decision status | Implementation evidence |
 |---|---|---|---|
 | [product-boundary.md](product-boundary.md) | 产品是什么、不是什么 | Accepted | Not verified |
-| [core-beliefs.md](core-beliefs.md) | 哪些原则指导产品、Module、Seam 与测试取舍 | Accepted | Not verified |
-| [system-boundaries.md](system-boundaries.md) | 对象事实归谁，Runtime / Web 如何分进程，以及日志、事件和证据如何分层 | Accepted | Not verified |
+| [core-beliefs.md](core-beliefs.md) | 哪些原则指导产品、Module、Seam 与测试取舍 | Accepted | Partial — Issue #13, 24 deterministic tests |
+| [system-boundaries.md](system-boundaries.md) | 对象事实归谁，Runtime / Web 如何分进程，以及日志、事件和证据如何分层 | Accepted | Partial — contracts / core / local directory lifecycle |
 
 ## 阅读顺序
 
@@ -19,7 +19,7 @@
 
 ## 后续细化规则
 
-独立 Runtime、普通 Next.js Web、Agent Runner Seam、Web / CLI / MCP 访问面和 Phoenix 的方向已确认；真实 Schema、失败模式和兼容性仍为 `Not verified`。Intent 拆解、Sub-issue 编排、同一 Task 多 Thread 和第二个生产 Agent Adapter 属于后续扩展，不进入当前 V1 核心闭环。
+共享 Schema、Agent Runner Seam 和 Symphony Core 的本地确定性行为已有 Issue #13 证据；独立 Runtime、普通 Next.js Web、真实 Agent Adapter、Web / CLI / MCP 访问面和 Phoenix 的方向已确认但仍为 `Not verified`。Intent 拆解、Sub-issue 编排、同一 Task 多 Thread 和第二个生产 Agent Adapter 属于后续扩展，不进入当前 V1 核心闭环。
 
 ## 写入规则
 

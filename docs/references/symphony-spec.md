@@ -1,8 +1,8 @@
 # Symphony SPEC
 
-> External source status: Observed 2026-08-01  
-> Project adoption: TypeScript Symphony Core Conformance 以固定 SPEC 为基线  
-> Implementation evidence: Not verified
+> External source status: Fixed and live source rechecked 2026-08-02
+> Project adoption: TypeScript Symphony Core Conformance 以固定 SPEC 为基线
+> Implementation evidence: Partial — deterministic Core and local directory Workspace lifecycle; real tracker, Git worktree isolation and app-server remain Not verified
 
 ## 固定来源
 
@@ -10,7 +10,7 @@
 - [OpenAI Symphony repository，同一快照](https://github.com/openai/symphony/tree/f8e8b8a670c799f6e0ade7a8c25c4bf4a4a56ec7)
 - [OpenAI Symphony 文章](https://openai.com/zh-Hans-CN/index/open-source-codex-orchestration-symphony/)
 
-该快照的 SPEC 状态是 `Draft v1`。本项目已决定用 TypeScript 实现 Core Conformance，以该 commit 作为 V1 契约基线。实现前必须重新核对 live SPEC 并记录差异；不能把 `main` 的变化静默视为本项目决定。
+该快照的 SPEC 状态是 `Draft v1`。本项目已决定用 TypeScript 实现 Core Conformance，以该 commit 作为 V1 契约基线。2026-08-02 实施 Issue #13 前，远端 `main` 仍指向同一 commit，fixed 与 live `SPEC.md` 的 SHA-256 同为 `29d6b45a85453e045883c064c0e08595f9d4a33f9a2527f649bc1363b74e0176`；没有静默升级基线。
 
 ## Observed：契约边界
 
@@ -36,6 +36,6 @@
 
 - 固定快照以 Linear 为当前 Tracker 合同；GitHub Issues 是 Symphoneer 的 V1 产品决定，不是从该 SPEC 自动继承的已实现能力。
 - Symphoneer Read Model、Verification、ReviewDecision 和 Human Handoff 超出最小 Scheduler/Runner 的职责，其事实源边界由 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 固化。
-- `WORKFLOW.md` 只在真实 Runtime 实现开始时创建，不提前用占位文档冒充运行契约。
+- `WORKFLOW.md` 已在 Issue #13 作为可解析、可验证的 repository contract 创建；它不是 Runtime 已存在的证据。
 
-真实兼容性、重试恢复、Workspace 隔离、App Server 协议和安全姿态仍为 `Not verified`。
+Issue #13 的 24 条确定性测试覆盖 Workflow 解析、资格、Attempt 序号与排序、并发所有权、retry/backoff 与有界幂等重放、reconciliation、本地目录 Workspace 的创建/复用/hooks/路径身份/安全回收，以及 Fake Runner。真实 Tracker、进程重启恢复、Git worktree 隔离与脏目录保护、App Server 协议和安全姿态仍为 `Not verified`。
