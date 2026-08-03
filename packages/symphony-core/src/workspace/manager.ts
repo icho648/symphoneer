@@ -18,6 +18,7 @@ export class WorkspaceManager {
   readonly #root: string;
   readonly #registry: WorkspaceRegistry;
   readonly #hooks: WorkspaceHookRunner;
+  readonly #preparing = new Map<string, Promise<PreparedWorkspace>>();
 
   constructor(options: { root: string; hooks?: WorkspaceHooks }) {
     this.#root = resolve(options.root);
@@ -27,6 +28,28 @@ export class WorkspaceManager {
 
   async prepare(input: WorkspaceInput): Promise<PreparedWorkspace> {
     const workspace = createWorkspaceReference({ ...input, root: this.#root });
+    const key = JSON.stringify([
+      workspace.id,
+      workspace.taskId,
+      workspace.path,
+      workspace.repository,
+      workspace.branch,
+      workspace.host,
+      workspace.ownerAttemptId,
+    ]);
+    const existing = this.#preparing.get(key);
+    if (existing) return existing;
+
+    const preparation = this.#prepare(workspace);
+    this.#preparing.set(key, preparation);
+    const clear = () => {
+      if (this.#preparing.get(key) === preparation) this.#preparing.delete(key);
+    };
+    void preparation.then(clear, clear);
+    return preparation;
+  }
+
+  async #prepare(workspace: WorkspaceReference): Promise<PreparedWorkspace> {
     await mkdir(this.#root, { recursive: true });
     let createdNow = false;
     try {

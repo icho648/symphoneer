@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -80,4 +80,49 @@ test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministic
     ["before_remove"],
   );
   await assert.rejects(access(reused.workspace.path));
+});
+
+test("concurrent identical preparation waits for workspace initialization", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const started = resolve(root, "after-create.started");
+  const release = resolve(root, "after-create.release");
+  const manager = new WorkspaceManager({
+    root,
+    hooks: {
+      afterCreate: `touch '${started}'; while [ ! -f '${release}' ]; do sleep 0.01; done`,
+      timeoutMs: 1_000,
+    },
+  });
+  const input = {
+    taskId: "task-14",
+    identifier: "ISSUE-14",
+    attemptId: "attempt-14",
+    repository: "icho648/symphoneer",
+    branch: "codex/issue-14",
+    host: "local",
+  };
+
+  const first = manager.prepare(input);
+  for (;;) {
+    try {
+      await access(started);
+      break;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+
+  let secondSettled = false;
+  const second = manager.prepare(input).finally(() => {
+    secondSettled = true;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const settledBeforeRelease = secondSettled;
+
+  await writeFile(release, "release\n");
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+  assert.equal(settledBeforeRelease, false);
+  assert.equal(firstResult.createdNow, true);
+  assert.deepEqual(secondResult, firstResult);
 });
