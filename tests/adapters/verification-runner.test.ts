@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { VerificationError, VerificationRunner } from "../../packages/adapters/src/index.ts";
+import { splitNull } from "../../packages/adapters/src/worktree-fingerprint.ts";
 
 async function repositoryFixture(t: TestContext) {
   const base = await mkdtemp(resolve(tmpdir(), "symphoneer-verification-"));
@@ -139,6 +140,14 @@ test("Verification fingerprints symlink targets as bytes", async (t) => {
   });
   assert.equal(verification.result.exitCode, 0);
   assert.equal(verification.result.status, "failed");
+});
+
+test("Fingerprint parser preserves raw untracked pathnames", () => {
+  const paths = splitNull(Buffer.from([0x80, 0, 0xef, 0xbf, 0xbd, 0]));
+  assert.deepEqual(
+    paths.map((path) => [...path]),
+    [[0x80], [0xef, 0xbf, 0xbd]],
+  );
 });
 
 test("Verification binds the Workspace root when cwd is a nested Git repository", async (t) => {

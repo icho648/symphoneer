@@ -147,8 +147,11 @@ export class CodexAppServerAdapter implements AgentRunner {
       finish({ outcome: "failed", error: "turn_timed_out" });
     }, this.#turnTimeoutMs);
     const resetStall = () => {
-      if (stallTimer) clearTimeout(stallTimer);
-      if (this.#stallTimeoutMs === 0) return;
+      if (stallTimer) {
+        clearTimeout(stallTimer);
+        stallTimer = undefined;
+      }
+      if (pending.size > 0 || this.#stallTimeoutMs === 0) return;
       stallTimer = setTimeout(() => {
         void transport.request("turn/interrupt", { threadId, turnId }).catch(() => undefined);
         finish({ outcome: "failed", error: "turn_stalled" });
@@ -205,6 +208,7 @@ export class CodexAppServerAdapter implements AgentRunner {
           });
         }
         pending.delete(requestRef);
+        resetStall();
       },
     };
   }
@@ -224,6 +228,7 @@ export class CodexAppServerAdapter implements AgentRunner {
         resetStall();
         if (message.kind === "request") {
           this.#requestIntervention(transport, message, pending, emit);
+          resetStall();
           continue;
         }
         if (message.method === "turn/completed") {

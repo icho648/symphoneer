@@ -290,6 +290,40 @@ test("Codex adapter exposes failed and timed-out Turns without Provider error pa
   assert.deepEqual(await timed.completion, { outcome: "failed", error: "turn_timed_out" });
 });
 
+test("Codex adapter suspends the stall timeout while waiting for intervention", async () => {
+  const transport = new FakeCodexTransport("thread-intervention-stall");
+  const handle = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+    turnTimeoutMs: 1_000,
+    stallTimeoutMs: 20,
+  }).startOrContinue({
+    attemptId: "attempt-intervention-stall",
+    task,
+    workspace,
+    prompt: "Wait for approval",
+    continuation: false,
+  });
+  const events = handle.events[Symbol.asyncIterator]();
+  await events.next();
+  const approval = (await events.next()).value;
+  if (approval?.type !== "intervention_requested") assert.fail("approval event missing");
+  let completed = false;
+  void handle.completion.then(() => {
+    completed = true;
+  });
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  assert.equal(completed, false);
+
+  await handle.respondToIntervention(approval.requestRef, { decision: "approved" });
+  const input = (await events.next()).value;
+  if (input?.type !== "intervention_requested") assert.fail("input event missing");
+  await handle.respondToIntervention(input.requestRef, {
+    decision: "answered",
+    responses: { scope: ["Yes"] },
+  });
+  assert.deepEqual(await handle.completion, { outcome: "completed" });
+});
+
 test("Codex adapter ignores foreign nested Turn identities and closes failed setup", async () => {
   const foreignTransport = new FakeCodexTransport("thread-owned", "foreign_completed");
   const runner = new CodexAppServerAdapter({ transportFactory: async () => foreignTransport });
