@@ -76,11 +76,9 @@ export function transitionRetry(
       `Eligible retry was rejected: ${decision.reasons.join(", ")}`,
     );
   }
-  const attempt = retry.attempt + 1;
   const requeued: RetryEntry = {
     ...retry,
-    attempt,
-    dueAtMs: request.nowMs + retryDelayMs(retry.kind, attempt, policy.maxRetryBackoffMs),
+    dueAtMs: request.nowMs + retryDelayMs(retry.kind, retry.attempt, policy.maxRetryBackoffMs),
     error: `Waiting for scheduler capacity: ${decision.reasons.join(", ")}`,
   };
   state.retries.set(request.taskId, requeued);

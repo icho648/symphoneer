@@ -57,7 +57,18 @@ export class WorkspaceManager {
         throw error;
       }
     }
-    await this.#hooks.run("beforeRun", workspace.path);
+    try {
+      await this.#hooks.run("beforeRun", workspace.path);
+    } catch (error) {
+      this.#registry.update(
+        WorkspaceReferenceSchema.parse({
+          ...workspace,
+          state: "retained",
+          ownerAttemptId: null,
+        }),
+      );
+      throw error;
+    }
     return { workspace, createdNow };
   }
 

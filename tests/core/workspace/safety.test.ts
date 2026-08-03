@@ -63,6 +63,10 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
     manager.prepare(input),
     (error) => error instanceof WorkspaceError && error.code === "hook_timed_out",
   );
+  await assert.rejects(
+    manager.prepare({ ...input, attemptId: "attempt-guarded-retry" }),
+    (error) => error instanceof WorkspaceError && error.code === "hook_timed_out",
+  );
   const path = resolve(root, workspaceKey(input.identifier));
   await delay(250);
   await assert.rejects(access(resolve(path, "orphaned.txt")));

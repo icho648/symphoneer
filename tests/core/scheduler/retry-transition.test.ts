@@ -105,7 +105,7 @@ test("RetryQueued transitions atomically enforce due time, refresh state, slots,
     idempotencyKey: "retry-53-exhausted",
   });
   assert.equal(requeued.kind, "requeued");
-  assert.equal(requeued.kind === "requeued" ? requeued.retry.attempt : null, 2);
+  assert.equal(requeued.kind === "requeued" ? requeued.retry.attempt : null, 1);
   assert.equal(exhausted.snapshot().retries.length, 1);
 
   const eligible = new CoreScheduler(policy);

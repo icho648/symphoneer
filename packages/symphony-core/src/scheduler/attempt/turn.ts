@@ -9,18 +9,18 @@ export function attachTurn(
 ): AttemptSnapshot {
   const attempt = state.attempts.get(request.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${request.attemptId} does not exist`);
-  if (attempt.activeTurn != null) {
-    if (
-      attempt.activeTurn.threadId === request.threadId &&
-      attempt.activeTurn.turnId === request.turnId
-    ) {
-      return attempt;
-    }
-    throw new CoreError("conflict", `Attempt ${request.attemptId} already has an active Turn`);
+  const activeTurn = attempt.activeTurn;
+  if (activeTurn?.threadId === request.threadId && activeTurn.turnId === request.turnId) {
+    return attempt;
   }
-  if (state.activeTurns.has(request.turnId) || state.activeThreads.has(request.threadId)) {
+  if (activeTurn != null && activeTurn.threadId !== request.threadId) {
+    throw new CoreError("conflict", `Attempt ${request.attemptId} already has another Thread`);
+  }
+  const threadOwner = state.activeThreads.get(request.threadId);
+  if (state.activeTurns.has(request.turnId) || (threadOwner && threadOwner !== attempt.id)) {
     throw new CoreError("conflict", "Thread or Turn already has another active owner");
   }
+  if (activeTurn) state.activeTurns.delete(activeTurn.turnId);
 
   const updated = AttemptSnapshotSchema.parse({
     ...attempt,

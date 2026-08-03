@@ -74,19 +74,27 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
       }),
     (error) => error instanceof CoreError && error.code === "conflict",
   );
+  const advanced = scheduler.attachTurn({
+    attemptId: "attempt-20",
+    threadId: "thread-20",
+    turnId: "turn-20-2",
+    updatedAt: "2026-08-02T12:00:03.000Z",
+    idempotencyKey: "attach-next-turn",
+  });
+  assert.equal(advanced.activeTurn?.turnId, "turn-20-2");
   assert.throws(
     () =>
       scheduler.attachTurn({
         attemptId: "attempt-20",
-        threadId: "thread-20",
+        threadId: "thread-other",
         turnId: "turn-other",
-        updatedAt: "2026-08-02T12:00:03.000Z",
-        idempotencyKey: "attach-another-turn",
+        updatedAt: "2026-08-02T12:00:04.000Z",
+        idempotencyKey: "attach-another-thread",
       }),
     (error) => error instanceof CoreError && error.code === "conflict",
   );
   assert.deepEqual(scheduler.snapshot().activeTurns, [
-    { attemptId: "attempt-20", threadId: "thread-20", turnId: "turn-20" },
+    { attemptId: "attempt-20", threadId: "thread-20", turnId: "turn-20-2" },
   ]);
 });
 

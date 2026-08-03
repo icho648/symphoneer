@@ -50,6 +50,7 @@ GitHub Issue
 - [x] 2026-08-03 Issue #13 路径复核：曾用 `.symphoneer/` 收拢进入 Git 的 `WORKFLOW.md` 与被忽略的 Workspace / events / artifacts / logs；该临时布局随后被同日“项目归属不等于软件存储责任”的决定取代。
 - [x] 2026-08-03 Issue #13 存储与结构复核：基线 `b9a51ca395e039b9598edeb0863f62ecb12bc352`、工作树干净；repository-owned contract 与软件存储责任已分离，Scheduler 已按 dispatch / attempt / retry 行为整理，Standards / Spec 双轴复审通过，`pnpm check` 为 24/24。
 - [x] 2026-08-03 文档 Harness：把旧 Plan 规则与分区索引收敛为分层 `AGENTS.md`，将计划目录简化为 `plans/`，去除 Codemap、设计和计划中的重复事实；`pnpm check` 通过。
+- [x] 2026-08-03 Issue #13 PR 复审：修复 `before_run` 失败后的 Workspace 所有权回退、同一 Attempt / Thread 的连续 Turn 推进，以及容量等待误增连续失败次数；定向回归和全量检查通过。
 - [ ] Phase 3：打通 GitHub Tracker、Workspace、Codex App Server 和独立 Verification。
 - [ ] Phase 4：实现 JSONL 历史投影、独立 Runtime 和普通 Next.js Web Dashboard。
 - [ ] Phase 5：实现受控 MCP 查询与操作。
@@ -84,6 +85,7 @@ GitHub Issue
 - 2026-08-03 — `policy.ts` 只有 30 行却同时承载 dispatch order、retry backoff 和状态标准化，按行数无需拆、按变化原因必须拆；相反 `core-scheduler.ts` 约 138 行但集中表达一个 Interface，保留为 120 行软阈值的明确例外。
 - 2026-08-03 — 定向测试命令 `node --test tests/core/scheduler` 把目录当成模块并以 `MODULE_NOT_FOUND` 退出 1；改用 `node --test tests/core/scheduler/*.test.ts` 后 10/10 通过，失败只改变验证命令，不改变实现。
 - 2026-08-03 — 每个文档分区都放 `index.md` 会让路由、事实源说明和状态在根 `AGENTS.md`、Codemap 与叶子文档之间重复；Design / Product Specs / References 文件较少，可由 `docs/AGENTS.md` 直接路由，只有 Research 和 Plans 需要局部 Agent Interface。
+- 2026-08-03 — PR 复审暴露了三个共享状态转换缺口：fatal `before_run` 失败仍保留活跃 Workspace owner、`attachTurn` 无法推进同一 Thread 的下一 Turn、容量等待复用了 worker failure 计数。修复均落在共享转换入口，不增加新公开 Interface。
 
 新发现必须记录日期、直接证据和它改变了哪个计划或决定。未证实猜测不进入本节。
 
@@ -392,6 +394,7 @@ Issue #13 本地实现的最小证据是：
 - 2026-08-03 存储与结构复核基线：`b9a51ca395e039b9598edeb0863f62ecb12bc352`，工作树干净。先修改测试后，`pnpm check:types` 因 `workspaceRoot` 尚不存在而退出 1；实现 Host 注入后同一类型检查退出 0，Workflow + Fake flow 4/4、Scheduler 10/10 定向测试通过。
 - 审阅实例 `i13_storage_structure_20260803_a`：Standards 首轮 `STD-001—004` 与 Spec `SPEC-001` 均已修复；复审发现的 `SPEC-002` 相对 `$VAR` 路径问题也已修复。原两轴最终复审均为 `passed`，无仍存在 finding 或待决策项。
 - 主 Agent 最终 `pnpm check`：Biome 检查 61 个文件、TypeScript、项目结构检查和 24 条 contract / core / integration 测试全部退出 0；`git diff --check` 退出 0。该证据不证明安装 Runtime、真实 OS 路径发现、GitHub、Codex、worktree、Verification store 或外部 Smoke。
+- 2026-08-03 PR 复审回归：修改测试后，Workspace retry、连续 Turn 和容量等待三个场景在 5 条定向测试中准确失败 3 条；修复后同一命令 5/5 通过，随后 `pnpm check` 的格式、类型、项目结构和 24 条测试全部退出 0。
 - 2026-08-03 文档 Harness：`docs/AGENTS.md` 直接路由 Design / Product Specs / References，Research 与 Plans 使用局部 `AGENTS.md`；项目检查拒绝 `docs/**/index.md` 并验证所有叶子路由。最终 `pnpm check` 的格式、类型、项目结构与 24 条测试全部退出 0。
 - 审查实例 `i13_20260802_a`：独立 standards / spec 首轮 findings 全部关闭；复审新增的 Attempt provenance、Workspace identity/path、hook process group 和有界幂等窗口问题已修复并由同一组审查者通过最终复审。
 - 直接证据：[`../../../packages/contracts/src/index.ts`](../../../packages/contracts/src/index.ts)、[`../../../packages/symphony-core/src/index.ts`](../../../packages/symphony-core/src/index.ts) 与 [`../../../tests/`](../../../tests/)。
