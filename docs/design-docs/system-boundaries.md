@@ -100,11 +100,13 @@ RunHandle
 | Trace | Phoenix 等系统中的调试与评估副本 | 可选、可丢失，不参与调度或验收判定 |
 
 1. `Agent Statement`、Codex Turn 完成和 Runtime Log 不是独立验证器。
-2. `Verification` 必须运行 `WORKFLOW.md` 声明的项目检查，并绑定精确版本和 artifact。
+2. `Verification` 必须运行 `.symphoneer/WORKFLOW.md` 声明的项目检查，并绑定精确版本和 artifact。
 3. GitHub、Git、Runtime、Codex 和 Phoenix 的原生事实不由历史投影覆盖。
 4. 缺少匹配证据时显示 `Not verified`，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
 
 JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
+
+`.symphoneer/` 是仓库内的 Symphoneer 产品目录：`WORKFLOW.md` 和后续 repository-owned 策略进入 Git；`workspaces/`、`events/`、`artifacts/`、`logs/` 保存本地运行数据并被忽略。配置和运行数据共享目录，不共享持久性或证明责任。
 
 凭据、Token、API key、Cookie、签名 URL、认证头、私有源码全文、原始 Provider payload 和未经脱敏的错误原因不得写入 Runtime Log、Domain Event、Verification Artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入任何记录边界前必须最小化并脱敏。
 

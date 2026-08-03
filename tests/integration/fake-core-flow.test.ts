@@ -11,7 +11,7 @@ import {
 import { FakeAgentRunner } from "../fixtures/fake-agent-runner.ts";
 
 test("the Fake Runner drives one deterministic core Attempt without Provider claims", async () => {
-  const workflow = await loadWorkflow({ path: "WORKFLOW.md" });
+  const workflow = await loadWorkflow();
   const task: TaskSummary = {
     schemaVersion: CONTRACT_SCHEMA_VERSION,
     id: "task-13",

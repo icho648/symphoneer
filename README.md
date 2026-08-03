@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-当前分支已完成 GitHub Issue #13 的本地范围：最小 TypeScript workspace、版本化共享契约、`WORKFLOW.md` 校验、Symphony Core 调度状态、本地目录 Workspace 生命周期与测试 Fake。`pnpm check` 是当前唯一全量检查入口，最新本地运行包含 24 条确定性测试。
+当前分支已完成 GitHub Issue #13 的本地范围：最小 TypeScript workspace、版本化共享契约、`.symphoneer/WORKFLOW.md` 校验、Symphony Core 调度状态、本地目录 Workspace 生命周期与测试 Fake。`pnpm check` 是当前唯一全量检查入口，最新本地运行包含 24 条确定性测试。
 
 这仍不是可运行产品：没有真实 GitHub / Codex Adapter、worktree 管理、独立 Verification 执行器、Runtime / Web / MCP、JSONL、fixture、Phoenix、CI 或部署。Fake 只证明本项目契约，不证明 Provider 兼容。
 
@@ -22,7 +22,7 @@
 
 ## 当前实现入口
 
-- Repository contract：[`WORKFLOW.md`](WORKFLOW.md)
+- Repository contract：[`.symphoneer/WORKFLOW.md`](.symphoneer/WORKFLOW.md)
 - 版本化边界 Schema：[`packages/contracts/src/index.ts`](packages/contracts/src/index.ts)
 - Workflow / eligibility / scheduler / WorkspaceManager / Agent Runner：[`packages/symphony-core/src/index.ts`](packages/symphony-core/src/index.ts)
 - 确定性测试：[`tests/`](tests/)

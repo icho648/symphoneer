@@ -18,7 +18,10 @@ export async function loadWorkflow(
     supportedTrackerKinds?: readonly string[];
   } = {},
 ) {
-  const workflowPath = resolve(options.cwd ?? process.cwd(), options.path ?? "WORKFLOW.md");
+  const workflowPath = resolve(
+    options.cwd ?? process.cwd(),
+    options.path ?? ".symphoneer/WORKFLOW.md",
+  );
   let source: string;
   try {
     source = await readFile(workflowPath, "utf8");

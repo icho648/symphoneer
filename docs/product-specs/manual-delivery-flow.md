@@ -13,7 +13,7 @@
 
 - Issue 原生状态为 `open`，包含 `symphony:ready`，不包含 `symphony:review`。
 - Issue 说明任务意图和可观察成功条件。
-- `WORKFLOW.md` 通过 `symphoneer.verification` 指定项目原生检查；缺少检查时保持 `Not verified`。
+- `.symphoneer/WORKFLOW.md` 通过 `symphoneer.verification` 指定项目原生检查；缺少检查时保持 `Not verified`。
 - 用户拥有仓库、PR 和最终 Merge 权限。
 
 ## 用户流程

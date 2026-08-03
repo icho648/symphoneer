@@ -47,6 +47,7 @@ GitHub Issue
 - [x] 2026-08-02 Phase 1：建立项目检查入口和最小 TypeScript workspace。
 - [x] 2026-08-02 Phase 2 / Issue #13：实现共享契约、Symphony Core Conformance、本地目录 Workspace 生命周期和 Agent Runner Fake；`pnpm check` 的 24 条确定性测试与同一审查实例的双重复审通过。
 - [x] 2026-08-03 Issue #13 结构复核：将 120 行软阈值和多文件功能目录规则写入根 `AGENTS.md`，并把 Scheduler、Workflow、Workspace 及对应测试按同名目录整理，公开 Interface 与 24 条行为验收保持不变。
+- [x] 2026-08-03 Issue #13 路径复核：用 `.symphoneer/` 收拢进入 Git 的 `WORKFLOW.md` 与被忽略的 Workspace / events / artifacts / logs，并保持两类数据的持久性边界。
 - [ ] Phase 3：打通 GitHub Tracker、Workspace、Codex App Server 和独立 Verification。
 - [ ] Phase 4：实现 JSONL 历史投影、独立 Runtime 和普通 Next.js Web Dashboard。
 - [ ] Phase 5：实现受控 MCP 查询与操作。
@@ -75,6 +76,7 @@ GitHub Issue
 - 2026-08-02 — 首轮独立 spec / standards 审查共提出 10 条 findings：RetryQueued 消费、ID 规范化、Workspace 生命周期、Task / Workspace 身份、Attempt / Turn 状态组合，以及 Node 类型版本、package 边界、`z.json()`、统一终止清理、临时目录清理；修复后原 findings 全部关闭。
 - 2026-08-02 — 复审进一步发现调用者可伪造 Attempt 序号/来源、Workspace 等价路径与回收身份、hook 后代进程、无界幂等缓存，以及旧的 17 条测试记录。根因修复为 Scheduler 严格序号/来源校验、canonical path + Manager identity registry + symlink guard、超时终止进程组、SHA-256 指纹与 1,000 条进程内重放窗口；新增回归后 `pnpm check` 为 24/24。
 - 2026-08-03 — 120 行 review threshold 原先只存在于本计划的 Decision Log，没有进入根 Agent 工作规则；Issue #13 因而形成 609 行 `scheduler.ts`、324 行 `workspace.ts` 和 265 行 `workflow.ts`。用户确认规则含义是“功能拆成多个文件后统一进入同名目录”，不是强制每个文件少于 120 行；实现据此改为目录 Module 和单一 `index.ts` Interface。
+- 2026-08-03 — 根 `WORKFLOW.md`、`.workspaces/` 与整体忽略的 `.symphoneer/` 把一个产品的配置和本地状态分散在三处，也会阻止 `.symphoneer/` 下未来策略文件进入 Git。改为只忽略明确的运行数据子目录后，配置可版本化且新增文件默认可见。
 
 新发现必须记录日期、直接证据和它改变了哪个计划或决定。未证实猜测不进入本节。
 
@@ -106,6 +108,7 @@ GitHub Issue
 | 2026-08-02 | Retry / continuation 只能通过 `transitionRetry` 消费队列，Attempt 序号严格按 Task 历史递增 | 防止调用者绕过 backoff 或伪造 provenance，保留 Scheduler 单一权威 | Codex，依据 Issue #13 复审 |
 | 2026-08-02 | Issue #13 的 WorkspaceManager 只管本地目录、四个 hook 和进程内身份；Git worktree / 脏目录保护留给 Issue #14 | 闭合固定 SPEC 的 Core 生命周期，不偷跑真实 Adapter 范围 | Codex，依据 Issue #13 与非目标 |
 | 2026-08-03 | 120 行是手写代码 review threshold；一个功能拆成多个文件后统一放入同名目录，并由目录内 `index.ts` 暴露公开 Interface | 保持功能局部性和导航一致性，同时避免为凑行数制造浅层转发 | User |
+| 2026-08-03 | `.symphoneer/` 是产品目录；`.symphoneer/WORKFLOW.md` 和后续策略进入 Git，`workspaces/`、`events/`、`artifacts/`、`logs/` 保持忽略 | 收拢产品文件，同时明确区分 repository contract 与本地运行数据 | User |
 
 新决定如果改变规范性边界，必须同时更新对应 design doc 或 product spec；ExecPlan 不能单独覆盖规范。
 
@@ -187,7 +190,7 @@ tests/
 
 ### Phase 1 — 项目检查入口与最小 TypeScript workspace
 
-在新授权后创建首个实现提交：`package.json`、workspace 配置、`.gitignore`、TypeScript 配置和 `WORKFLOW.md`。只安装当前阶段使用的依赖。建立当前已有行为所需的 `pnpm check` 和 `pnpm test` 入口：`pnpm check` 串联格式/静态检查、类型检查、最小测试、Markdown 本地链接、索引覆盖、ExecPlan 章节和架构依赖方向。不为尚未存在的 Web / MCP 消费者创建占位脚本。
+在新授权后创建首个实现提交：`package.json`、workspace 配置、`.gitignore`、TypeScript 配置和 `.symphoneer/WORKFLOW.md`。只安装当前阶段使用的依赖。建立当前已有行为所需的 `pnpm check` 和 `pnpm test` 入口：`pnpm check` 串联格式/静态检查、类型检查、最小测试、Markdown 本地链接、索引覆盖、ExecPlan 章节和架构依赖方向。不为尚未存在的 Web / MCP 消费者创建占位脚本。
 
 测试统一进入根 `tests/{core,contracts,integration,e2e,fixtures}`，不创建 colocated `*.test.ts`。单元测试集中在状态转换、资格判定、backoff、幂等、解析和 reducer；UI 主要使用交互级测试、可访问性检查和少量 Playwright 主流程，少写组件级单元测试。
 
@@ -197,7 +200,7 @@ tests/
 
 在 `packages/contracts` 定义 Task、Attempt、Workspace、Verification、ReviewDecision、Intervention、DomainEvent、API snapshot 和 API error 的最小边界 Schema。只有跨进程、文件或网络边界的数据使用运行时验证；纯内部状态不重复建模。
 
-在 `packages/symphony-core` 按固定 SPEC 依次实现 `WORKFLOW.md` 加载与校验、资格判定、调度与并发所有权、Workspace 生命周期、Agent Runner 结果、Retry / backoff 和 reconciliation。核心只依赖小 Interface：Tracker Seam 只有 GitHub 与 Fake，Agent Runner Seam 只有 Codex 与 Fake；不创建 Provider factory、通用事件全集或 capability 注册表。
+在 `packages/symphony-core` 按固定 SPEC 依次实现 `.symphoneer/WORKFLOW.md` 加载与校验、资格判定、调度与并发所有权、Workspace 生命周期、Agent Runner 结果、Retry / backoff 和 reconciliation。核心只依赖小 Interface：Tracker Seam 只有 GitHub 与 Fake，Agent Runner Seam 只有 Codex 与 Fake；不创建 Provider factory、通用事件全集或 capability 注册表。
 
 Agent Runner 的最小形状是 `startOrContinue(request) → RunHandle`，其中 `RunHandle` 暴露 `events`、`interrupt()`、`respondToIntervention(requestRef, decision)` 和 `completion`。先用 Fake 完成确定性测试，但 Fake 不能作为任何 Provider 兼容证据。
 
@@ -264,7 +267,7 @@ Task Board 的实现按下图保持 Task、Attempt、Workspace 和证据层级�
 
 ### Phase 6 — 私有 fixture 真实 E2E Smoke
 
-在进入本阶段时再确认当前 GitHub 账号和目标名称不冲突，然后创建 `icho648/symphoneer-fixture` 私有仓库。fixture 只包含一个最小 TypeScript 应用、一条 `pnpm check`、一份 `WORKFLOW.md` 和所需标签。
+在进入本阶段时再确认当前 GitHub 账号和目标名称不冲突，然后创建 `icho648/symphoneer-fixture` 私有仓库。fixture 只包含一个最小 TypeScript 应用、一条 `pnpm check`、一份 `.symphoneer/WORKFLOW.md` 和所需标签。
 
 创建一个小型功能 Issue，让它经过资格门禁、Attempt、Workspace、Codex、PR、独立 Verification、`symphony:review` 写回和人工 Review。人手工 Merge / Close，然后验证 Symphoneer 对账到终态并清理本地 Workspace。不删除 fixture 仓库，使它保留为可重现测试资产。
 
@@ -537,21 +540,27 @@ Issue #13 本地实现的最小证据是：
 - 外部契约：2026-08-02 的 Symphony `main` 与固定 `f8e8b8a` 相同，两个 SPEC 文件的 SHA-256 均为 `29d6b45a85453e045883c064c0e08595f9d4a33f9a2527f649bc1363b74e0176`。
 - `pnpm check`：Biome、TypeScript、项目结构检查和 24 条 contract / core / integration 测试全部退出 0；`git diff --check` 退出 0。
 - 2026-08-03 结构复核：`scheduler/`、`workflow/`、`workspace/` 与对应测试目录完成重排；`pnpm check` 检查 59 个文件并保持 24/24 测试通过，未增加运行依赖或扩大 Issue #13 行为范围。
+- 2026-08-03 路径复核：默认 loader 与集成流程读取 `.symphoneer/WORKFLOW.md`，`root: workspaces` 解析为 `.symphoneer/workspaces/`；`git check-ignore` 证明 contract 未被忽略且运行数据目录已忽略，`pnpm check` 保持 24/24 通过。
 - 审查实例 `i13_20260802_a`：独立 standards / spec 首轮 findings 全部关闭；复审新增的 Attempt provenance、Workspace identity/path、hook process group 和有界幂等窗口问题已修复并由同一组审查者通过最终复审。
 - 直接证据：[`../../../packages/contracts/src/index.ts`](../../../packages/contracts/src/index.ts)、[`../../../packages/symphony-core/src/index.ts`](../../../packages/symphony-core/src/index.ts) 与 [`../../../tests/`](../../../tests/)。
 - 明确未验证：真实 GitHub / Codex Adapter、实际 worktree、Verification 执行与 artifact、Runtime / Web / MCP、JSONL、fixture、Phoenix、CI 和部署。
 
-代码阶段的默认本地数据根目录计划为 `.symphoneer/`；Issue #13 已将它加入 `.gitignore`，但未创建目录或伪造持久化实现。后续最小布局为：
+`.symphoneer/` 是配置和本地运行数据共同使用的产品目录；只忽略运行数据子目录，不整体忽略 `.symphoneer/`。Issue #13 已创建进入 Git 的 Workflow contract，但尚未创建或伪造 Runtime 持久化。后续最小布局为：
 
 ```text
 .symphoneer/
-  events.jsonl
-  logs/
+  WORKFLOW.md
+  workspaces/
+  events/
+    events.jsonl
   artifacts/
     <attempt-id>/
       verification/<check-id>.json
       logs/<artifact-id>.txt
+  logs/
 ```
+
+`WORKFLOW.md` 及后续 repository-owned 策略进入 Git；`workspaces/`、`events/`、`artifacts/`、`logs/` 由 `.gitignore` 明确排除。
 
 JSONL Domain Event 只包含查询和重放必需的结构化字段；Runtime Log 可轮转且不能作为重放输入；大输出使用内容摘要和相对 artifact 引用。每个 artifact 记录创建时间、内容类型、字节数、摘要和产生者；不包含凭据或无界限的原始 Provider payload。
 
@@ -561,7 +570,7 @@ JSONL Domain Event 只包含查询和重放必需的结构化字段；Runtime Lo
 
 ### Repository-owned workflow contract
 
-`WORKFLOW.md` 已在 Phase 1 创建并通过 loader / Schema / strict template 测试，是目标仓库拥有的运行契约；当前没有 Runtime 消费者，因此不是动态 reload 或真实执行证据。当前形状是：
+`.symphoneer/WORKFLOW.md` 已在 Phase 1 创建并通过 loader / Schema / strict template 测试，是目标仓库拥有的运行契约；当前没有 Runtime 消费者，因此不是动态 reload 或真实执行证据。当前形状是：
 
 ```yaml
 tracker:
@@ -572,7 +581,7 @@ tracker:
   active_states: [open]
   terminal_states: [closed]
 workspace:
-  root: .workspaces
+  root: workspaces
 agent:
   max_concurrent_agents: 1
   max_turns: 20
@@ -592,7 +601,7 @@ symphoneer:
       timeout_ms: 120000
 ```
 
-Prompt 和交接策略继续由 repository-owned `WORKFLOW.md` 表达。当 Verification 通过并准备交接时，工作流使用受限的 GitHub 原生工具添加 `symphony:review`；Symphoneer 必须重新读取 Tracker 后才进入等待人工审查状态。
+`workspace.root` 相对 `.symphoneer/WORKFLOW.md` 所在目录解析，所以 `workspaces` 的实际默认位置是仓库内 `.symphoneer/workspaces/`。Prompt 和交接策略继续由该 repository-owned contract 表达。当 Verification 通过并准备交接时，工作流使用受限的 GitHub 原生工具添加 `symphony:review`；Symphoneer 必须重新读取 Tracker 后才进入等待人工审查状态。
 
 ### Shared contracts
 

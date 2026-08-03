@@ -11,7 +11,12 @@
 AGENTS.md                    Agent 导航、范围和工作规则
 README.md                    人类入口与当前阶段
 ARCHITECTURE.md              当前物理结构和稳定文档边界
-WORKFLOW.md                  repository-owned Workflow 配置与 Prompt
+.symphoneer/
+  WORKFLOW.md                进入 Git 的 repository-owned 配置与 Prompt
+  workspaces/                忽略的 Task checkout；当前尚未创建
+  events/                    忽略的 Domain Event 数据；当前尚未实现
+  artifacts/                 忽略的 Verification 产物；当前尚未实现
+  logs/                      忽略的 Runtime 诊断；当前尚未实现
 package.json                 pnpm check / test 入口
 pnpm-workspace.yaml          当前两个 package 的 workspace
 packages/
@@ -63,7 +68,7 @@ tests ──> contracts + symphony-core + tests/fixtures/FakeAgentRunner
 - `symphony-core` 不依赖 Next.js、GitHub SDK 或 Codex 进程实现。
 - `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一内存写入权威；幂等重放窗口有界。
 - `WorkspaceManager` 用 Node.js 标准库实现本地目录创建/复用、规范路径与身份登记、四个 lifecycle hook、超时和安全回收；它不是 Git worktree manager。
-- `WORKFLOW.md` 是已验证可解析的配置文件；没有 Runtime 消费者时，它不能证明动态 reload 或真实执行。
+- `.symphoneer/WORKFLOW.md` 是已验证可解析且进入 Git 的配置文件；没有 Runtime 消费者时，它不能证明动态 reload 或真实执行。
 - `FakeAgentRunner` 只位于测试分区，不能升级为 Codex 兼容证据。
 - `scheduler`、`workflow`、`workspace` 各自把内部文件收在同名目录，只通过目录内 `index.ts` 暴露公开 Interface；120 行是 review threshold，不是机械拆分门禁。
 
@@ -73,6 +78,7 @@ tests ──> contracts + symphony-core + tests/fixtures/FakeAgentRunner
 - `design-docs/` 是确认后设计决定的事实源；`research/` 和 `references/` 只提供输入与外部事实。
 - `product-specs/` 用可观察行为定义验收，不代替实现证据。
 - `exec-plans/` 保存执行过程，不升级为产品规范。
+- `.symphoneer/` 收拢产品配置和本地运行数据，但只忽略 `workspaces/`、`events/`、`artifacts/`、`logs/`；不能整体忽略该目录。
 - 代码测试集中在根 `tests/`；package 内不放 colocated 测试。
 - 不存在来源和生成命令的材料不进入 `generated/`；当前不保留该目录。
 

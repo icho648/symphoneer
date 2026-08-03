@@ -3,7 +3,13 @@ import { dirname, resolve } from "node:path";
 
 const failures = [];
 const markdownFiles = globSync("**/*.md", {
-  exclude: ["node_modules/**", ".workspaces/**", ".symphoneer/**"],
+  exclude: [
+    "node_modules/**",
+    ".symphoneer/workspaces/**",
+    ".symphoneer/events/**",
+    ".symphoneer/artifacts/**",
+    ".symphoneer/logs/**",
+  ],
 });
 
 for (const file of markdownFiles) {

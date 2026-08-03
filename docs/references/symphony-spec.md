@@ -36,6 +36,6 @@
 
 - 固定快照以 Linear 为当前 Tracker 合同；GitHub Issues 是 Symphoneer 的 V1 产品决定，不是从该 SPEC 自动继承的已实现能力。
 - Symphoneer Read Model、Verification、ReviewDecision 和 Human Handoff 超出最小 Scheduler/Runner 的职责，其事实源边界由 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 固化。
-- `WORKFLOW.md` 已在 Issue #13 作为可解析、可验证的 repository contract 创建；它不是 Runtime 已存在的证据。
+- Symphoneer 将 repository-owned contract 放在 `.symphoneer/WORKFLOW.md`，并已在 Issue #13 验证解析与模板行为；该项目内路径选择不冒充 Runtime 已存在的证据。
 
 Issue #13 的 24 条确定性测试覆盖 Workflow 解析、资格、Attempt 序号与排序、并发所有权、retry/backoff 与有界幂等重放、reconciliation、本地目录 Workspace 的创建/复用/hooks/路径身份/安全回收，以及 Fake Runner。真实 Tracker、进程重启恢复、Git worktree 隔离与脏目录保护、App Server 协议和安全姿态仍为 `Not verified`。

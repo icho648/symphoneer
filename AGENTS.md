@@ -60,5 +60,6 @@ AGENTS.md
 - 研究材料必须链接到它支持或质疑的设计文档；外部契约记录来源和核验日期。
 - 当前已进入 active ExecPlan 的增量实现阶段；只实现当前关联 Issue 明确授权的 Module、Seam 和验收，不为后续阶段预装依赖或搭空结构。
 - 代码改动必须增加与同一验收目标对应的根 `tests/` 测试并通过 `pnpm check`。真实 GitHub、Codex、Runtime、Web、MCP、fixture、Phoenix 或部署行为在匹配 Smoke 前继续标为 `Not verified`。
+- `.symphoneer/WORKFLOW.md` 是进入 Git 的 repository contract；`.symphoneer/workspaces/`、`events/`、`artifacts/`、`logs/` 是本地运行数据并保持忽略。不要整体忽略 `.symphoneer/`，以免后续策略文件被静默漏掉。
 - 手写代码文件以约 120 行作为软性 review threshold；超过时可以按稳定职责拆分。一个功能一旦拆成多个文件，应统一放进同名目录（如 `scheduler/`、`workspace/`），并用目录内的 `index.ts` 保持单一公开 Interface。
 - 120 行不是 CI 门禁。若拆分只会制造浅层转发、暴露内部状态或破坏同一状态机的局部性，可以保留较长文件，并在审查或 active ExecPlan 中记录理由。

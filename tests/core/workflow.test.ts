@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -10,14 +10,15 @@ import {
   WorkflowError,
 } from "../../packages/symphony-core/src/workflow/index.ts";
 
-test("the repository WORKFLOW.md loads into a validated effective config", async () => {
-  const workflow = await loadWorkflow({ path: "WORKFLOW.md" });
+test("the repository .symphoneer/WORKFLOW.md loads into a validated effective config", async () => {
+  const workflow = await loadWorkflow();
 
+  assert.equal(workflow.path, resolve(".symphoneer/WORKFLOW.md"));
   assert.equal(workflow.config.tracker.kind, "github");
   assert.deepEqual(workflow.config.symphoneer.eligibility.requiredLabels, ["symphony:ready"]);
   assert.deepEqual(workflow.config.symphoneer.eligibility.excludedLabels, ["symphony:review"]);
   assert.equal(workflow.config.agent.maxConcurrentAgents, 1);
-  assert.equal(workflow.config.workspace.root, resolve(".workspaces"));
+  assert.equal(workflow.config.workspace.root, resolve(".symphoneer/workspaces"));
   assert.equal(workflow.config.hooks.timeoutMs, 60_000);
   assert.match(workflow.promptTemplate, /\{\{ issue\.identifier \}\}/);
 });
@@ -30,12 +31,21 @@ test("workflow validation returns typed errors and keeps adapter config provider
     (error) => error instanceof WorkflowError && error.code === "missing_workflow_file",
   );
 
-  const path = resolve(directory, "WORKFLOW.md");
+  const configDirectory = resolve(directory, ".symphoneer");
+  await mkdir(configDirectory);
+  const path = resolve(configDirectory, "WORKFLOW.md");
   await writeFile(path, "---\n- not\n- a map\n---\nprompt\n");
   await assert.rejects(
     loadWorkflow({ path }),
     (error) => error instanceof WorkflowError && error.code === "workflow_front_matter_not_a_map",
   );
+
+  await writeFile(
+    path,
+    "---\ntracker:\n  kind: github\n  active_states: [open]\n  terminal_states: [closed]\n---\nprompt\n",
+  );
+  const defaulted = await loadWorkflow({ path });
+  assert.equal(defaulted.config.workspace.root, resolve(configDirectory, "workspaces"));
 
   await writeFile(
     path,
@@ -81,7 +91,7 @@ hooks:
 });
 
 test("prompt rendering is strict and exposes only issue plus attempt", async () => {
-  const workflow = await loadWorkflow({ path: "WORKFLOW.md" });
+  const workflow = await loadWorkflow();
   const rendered = await renderPrompt(workflow, {
     issue: { identifier: "#13", title: "Build the core" },
     attempt: 2,
