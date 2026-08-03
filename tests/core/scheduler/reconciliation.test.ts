@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CoreScheduler } from "../../../packages/symphony-core/src/scheduler/index.ts";
-import { policy, task, workspace } from "./fixtures.ts";
+import { policy, queueFailedAttempt, task, workspace } from "./fixtures.ts";
 
 test("reconciliation stops terminal, unroutable, and missing Tasks without duplicate cleanup", () => {
   const scheduler = new CoreScheduler({
@@ -67,6 +67,31 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
     ],
   );
   assert.ok(snapshot.attempts.every((attempt) => attempt.status === "canceled_by_reconciliation"));
+
+  const retrying = new CoreScheduler(policy);
+  for (const id of ["43", "44", "45"]) queueFailedAttempt(retrying, id);
+  assert.deepEqual(
+    retrying.reconcile({
+      tasks: [
+        { ...task("43"), state: "closed" },
+        { ...task("44"), labels: ["symphoneer:ready", "symphoneer:review"] },
+      ],
+      observedAt: "2026-08-02T12:01:00.000Z",
+      idempotencyKey: "reconcile-retries",
+    }),
+    { keptAttemptIds: [], stoppedAttemptIds: [], cleanupWorkspaceIds: ["workspace:43"] },
+  );
+  const retrySnapshot = retrying.snapshot();
+  assert.deepEqual(retrySnapshot.retries, []);
+  assert.deepEqual(retrySnapshot.claimedTaskIds, []);
+  assert.deepEqual(
+    retrySnapshot.workspaces.map(({ id, state }) => [id, state]),
+    [
+      ["workspace:43", "released"],
+      ["workspace:44", "retained"],
+      ["workspace:45", "retained"],
+    ],
+  );
 });
 
 test("the in-memory idempotency replay window stays bounded", () => {

@@ -115,3 +115,5 @@ function releaseRetry(state: SchedulerState, taskId: string, cleanupWorkspace: b
   }
   return cleanupWorkspaceIds;
 }
+
+export { releaseRetry };

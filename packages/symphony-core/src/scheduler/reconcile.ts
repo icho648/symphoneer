@@ -2,6 +2,7 @@ import type { TaskSummary } from "@symphoneer/contracts";
 
 import { terminateRunning } from "./attempt/index.ts";
 import { evaluateEligibility } from "./eligibility.ts";
+import { releaseRetry } from "./retry/index.ts";
 import type { SchedulerState } from "./state.ts";
 import type { CorePolicy } from "./types.ts";
 
@@ -44,6 +45,15 @@ export function reconcile(
     state.retries.delete(taskId);
     stoppedAttemptIds.push(canceled.attempt.id);
     if (cleanup) cleanupWorkspaceIds.push(canceled.workspace.id);
+  }
+
+  for (const [taskId] of [...state.retries]) {
+    const current = refreshed.get(taskId);
+    const eligibility = current ? evaluateEligibility(current, policy) : null;
+    if (current && eligibility?.eligible) continue;
+
+    const cleanup = eligibility?.reasons.includes("terminal_state") ?? false;
+    cleanupWorkspaceIds.push(...releaseRetry(state, taskId, cleanup));
   }
 
   return { keptAttemptIds, stoppedAttemptIds, cleanupWorkspaceIds };
