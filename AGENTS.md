@@ -6,7 +6,9 @@
 
 | 任务 | 先读 | 再按需读取 |
 |---|---|---|
-| 项目定位与当前阶段 | `README.md` | `docs/AGENTS.md`、`docs/design-docs/product-boundary.md` |
+| 人类项目介绍与 README 维护 | `README.md` | `docs/design-docs/product-boundary.md`、`ARCHITECTURE.md` |
+| 产品定位与非目标 | `docs/design-docs/product-boundary.md` | `docs/design-docs/system-boundaries.md` |
+| 当前阶段、当前增量与验收 | `docs/plans/AGENTS.md` | 对应 active plan、关联 GitHub Issue |
 | 当前物理结构与依赖 | `ARCHITECTURE.md` | 当前 Module 源码与测试 |
 | 产品、架构、规格或外部契约 | `docs/AGENTS.md` | 表中对应叶子文档 |
 | 调研输入与历史方案 | `docs/research/AGENTS.md` | 对应日期快照 |
@@ -28,6 +30,7 @@
 
 ## 工作规则
 
+- `README.md` 只维护面向人的稳定项目介绍和入口；当前阶段、授权范围与验收由 active plan 和关联 Issue 决定，不在 README 复制进度。
 - 修改文档导航或局部规则时，更新 `docs/AGENTS.md` 或最近的局部 `AGENTS.md`；只有人类入口发生变化时才更新 `README.md`。
 - 只实现当前关联 Issue 和 active ExecPlan 明确授权的 Module、Seam 与验收，不为后续阶段预装依赖或搭空结构。
 - 代码改动必须增加与同一验收目标对应的根 `tests/` 测试并通过 `pnpm check`。

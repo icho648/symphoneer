@@ -2,25 +2,11 @@
 
 > 一个计划中的、以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台。
 
-## 当前阶段
+## 项目状态
 
-当前分支已完成 GitHub Issue #13 的本地范围：最小 TypeScript workspace、版本化共享契约、`.symphoneer/WORKFLOW.md` 校验、Symphony Core 调度状态、本地目录 Workspace 生命周期与测试 Fake。`pnpm check` 是当前唯一全量检查入口。
+Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作范围与验收以 [GitHub Issues](https://github.com/icho648/symphoneer/issues) 为准，跨 Issue 的实施顺序、进度和恢复信息见 [active plan](docs/plans/active/symphoneer-v1.md)；README 不复制易漂移的当前阶段。
 
-这仍不是可运行产品：没有真实 GitHub / Codex Adapter、worktree 管理、独立 Verification 执行器、Runtime / Web / MCP、JSONL、fixture、Phoenix、CI 或部署。Fake 只证明本项目契约，不证明 Provider 兼容。
-
-## 当前状态
-
-| 议题 | Decision status | Implementation evidence | 事实源 |
-|---|---|---|---|
-| 产品定位与非目标 | Accepted | Not verified | [`product-boundary.md`](docs/design-docs/product-boundary.md) |
-| 核心原则 | Accepted | Partial — #13 deterministic checks | [`core-beliefs.md`](docs/design-docs/core-beliefs.md) |
-| 对象、事实源与职责 | Accepted | Partial — contracts / core only | [`system-boundaries.md`](docs/design-docs/system-boundaries.md) |
-| 第一条人工交付流程 | Accepted | Not verified | [`manual-delivery-flow.md`](docs/product-specs/manual-delivery-flow.md) |
-| Symphony、Codex、GitHub 的采用方向 | Accepted | Partial — fixed SPEC core subset only | [`references/`](docs/references/) |
-
-决定已固化为规范性文档，实施顺序、验收和恢复要求见 [`symphoneer-v1.md`](docs/plans/active/symphoneer-v1.md)。实际实现证据只来自本仓库独立运行的检查；计划文字本身不是证据。
-
-## 当前实现入口
+## 仓库入口
 
 - Repository contract：[`.symphoneer/WORKFLOW.md`](.symphoneer/WORKFLOW.md)
 - 版本化边界 Schema：[`packages/contracts/src/index.ts`](packages/contracts/src/index.ts)
@@ -28,7 +14,7 @@
 - 确定性测试：[`tests/`](tests/)
 - 全量检查：`pnpm check`
 
-## 从哪里开始
+## 项目文档
 
 - Agent 导航和工作规则：[`AGENTS.md`](AGENTS.md)
 - 当前真实仓库结构：[`ARCHITECTURE.md`](ARCHITECTURE.md)

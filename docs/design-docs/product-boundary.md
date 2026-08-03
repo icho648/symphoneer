@@ -101,6 +101,4 @@ V1 采用 Codex App Server 作为唯一生产 Agent Runtime，并保留一个测
 - 复制 Phoenix UI、用综合分数评价 Agent，或自动替用户修改项目规则、权限和 CI。
 - 在核心交付闭环前引入 LangGraph、数据库、消息队列或 Electron。
 
-## 当前完成边界
-
-Issue #13 已有共享契约、Workflow、Core Scheduler、本地目录 Workspace 生命周期和 Agent Runner Fake 的本地确定性证据。真实 GitHub、Codex App Server、Git worktree、独立 Verification、Runtime / Web / MCP、效率和部署仍为 `Not verified`；当前证据见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) 和 active plan。
+当前阶段、授权范围和验收由 [active plan](../plans/active/symphoneer-v1.md) 与关联 GitHub Issue 决定；本文不复制易漂移的实施进度。当前真实代码结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)。
