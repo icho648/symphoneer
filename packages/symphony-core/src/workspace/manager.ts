@@ -193,7 +193,7 @@ export class WorkspaceManager {
           await this.#driver.remove(workspace);
           this.#registry.unregister(workspace);
         } catch {
-          this.#registry.update(retained(workspace));
+          this.#registry.update(await this.#retainObserved(workspace));
         }
         throw error;
       }
@@ -204,7 +204,7 @@ export class WorkspaceManager {
       this.#registry.update(ready);
       return { workspace: ready, createdNow: preparation.createdNow };
     } catch (error) {
-      this.#registry.update(retained(workspace));
+      this.#registry.update(await this.#retainObserved(workspace));
       throw error;
     }
   }
@@ -235,8 +235,17 @@ export class WorkspaceManager {
       this.#registry.update(ready);
       return { workspace: ready, createdNow: false };
     } catch (error) {
-      this.#registry.update(retainedWorkspace);
+      this.#registry.update(await this.#retainObserved(owned));
       throw error;
+    }
+  }
+
+  async #retainObserved(workspace: WorkspaceReference): Promise<WorkspaceReference> {
+    const retainedWorkspace = retained(workspace);
+    try {
+      return observedWorkspace(retainedWorkspace, await this.#driver.assertReady(workspace));
+    } catch {
+      return retainedWorkspace;
     }
   }
 

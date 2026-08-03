@@ -178,6 +178,33 @@ test("Git worktree preparation rolls back after stale identity validation", asyn
   assert.equal((await manager.remove(released.workspace)).workspace.state, "released");
 });
 
+test("Git worktree preparation refreshes identity after a hook failure", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const driver = new GitWorktreeDriver({
+    repositoryPath: fixture.repositoryPath,
+    repository: "icho648/symphoneer",
+    baseRevision: "HEAD",
+  });
+  const manager = new WorkspaceManager({
+    root: fixture.workspaceRoot,
+    driver,
+    hooks: {
+      afterCreate: "printf changed > after-create.txt",
+      beforeRun: "[ -f .before-run-failed ] || { touch .before-run-failed; exit 9; }",
+    },
+  });
+  const input = workspaceInput("codex/hook-failure");
+
+  await assert.rejects(
+    manager.prepare(input),
+    (error) => error instanceof WorkspaceError && error.code === "hook_failed",
+  );
+  const retried = await manager.prepare({ ...input, attemptId: "attempt-hook-retry" });
+  assert.equal(retried.createdNow, false);
+  assert.equal(retried.workspace.ownerAttemptId, "attempt-hook-retry");
+  await access(resolve(retried.workspace.path, "after-create.txt"));
+});
+
 test("Git worktree removal refuses populated deinitialized submodules", async (t) => {
   const fixture = await repositoryFixture(t);
   const submodule = resolve(fixture.base, "submodule");
