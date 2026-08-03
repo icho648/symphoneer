@@ -82,6 +82,23 @@ test("GitHub adapter makes conflicts and boundary failures explicit without resp
       !error.message.includes("must-not-leak"),
   );
 
+  for (const [status, headers] of [
+    [429, {}],
+    [403, { "retry-after": "60" }],
+    [403, { "x-ratelimit-remaining": "0" }],
+  ] as const) {
+    const rateLimited = new GitHubIssuesAdapter({
+      repository: "icho648/symphoneer",
+      token: "token",
+      fetch: (async () => response({}, status, headers)) as typeof fetch,
+    });
+    await assert.rejects(
+      rateLimited.getIssue(14),
+      (error) =>
+        error instanceof GitHubAdapterError && error.code === "rate_limited" && error.retryable,
+    );
+  }
+
   for (const malformed of [
     { ...issue, labels: [{ name: 14 }] },
     { ...issue, updated_at: "not-a-timestamp" },

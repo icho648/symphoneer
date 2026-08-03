@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -96,6 +96,29 @@ test("Verification keeps zero exit from passing when tracked or untracked state 
   });
   assert.equal(untracked.result.exitCode, 0);
   assert.equal(untracked.result.status, "failed");
+});
+
+test("Verification frames untracked files independently", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const ambiguous = resolve(fixture.repository, "A");
+  await writeFile(ambiguous, "placeholder");
+  const mode = (await lstat(ambiguous)).mode;
+  await writeFile(ambiguous, `x\0B\0${mode}\0y`);
+
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-untracked-framing",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      "require('fs').writeFileSync('A', 'x'); require('fs').writeFileSync('B', 'y')",
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(verification.result.exitCode, 0);
+  assert.equal(verification.result.status, "failed");
 });
 
 test("Verification binds the Workspace root when cwd is a nested Git repository", async (t) => {

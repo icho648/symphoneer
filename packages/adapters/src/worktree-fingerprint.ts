@@ -23,16 +23,34 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
       throw new Error("Git returned an invalid untracked path");
     }
     const stats = await lstat(path);
-    hash.update(`${child}\0${stats.mode}\0`);
-    if (stats.isSymbolicLink()) hash.update(await readlink(path));
-    else if (stats.isFile()) {
-      for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+    hashField(hash, "untracked-file");
+    hashField(hash, child);
+    hashField(hash, String(stats.mode));
+    if (stats.isSymbolicLink()) {
+      hashField(hash, "symlink");
+      hashField(hash, await readlink(path));
+    } else if (stats.isFile()) {
+      hashField(hash, "file");
+      hashField(hash, await hashFile(path));
     } else {
       throw new Error("Untracked special files cannot be fingerprinted safely");
     }
-    hash.update("\0");
   }
   return hash.digest("hex");
+}
+
+function hashField(hash: Hash, value: string | Uint8Array): void {
+  const bytes = typeof value === "string" ? Buffer.from(value) : value;
+  const length = Buffer.allocUnsafe(8);
+  length.writeBigUInt64BE(BigInt(bytes.byteLength));
+  hash.update(length);
+  hash.update(bytes);
+}
+
+async function hashFile(path: string): Promise<Uint8Array> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+  return hash.digest();
 }
 
 function hashGitDiff(cwd: string, hash: Hash): Promise<void> {

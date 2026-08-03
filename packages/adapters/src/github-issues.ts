@@ -165,7 +165,12 @@ export class GitHubIssuesAdapter {
     if (response.status === 404) {
       return new GitHubAdapterError("not_found", false, "GitHub Issue was not found");
     }
-    if (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0") {
+    if (
+      response.status === 429 ||
+      (response.status === 403 &&
+        (response.headers.get("x-ratelimit-remaining") === "0" ||
+          response.headers.has("retry-after")))
+    ) {
       return new GitHubAdapterError("rate_limited", true, "GitHub API rate limit was exhausted");
     }
     if (response.status === 401 || response.status === 403) {
