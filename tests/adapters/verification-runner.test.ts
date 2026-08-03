@@ -99,6 +99,25 @@ test("Verification keeps zero exit from passing when tracked or untracked state 
   assert.equal(untracked.result.status, "failed");
 });
 
+test("Verification keeps zero exit from passing when ignored state changes", async (t) => {
+  const fixture = await repositoryFixture(t);
+  await writeFile(resolve(fixture.repository, ".gitignore"), "ignored.txt\n");
+  execFileSync("git", ["-C", fixture.repository, "add", ".gitignore"]);
+  execFileSync("git", ["-C", fixture.repository, "commit", "-m", "ignore local data"]);
+  await writeFile(resolve(fixture.repository, "ignored.txt"), "before\n");
+
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-ignored-change",
+    checkId: "check",
+    argv: [process.execPath, "-e", "require('node:fs').writeFileSync('ignored.txt', 'after\\n')"],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(verification.result.exitCode, 0);
+  assert.equal(verification.result.status, "failed");
+});
+
 test("Verification frames untracked files independently", async (t) => {
   const fixture = await repositoryFixture(t);
   const ambiguous = resolve(fixture.repository, "A");

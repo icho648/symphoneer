@@ -13,27 +13,43 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   hash.update("tracked\0");
   await hashGitDiff(root, hash);
   hash.update("\0untracked\0");
-  const untracked = splitNull(
-    await gitBytes(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
-  ).sort(Buffer.compare);
+  const untracked = (
+    await Promise.all([
+      gitBytes(root, ["ls-files", "--others", "--exclude-standard", "-z"]),
+      gitBytes(root, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]),
+    ])
+  )
+    .flatMap(splitNull)
+    .sort(Buffer.compare);
   for (const file of untracked) {
-    validateRelativePath(file);
-    const path = Buffer.concat([Buffer.from(root + sep), file]);
-    const stats = await lstat(path);
-    hashField(hash, "untracked-file");
-    hashField(hash, file);
-    hashField(hash, String(stats.mode));
-    if (stats.isSymbolicLink()) {
-      hashField(hash, "symlink");
-      hashField(hash, await readlink(path, { encoding: "buffer" }));
-    } else if (stats.isFile()) {
-      hashField(hash, "file");
-      hashField(hash, await hashFile(path));
-    } else {
-      throw new Error("Untracked special files cannot be fingerprinted safely");
-    }
+    await hashOtherPath(root, file, hash);
   }
   return hash.digest("hex");
+}
+
+async function hashOtherPath(root: string, file: Buffer, hash: Hash): Promise<void> {
+  const relative = file[file.length - 1] === 47 ? file.subarray(0, file.length - 1) : file;
+  validateRelativePath(relative);
+  const path = Buffer.concat([Buffer.from(root + sep), relative]);
+  const stats = await lstat(path);
+  hashField(hash, "untracked-file");
+  hashField(hash, relative);
+  hashField(hash, String(stats.mode));
+  if (stats.isSymbolicLink()) {
+    hashField(hash, "symlink");
+    hashField(hash, await readlink(path, { encoding: "buffer" }));
+  } else if (stats.isFile()) {
+    hashField(hash, "file");
+    hashField(hash, await hashFile(path));
+  } else if (stats.isDirectory()) {
+    hashField(hash, "directory");
+    const children = (await readdir(path, { encoding: "buffer" })).sort(Buffer.compare);
+    for (const child of children) {
+      await hashOtherPath(root, Buffer.concat([relative, Buffer.from("/"), child]), hash);
+    }
+  } else {
+    throw new Error("Untracked special files cannot be fingerprinted safely");
+  }
 }
 
 function hashField(hash: Hash, value: string | Uint8Array): void {
