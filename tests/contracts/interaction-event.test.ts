@@ -36,6 +36,17 @@ test("human decisions and interventions have explicit authority and resolution s
   assert.equal(review.decidedBy, "icho648");
   assert.equal(InterventionSchema.parse(intervention).state, "pending");
   assert.throws(() => InterventionSchema.parse({ ...intervention, state: "resolved" }));
+  assert.throws(() =>
+    InterventionSchema.parse({
+      ...intervention,
+      state: "resolved",
+      resolution: {
+        decidedBy: "icho648",
+        decidedAt: "2026-08-02T12:02:00.000Z",
+        decision: "approved",
+      },
+    }),
+  );
 });
 
 test("eligibility, events, projection versions, and API errors stay versioned", () => {

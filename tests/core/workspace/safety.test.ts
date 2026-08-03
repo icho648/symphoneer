@@ -52,6 +52,26 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
     branch: "codex/guarded",
     host: "local",
   };
+  const hookTarget = resolve(root, "hook-target");
+  await mkdir(hookTarget);
+  await writeFile(resolve(hookTarget, "keep.txt"), "keep");
+  const swappedKey = workspaceKey("SWAPPED");
+  const swapped = new WorkspaceManager({
+    root,
+    hooks: {
+      afterCreate: `cd .. && rm -rf ${swappedKey} && ln -s hook-target ${swappedKey}`,
+    },
+  });
+  await assert.rejects(
+    swapped.prepare({
+      ...input,
+      taskId: "task-swapped",
+      identifier: "SWAPPED",
+      attemptId: "attempt-swapped",
+    }),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_not_directory",
+  );
+  assert.equal(await readFile(resolve(hookTarget, "keep.txt"), "utf8"), "keep");
   const manager = new WorkspaceManager({
     root,
     hooks: {

@@ -42,6 +42,16 @@ export const InterventionSchema = z
         message: "resolved interventions require an explicit human or Host decision",
       });
     }
+    if (
+      intervention.resolution != null &&
+      Date.parse(intervention.resolution.decidedAt) < Date.parse(intervention.createdAt)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["resolution", "decidedAt"],
+        message: "Intervention resolution cannot precede its request",
+      });
+    }
   });
 
 export type Intervention = z.infer<typeof InterventionSchema>;

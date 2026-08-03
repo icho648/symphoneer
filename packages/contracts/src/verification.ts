@@ -34,11 +34,11 @@ export const VerificationResultSchema = z
         message: "executed checks require completion time and immutable artifact reference",
       });
     }
-    if (verification.status === "passed" && verification.exitCode !== 0) {
+    if ((verification.status === "passed") !== (verification.exitCode === 0)) {
       context.addIssue({
         code: "custom",
         path: ["exitCode"],
-        message: "passed Verification requires exitCode 0",
+        message: "exitCode 0 must be equivalent to passed Verification",
       });
     }
     if (!ran && verification.exitCode !== null) {

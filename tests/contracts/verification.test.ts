@@ -24,6 +24,7 @@ test("Verification cannot claim pass without an independent zero exit status", (
 
   assert.equal(VerificationResultSchema.parse(result).status, "passed");
   assert.throws(() => VerificationResultSchema.parse({ ...result, exitCode: 1 }));
+  assert.throws(() => VerificationResultSchema.parse({ ...result, status: "failed", exitCode: 0 }));
   assert.throws(() =>
     VerificationResultSchema.parse({ ...result, finishedAt: "2026-08-02T11:59:59.000Z" }),
   );

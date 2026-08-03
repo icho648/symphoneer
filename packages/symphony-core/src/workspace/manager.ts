@@ -59,6 +59,7 @@ export class WorkspaceManager {
     }
     try {
       await this.#hooks.run("beforeRun", workspace.path);
+      await assertWorkspaceDirectory(workspace.path);
     } catch (error) {
       this.#registry.update(
         WorkspaceReferenceSchema.parse({
