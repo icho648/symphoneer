@@ -91,6 +91,7 @@ export function reserve(
     status: "preparing_workspace",
     workspaceId: workspace.id,
     activeTurn: null,
+    providerSession: null,
     startedAt: request.startedAt,
     updatedAt: request.startedAt,
     finishedAt: null,

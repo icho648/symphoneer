@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CoreScheduler } from "../../../packages/symphony-core/src/scheduler/index.ts";
-import { policy, queueFailedAttempt, task, workspace } from "./fixtures.ts";
+import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
 
 test("reconciliation stops terminal, unroutable, and missing Tasks without duplicate cleanup", () => {
   const scheduler = new CoreScheduler({
@@ -72,6 +72,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
     attemptId: "attempt-61",
     status: "canceled_by_reconciliation",
     finishedAt: "2026-08-02T12:00:02.000Z",
+    workspace: retained(workspace("61", "attempt-61")),
     idempotencyKey: "finish-61",
   });
   assert.equal(
@@ -119,7 +120,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     snapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:40", "released"],
+      ["workspace:40", "retained"],
       ["workspace:41", "retained"],
       ["workspace:42", "retained"],
     ],
@@ -145,7 +146,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     retrySnapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:43", "released"],
+      ["workspace:43", "retained"],
       ["workspace:44", "retained"],
       ["workspace:45", "retained"],
     ],

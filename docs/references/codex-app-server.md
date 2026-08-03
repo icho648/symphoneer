@@ -1,8 +1,8 @@
 # Codex App Server
 
-> External source status: Official protocol README observed 2026-08-02
+> External source status: Official protocol README observed 2026-08-02; local generated v2 Schema observed 2026-08-03 from `codex-cli 0.146.0`
 > Project adoption: Accepted as the first Agent Runtime  
-> Implementation evidence: Not verified
+> Implementation evidence: Deterministic JSONL transcript contract checks; real Codex Turn remains Not verified
 
 ## 核验入口
 
@@ -16,7 +16,7 @@
 - Server 会流式发送生命周期、增量输出、命令、文件变更和审批相关事件；客户端需要处理版本匹配的请求、通知与错误。
 - 仓库可生成与当前版本匹配的 TypeScript 类型和 JSON Schema；这些外部类型不应由项目手写猜测。
 
-以上只证明官方协议公开了这些能力，不证明本项目、本机 CLI 或未来 Codex App 版本已经兼容。
+本次实现另外用本机 `codex app-server generate-ts --experimental` 固定了实际消费的 v2 初始化、Thread start/resume、Turn start/interrupt/completed、审批和 `request_user_input` 形状。生成全集未进入仓库；Adapter 只保存并映射 Symphoneer 所需子集。
 
 ## Symphoneer 采用边界
 
@@ -33,12 +33,12 @@
 - [OpenCode Server](https://opencode.ai/docs/server/) 提供 HTTP、OpenAPI、SSE 和 Session 接口；如未来采用，应通过 HTTP/SSE Adapter 接入。
 - 第二个生产 Adapter 获得明确采用决定后，才能依据两个真实实现提炼公共能力。任何缺失能力都必须标记 `unsupported`；权限模式或工具白名单不得冒充 sandbox。
 
-## 实现前必须固定的契约
+## 已固定与仍待 Smoke
 
-- 实现时使用本地 Codex CLI 的 App Server schema generation 能力生成 TypeScript 契约，不手写可漂移的 Thread、Turn、Item、事件和 Review Schema。
-- 初始化、工具调用、等待、中断、继续和事件游标的本地实际行为。
+- 已通过本地 Schema 与可控 transcript 固定初始化、Thread 创建/继续、Turn 启动/中断/完成、审批和 intervention response 的消费字段。
+- Adapter 记录 CLI version、协议版本和 hashed input fingerprint，不保存原始 Provider payload 或未经脱敏的错误正文。
 - 权限、sandbox、审批和凭据的宿主边界。
 - Codex App 与 App Server 之间是否存在可用的 Thread 深链、暂停、恢复和交还能力。
 - 一条真实 Codex Smoke，以及同一 Agent Runner 契约在 Codex Adapter 和 Fake 上的独立检查。
 
-当前只接受了首版 Adapter、生成契约和小 Interface 的方向；没有将生成产物写入仓库，也没有本地 Smoke，因此任何具体字段、本地兼容性、暂停恢复或 Codex App 交接声明均为 `Not verified`。
+当前 transcript 检查只证明 Adapter 对固定消息形状的处理；没有真实 Codex Turn Smoke，因此本机兼容性、无损暂停恢复和 Codex App 交接仍为 `Not verified`。

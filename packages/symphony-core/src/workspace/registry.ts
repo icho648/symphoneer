@@ -13,6 +13,8 @@ const identity = (workspace: WorkspaceReference) => ({
   path: workspace.path,
   repository: workspace.repository,
   branch: workspace.branch,
+  gitHead: workspace.gitHead,
+  worktreeFingerprint: workspace.worktreeFingerprint,
   host: workspace.host,
 });
 
@@ -26,6 +28,7 @@ export class WorkspaceRegistry {
   }
 
   register(workspace: WorkspaceReference): void {
+    this.#assertWithinRoot(workspace);
     const registered = this.#byId.get(workspace.id);
     const pathOwner = this.#byPath.get(workspace.path);
     if (
@@ -46,13 +49,7 @@ export class WorkspaceRegistry {
 
   require(input: WorkspaceReference): WorkspaceReference {
     const workspace = canonicalizeWorkspaceReference(input);
-    const child = relative(this.#root, workspace.path);
-    if (!child || child.startsWith("..") || isAbsolute(child)) {
-      throw new WorkspaceError(
-        "workspace_outside_root",
-        `Workspace path escapes its root: ${workspace.path}`,
-      );
-    }
+    this.#assertWithinRoot(workspace);
     const registered = this.#byId.get(workspace.id);
     if (
       !registered ||
@@ -74,5 +71,29 @@ export class WorkspaceRegistry {
   unregister(workspace: WorkspaceReference): void {
     this.#byId.delete(workspace.id);
     this.#byPath.delete(workspace.path);
+  }
+
+  get(id: string): WorkspaceReference | undefined {
+    const workspace = this.#byId.get(id);
+    return workspace ? structuredClone(workspace) : undefined;
+  }
+
+  getByPath(path: string): WorkspaceReference | undefined {
+    const id = this.#byPath.get(path);
+    return id ? this.get(id) : undefined;
+  }
+
+  assertPath(workspace: WorkspaceReference): void {
+    this.#assertWithinRoot(workspace);
+  }
+
+  #assertWithinRoot(workspace: WorkspaceReference): void {
+    const child = relative(this.#root, workspace.path);
+    if (!child || child.startsWith("..") || isAbsolute(child)) {
+      throw new WorkspaceError(
+        "workspace_outside_root",
+        `Workspace path escapes its root: ${workspace.path}`,
+      );
+    }
   }
 }

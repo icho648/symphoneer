@@ -31,6 +31,8 @@ export function createWorkspaceReference(input: WorkspaceReferenceInput): Worksp
     path,
     repository: input.repository,
     branch: input.branch,
+    gitHead: null,
+    worktreeFingerprint: null,
     host: input.host,
     state: "ready",
     ownerAttemptId: input.attemptId,

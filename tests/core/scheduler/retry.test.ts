@@ -6,7 +6,7 @@ import {
   CoreScheduler,
   retryDelayMs,
 } from "../../../packages/symphony-core/src/scheduler/index.ts";
-import { policy, queueFailedAttempt, task, workspace } from "./fixtures.ts";
+import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
 
 test("the scheduler owns Attempt sequence, retry provenance, and consecutive backoff", () => {
   const scheduler = new CoreScheduler(policy);
@@ -75,6 +75,7 @@ test("the scheduler owns Attempt sequence, retry provenance, and consecutive bac
     attemptId: "attempt-25-2",
     status: "failed",
     finishedAt: "2026-08-02T12:00:20.000Z",
+    workspace: retained(workspace("25", "attempt-25-2")),
     error: "failed again",
     idempotencyKey: "finish-25-2",
   }).retry;
@@ -106,6 +107,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
       attemptId: "attempt-30-1",
       status: "failed",
       finishedAt: "invalid",
+      workspace: retained(workspace("30", "attempt-30-1")),
       error: "runner failed",
       idempotencyKey: "finish-30-invalid",
     }),
@@ -115,6 +117,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
     attemptId: "attempt-30-1",
     status: "failed",
     finishedAt: "2026-08-02T12:00:02.000Z",
+    workspace: retained(workspace("30", "attempt-30-1")),
     error: "runner failed",
     idempotencyKey: "finish-30-1",
   });
@@ -125,6 +128,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
       attemptId: "attempt-30-1",
       status: "failed",
       finishedAt: "2026-08-02T12:00:02.000Z",
+      workspace: retained(workspace("30", "attempt-30-1")),
       error: "runner failed",
       idempotencyKey: "finish-30-1",
     }),
@@ -161,6 +165,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
       attemptId: "attempt-30-2",
       status: "succeeded",
       finishedAt: "2026-08-02T12:00:20.000Z",
+      workspace: retained(workspace("30", "attempt-30-2")),
       error: "unexpected failure",
       idempotencyKey: "finish-30-invalid-success",
     }),
@@ -170,6 +175,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
     attemptId: "attempt-30-2",
     status: "succeeded",
     finishedAt: "2026-08-02T12:00:20.000Z",
+    workspace: retained(workspace("30", "attempt-30-2")),
     idempotencyKey: "finish-30-2",
   });
   assert.equal(continued.retry?.kind, "continuation");
@@ -179,6 +185,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
       attemptId: "attempt-30-1",
       status: "failed",
       finishedAt: "2026-08-02T12:00:02.000Z",
+      workspace: retained(workspace("30", "attempt-30-1")),
       error: "runner failed",
       idempotencyKey: "finish-30-1-late",
     }),

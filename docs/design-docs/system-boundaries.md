@@ -1,11 +1,11 @@
 # System Boundaries
 
 > Decision status: Accepted  
-> Implementation evidence: Partial — versioned contracts, deterministic Symphony Core and local directory Workspace lifecycle only; external systems remain Not verified
+> Implementation evidence: Partial — contract v2, deterministic Core, adapter contract tests, Git worktree and Verification temp-repository checks; external compatibility remains Not verified
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
 
-Issue #13 已实现 Task、Attempt、Workspace、Verification、ReviewDecision、Intervention 与 Domain Event 的版本化边界 Schema，以及单一 Core Scheduler 权威、Workspace / Turn 所有权、retry/backoff、reconciliation、本地目录创建/复用与 lifecycle hooks、Agent Runner Fake。真实 GitHub、Codex、Git worktree 隔离与脏目录保护、Verification 执行、持久化和 Runtime 仍未实现；下文涉及这些能力时继续视为 `Not verified`。
+Issue #13 已实现共享 Schema、单一 Core Scheduler 权威、本地目录 Workspace 生命周期和 Agent Runner Fake。Issue #14 增加 contract v2、GitHub Issue 读取边界、Git worktree driver、Codex App Server v2 Adapter 和独立 Verification artifact，并以 fake HTTP、可控 JSONL transcript 和临时 Git 仓库验证。真实 GitHub 网络、真实 Codex Turn、持久化 Runtime 与安装态路径仍为 `Not verified`。
 
 ## Runtime 进程拓扑
 
@@ -89,6 +89,8 @@ RunHandle
 - `Thread` 使用 Workspace 路径作为 `cwd`，但不拥有 Workspace 的创建、复用、回收或并发锁。
 - 同一 Workspace 可以被同一 Attempt 的连续 Turn 使用；并行写入者必须使用不同 Worktree。
 - Retry 或恢复前必须重新核对仓库、分支、HEAD、未提交改动和所有权；不能因为 Thread 仍存在就直接复用目录。
+- Attempt 成功、失败、超时、暂停或人工接管后先保留 Workspace；#14 不实现 TTL 或后台清理器。
+- 只有终态 Task 的未来 Runtime 策略或显式人工操作可以请求释放。释放前后均重新核对 Git 身份与 tracked/untracked 状态，使用无 `--force` 的 `git worktree remove`，不自动 stash、reset、clean、删分支或清理状态不一致的路径。
 
 ## 事实、日志、投影和证据
 
@@ -137,4 +139,4 @@ macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/proj
 
 Tracker 与执行投影冲突时，展示来源差异并停止危险写回；Retry、Cancel、Timeout、失联、进程重启和人工接管必须能对账。调度重试不等于业务 exactly-once。
 
-真实 Schema、权限、Workspace 隔离、Codex 生命周期、JSONL 恢复、Web / CLI / MCP 共用状态和 Phoenix 脱敏均在 Smoke 前保持 `Not verified`。
+真实 GitHub 权限、Codex 生命周期、JSONL 恢复、Web / CLI / MCP 共用状态和 Phoenix 脱敏均在匹配 Smoke 前保持 `Not verified`；临时仓库中的 Git worktree 与 Verification 检查只证明受控本地边界。

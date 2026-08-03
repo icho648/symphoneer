@@ -70,6 +70,12 @@ test("the Fake Runner drives one deterministic core Attempt without Provider cla
           occurredAt: "2026-08-02T12:00:01.000Z",
           threadId: "thread-13",
           turnId: "turn-13",
+          provider: {
+            name: "fake",
+            version: "test",
+            schema: "test",
+            inputFingerprint: "a".repeat(64),
+          },
         },
       ],
       completion: { outcome: "completed" },
@@ -98,6 +104,7 @@ test("the Fake Runner drives one deterministic core Attempt without Provider cla
     attemptId: "attempt-13",
     status: completion.outcome === "completed" ? "succeeded" : "failed",
     finishedAt: "2026-08-02T12:00:02.000Z",
+    workspace: { ...workspace, state: "retained", ownerAttemptId: null },
     idempotencyKey: "finish-13",
   });
 

@@ -75,7 +75,7 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
   const manager = new WorkspaceManager({
     root,
     hooks: {
-      beforeRun: "(sleep 0.15; printf orphaned > orphaned.txt) & wait",
+      beforeRun: "(sleep 0.5; printf orphaned > orphaned.txt) & wait",
       timeoutMs: 20,
     },
   });
@@ -88,7 +88,7 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
     (error) => error instanceof WorkspaceError && error.code === "hook_timed_out",
   );
   const path = resolve(root, workspaceKey(input.identifier));
-  await delay(250);
+  await delay(700);
   await assert.rejects(access(resolve(path, "orphaned.txt")));
 
   const safeManager = new WorkspaceManager({ root });

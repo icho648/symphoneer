@@ -25,7 +25,7 @@ test("a Task boundary accepts the current schema version and rejects another ver
   };
 
   assert.equal(TaskSummarySchema.parse(task).id, task.id);
-  assert.throws(() => TaskSummarySchema.parse({ ...task, schemaVersion: 2 }));
+  assert.throws(() => TaskSummarySchema.parse({ ...task, schemaVersion: 1 }));
 });
 
 test("Attempt and Workspace boundaries reject conflicting active ownership", () => {
@@ -36,6 +36,8 @@ test("Attempt and Workspace boundaries reject conflicting active ownership", () 
     path: "/tmp/symphoneer/13",
     repository: "icho648/symphoneer",
     branch: "codex/issue-13",
+    gitHead: null,
+    worktreeFingerprint: null,
     host: "local",
     state: "ready",
     ownerAttemptId: "attempt-13",
@@ -49,6 +51,7 @@ test("Attempt and Workspace boundaries reject conflicting active ownership", () 
     status: "streaming_turn",
     workspaceId: workspace.id,
     activeTurn: { threadId: "thread-13", turnId: "turn-13" },
+    providerSession: { threadId: "thread-13", lastTurnId: "turn-13" },
     startedAt: "2026-08-02T12:00:00.000Z",
     updatedAt: "2026-08-02T12:00:01.000Z",
   };

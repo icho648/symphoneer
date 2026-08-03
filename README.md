@@ -11,6 +11,7 @@ Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作
 - Repository contract：[`.symphoneer/WORKFLOW.md`](.symphoneer/WORKFLOW.md)
 - 版本化边界 Schema：[`packages/contracts/src/index.ts`](packages/contracts/src/index.ts)
 - Workflow / eligibility / scheduler / WorkspaceManager / Agent Runner：[`packages/symphony-core/src/index.ts`](packages/symphony-core/src/index.ts)
+- GitHub、Git worktree、Codex App Server 与 Verification Adapter：[`packages/adapters/src/index.ts`](packages/adapters/src/index.ts)
 - 确定性测试：[`tests/`](tests/)
 - 全量检查：`pnpm check`
 

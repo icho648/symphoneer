@@ -6,6 +6,7 @@ export interface AgentRunRequest {
   workspace: WorkspaceReference;
   prompt: string;
   continuation: boolean;
+  threadId?: string;
 }
 
 export type AgentRunEvent =
@@ -14,6 +15,12 @@ export type AgentRunEvent =
       occurredAt: string;
       threadId: string;
       turnId: string;
+      provider: {
+        name: "codex-app-server" | "fake";
+        version: string;
+        schema: string;
+        inputFingerprint: string;
+      };
     }
   | {
       type: "intervention_requested";
@@ -31,6 +38,7 @@ export type AgentRunEvent =
 export interface InterventionResponse {
   decision: "approved" | "rejected" | "answered" | "canceled";
   response?: string;
+  responses?: Record<string, string[]>;
 }
 
 export interface AgentRunCompletion {

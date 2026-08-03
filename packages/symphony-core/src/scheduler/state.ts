@@ -18,6 +18,7 @@ export interface SchedulerState {
   activeTurns: Map<string, { attemptId: string; threadId: string; turnId: string }>;
   activeThreads: Map<string, string>;
   retries: Map<string, RetryEntry>;
+  pausedFailureRetries: Map<string, number>;
 }
 
 export const createSchedulerState = (): SchedulerState => ({
@@ -29,4 +30,5 @@ export const createSchedulerState = (): SchedulerState => ({
   activeTurns: new Map(),
   activeThreads: new Map(),
   retries: new Map(),
+  pausedFailureRetries: new Map(),
 });

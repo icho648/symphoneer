@@ -14,6 +14,19 @@ export interface WorkspaceReferenceInput {
 
 export type WorkspaceInput = Omit<WorkspaceReferenceInput, "root">;
 
+export interface WorkspaceObservation {
+  gitHead: string | null;
+  worktreeFingerprint: string | null;
+}
+
+export interface WorkspaceDriver {
+  prepare(workspace: WorkspaceReference): Promise<WorkspaceObservation & { createdNow: boolean }>;
+  recover(workspace: WorkspaceReference): Promise<WorkspaceObservation>;
+  assertReady(workspace: WorkspaceReference): Promise<WorkspaceObservation>;
+  assertRemovable(workspace: WorkspaceReference): Promise<"absent" | "present">;
+  remove(workspace: WorkspaceReference): Promise<"removed" | "already_absent">;
+}
+
 export interface WorkspaceHooks {
   afterCreate?: string;
   beforeRun?: string;

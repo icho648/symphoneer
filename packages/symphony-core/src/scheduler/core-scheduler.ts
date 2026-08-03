@@ -1,6 +1,11 @@
-import { type AttemptSnapshot, type TaskSummary, TaskSummarySchema } from "@symphoneer/contracts";
+import {
+  type AttemptSnapshot,
+  type TaskSummary,
+  TaskSummarySchema,
+  type WorkspaceReference,
+} from "@symphoneer/contracts";
 import { canonicalizeWorkspaceReference } from "../workspace/index.ts";
-import { attachTurn, finishAttempt } from "./attempt/index.ts";
+import { attachTurn, finishAttempt, pauseAttempt, resumePausedAttempt } from "./attempt/index.ts";
 import { reserve } from "./dispatch/index.ts";
 import { type ReconcileResult, reconcile } from "./reconcile.ts";
 import { ReplayCache } from "./replay-cache.ts";
@@ -68,14 +73,60 @@ export class CoreScheduler {
     attemptId: string;
     status: TerminalAttemptStatus;
     finishedAt: string;
+    workspace: WorkspaceReference;
     error?: string;
     idempotencyKey: string;
   }): { attempt: AttemptSnapshot; retry: RetryEntry | null } {
-    const normalized = { ...request, attemptId: request.attemptId.trim() };
+    const normalized = {
+      ...request,
+      attemptId: request.attemptId.trim(),
+      workspace: canonicalizeWorkspaceReference(request.workspace),
+    };
     return this.#replay.run(
       request.idempotencyKey,
       { operation: "finishAttempt", ...normalized },
       () => finishAttempt(this.#state, this.#policy, normalized),
+    );
+  }
+
+  pauseAttempt(request: {
+    attemptId: string;
+    pausedAt: string;
+    workspace: WorkspaceReference;
+    idempotencyKey: string;
+  }): {
+    attempt: AttemptSnapshot;
+    workspace: WorkspaceReference;
+  } {
+    const normalized = {
+      ...request,
+      attemptId: request.attemptId.trim(),
+      workspace: canonicalizeWorkspaceReference(request.workspace),
+    };
+    return this.#replay.run(
+      request.idempotencyKey,
+      { operation: "pauseAttempt", ...normalized },
+      () => pauseAttempt(this.#state, normalized),
+    );
+  }
+
+  resumePausedAttempt(request: {
+    attemptId: string;
+    task: TaskSummary;
+    workspace: WorkspaceReference;
+    resumedAt: string;
+    idempotencyKey: string;
+  }): AttemptSnapshot {
+    const normalized = {
+      ...request,
+      attemptId: request.attemptId.trim(),
+      task: TaskSummarySchema.parse(request.task),
+      workspace: canonicalizeWorkspaceReference(request.workspace),
+    };
+    return this.#replay.run(
+      request.idempotencyKey,
+      { operation: "resumePausedAttempt", ...normalized },
+      () => resumePausedAttempt(this.#state, this.#policy, normalized),
     );
   }
 

@@ -46,6 +46,12 @@ test("the deterministic Fake satisfies the Agent Runner public contract", async 
           occurredAt: "2026-08-02T12:00:00.000Z",
           threadId: "thread-13",
           turnId: "turn-13",
+          provider: {
+            name: "fake",
+            version: "test",
+            schema: "test",
+            inputFingerprint: "a".repeat(64),
+          },
         },
         {
           type: "intervention_requested",
