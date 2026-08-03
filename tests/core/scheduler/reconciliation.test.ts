@@ -32,12 +32,60 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   const beforeInvalidReconciliation = scheduler.snapshot();
   assert.throws(() =>
     scheduler.reconcile({
-      tasks: [{ ...task("40"), state: "closed" }],
+      tasks: [
+        { ...task("40"), state: "urgent" },
+        { ...task("41"), state: "closed" },
+      ],
       observedAt: "invalid",
       idempotencyKey: "reconcile-invalid",
     }),
   );
   assert.deepEqual(scheduler.snapshot(), beforeInvalidReconciliation);
+
+  const atomic = new CoreScheduler({
+    ...policy,
+    maxConcurrentAgents: 2,
+    maxConcurrentAgentsByState: { open: 1, urgent: 1 },
+  });
+  for (const [id, state] of [
+    ["60", "open"],
+    ["61", "urgent"],
+  ] as const) {
+    atomic.reserveAttempt({
+      task: task(id, state),
+      attemptId: `attempt-${id}`,
+      sequence: 1,
+      startReason: "dispatch",
+      workspace: workspace(id, `attempt-${id}`),
+      startedAt: "2026-08-02T12:00:00.000Z",
+      idempotencyKey: `dispatch-${id}`,
+    });
+  }
+  assert.throws(() =>
+    atomic.reconcile({
+      tasks: [task("60", "urgent"), task("61", "closed")],
+      observedAt: "invalid",
+      idempotencyKey: "reconcile-atomic-invalid",
+    }),
+  );
+  atomic.finishAttempt({
+    attemptId: "attempt-61",
+    status: "canceled_by_reconciliation",
+    finishedAt: "2026-08-02T12:00:02.000Z",
+    idempotencyKey: "finish-61",
+  });
+  assert.equal(
+    atomic.reserveAttempt({
+      task: task("62", "urgent"),
+      attemptId: "attempt-62",
+      sequence: 1,
+      startReason: "dispatch",
+      workspace: workspace("62", "attempt-62"),
+      startedAt: "2026-08-02T12:00:03.000Z",
+      idempotencyKey: "dispatch-62",
+    }).kind,
+    "reserved",
+  );
 
   const result = scheduler.reconcile({
     tasks: [

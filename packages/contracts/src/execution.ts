@@ -86,6 +86,13 @@ export const AttemptSnapshotSchema = z
         message: "streaming_turn and active Turn ownership must exist together",
       });
     }
+    if (attempt.status === "succeeded" && attempt.failure != null) {
+      context.addIssue({
+        code: "custom",
+        path: ["failure"],
+        message: "successful Attempts cannot have a failure",
+      });
+    }
   });
 
 export type AttemptSnapshot = z.infer<typeof AttemptSnapshotSchema>;

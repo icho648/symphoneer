@@ -155,6 +155,17 @@ test("worker outcomes schedule one deterministic retry and release active owners
     }).kind,
     "reserved",
   );
+  const beforeInvalidSuccess = scheduler.snapshot();
+  assert.throws(() =>
+    scheduler.finishAttempt({
+      attemptId: "attempt-30-2",
+      status: "succeeded",
+      finishedAt: "2026-08-02T12:00:20.000Z",
+      error: "unexpected failure",
+      idempotencyKey: "finish-30-invalid-success",
+    }),
+  );
+  assert.deepEqual(scheduler.snapshot(), beforeInvalidSuccess);
   const continued = scheduler.finishAttempt({
     attemptId: "attempt-30-2",
     status: "succeeded",

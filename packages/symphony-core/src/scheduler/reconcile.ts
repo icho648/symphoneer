@@ -1,4 +1,4 @@
-import type { TaskSummary } from "@symphoneer/contracts";
+import { AttemptSnapshotSchema, type TaskSummary } from "@symphoneer/contracts";
 
 import { terminateRunning } from "./attempt/index.ts";
 import { evaluateEligibility } from "./eligibility.ts";
@@ -18,6 +18,7 @@ export function reconcile(
   tasks: readonly TaskSummary[],
   observedAt: string,
 ): ReconcileResult {
+  const timestamp = AttemptSnapshotSchema.shape.updatedAt.parse(observedAt);
   const refreshed = new Map(tasks.map((task) => [task.id, task]));
   const keptAttemptIds: string[] = [];
   const stoppedAttemptIds: string[] = [];
@@ -37,7 +38,7 @@ export function reconcile(
       state,
       taskId,
       "canceled_by_reconciliation",
-      observedAt,
+      timestamp,
       current ? "Task is no longer eligible" : "Task is missing from reconciliation refresh",
       cleanup ? "released" : "retained",
     );

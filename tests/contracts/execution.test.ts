@@ -59,7 +59,9 @@ test("Attempt and Workspace boundaries reject conflicting active ownership", () 
     AttemptSnapshotSchema.parse({
       ...attempt,
       status: "succeeded",
+      activeTurn: null,
       finishedAt: "2026-08-02T12:00:02.000Z",
+      failure: "unexpected failure",
     }),
   );
   assert.throws(() =>
