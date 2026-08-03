@@ -1,14 +1,14 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash, type Hash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, readlink } from "node:fs/promises";
+import { lstat, readdir, readlink } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
 export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   const topLevel = (await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim();
   if (!topLevel) throw new Error("Git worktree root could not be read");
   const root = resolve(topLevel);
-  await assertNoDirtySubmodules(root);
+  await assertNoUnsafeSubmodulePaths(root);
   const hash = createHash("sha256");
   hash.update("tracked\0");
   await hashGitDiff(root, hash);
@@ -56,9 +56,53 @@ async function assertNoDirtySubmodules(cwd: string): Promise<void> {
     "foreach",
     "--quiet",
     "--recursive",
-    "git status --porcelain=v2 --untracked-files=all",
+    "git status --porcelain=v2 --untracked-files=all --ignored",
   ]);
   if (status.trim()) throw new Error("Dirty submodules cannot be fingerprinted safely");
+}
+
+async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<void> {
+  await assertNoDirtySubmodules(cwd);
+  const root = resolve((await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim());
+  const gitlinks = parseGitlinks(await gitBytes(root, ["ls-files", "--stage", "-z"]));
+  for (const gitlink of gitlinks) {
+    validateRelativePath(gitlink);
+    const path = Buffer.concat([Buffer.from(root + sep), gitlink]);
+    let stats: Awaited<ReturnType<typeof lstat>>;
+    try {
+      stats = await lstat(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error("Gitlink path is not an initialized submodule checkout");
+    }
+    if ((await readdir(path)).length === 0) continue;
+    try {
+      const metadata = await lstat(Buffer.concat([path, Buffer.from(`${sep}.git`)]));
+      if (!metadata.isFile() && !metadata.isDirectory()) {
+        throw new Error("Gitlink path is not an initialized submodule checkout");
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error("Uninitialized submodule path contains local data");
+      }
+      throw error;
+    }
+  }
+}
+
+function parseGitlinks(output: Uint8Array): Buffer[] {
+  return splitNull(output)
+    .map((entry) => {
+      const tab = entry.indexOf(9);
+      if (tab < 0) throw new Error("Git returned invalid index metadata");
+      return entry.subarray(0, tab).subarray(0, 6).equals(Buffer.from("160000"))
+        ? entry.subarray(tab + 1)
+        : null;
+    })
+    .filter((path): path is Buffer => path !== null);
 }
 
 export function splitNull(output: Uint8Array): Buffer[] {

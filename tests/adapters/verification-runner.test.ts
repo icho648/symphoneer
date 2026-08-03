@@ -187,6 +187,44 @@ test("Verification rejects dirty submodules before executing", async (t) => {
   await assert.rejects(access(marker));
 });
 
+test("Verification rejects populated deinitialized submodules", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const submodule = resolve(fixture.base, "submodule");
+  execFileSync("git", ["init", "-b", "main", submodule]);
+  execFileSync("git", ["-C", submodule, "config", "user.name", "Symphoneer Test"]);
+  execFileSync("git", ["-C", submodule, "config", "user.email", "test@example.com"]);
+  await writeFile(resolve(submodule, "nested.txt"), "baseline\n");
+  execFileSync("git", ["-C", submodule, "add", "nested.txt"]);
+  execFileSync("git", ["-C", submodule, "commit", "-m", "nested baseline"]);
+  execFileSync("git", [
+    "-C",
+    fixture.repository,
+    "-c",
+    "protocol.file.allow=always",
+    "submodule",
+    "add",
+    submodule,
+    "nested",
+  ]);
+  execFileSync("git", ["-C", fixture.repository, "commit", "-m", "add submodule"]);
+  await rm(resolve(fixture.repository, "nested", ".git"), { force: true });
+  const localData = resolve(fixture.repository, "nested", "local.txt");
+  await writeFile(localData, "keep\n");
+
+  await assert.rejects(
+    new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+      attemptId: "attempt-deinitialized-submodule",
+      checkId: "check",
+      argv: [process.execPath, "-e", "require('node:fs').writeFileSync('ran.txt', 'ran')"],
+      cwd: ".",
+      workspacePath: fixture.repository,
+      timeoutMs: 5_000,
+    }),
+    /Uninitialized submodule path contains local data/,
+  );
+  await access(localData);
+});
+
 test("Verification binds the Workspace root when cwd is a nested Git repository", async (t) => {
   const fixture = await repositoryFixture(t);
   const nested = resolve(fixture.repository, "nested");
