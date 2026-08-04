@@ -5,8 +5,6 @@
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
 
-Issue #13 已实现共享 Schema、单一 Core Scheduler 权威、本地目录 Workspace 生命周期和 Agent Runner Fake。Issue #14 增加 contract v2、GitHub Issue 读取边界、Git worktree driver、Codex App Server v2 Adapter 和独立 Verification artifact，并以 fake HTTP、可控 JSONL transcript 和临时 Git 仓库验证。真实 GitHub 网络、真实 Codex Turn、持久化 Runtime 与安装态路径仍为 `Not verified`。
-
 ## Runtime 进程拓扑
 
 ```text
@@ -89,7 +87,7 @@ RunHandle
 - `Thread` 使用 Workspace 路径作为 `cwd`，但不拥有 Workspace 的创建、复用、回收或并发锁。
 - 同一 Workspace 可以被同一 Attempt 的连续 Turn 使用；并行写入者必须使用不同 Worktree。
 - Retry 或恢复前必须重新核对仓库、分支、HEAD、未提交改动和所有权；不能因为 Thread 仍存在就直接复用目录。
-- Attempt 成功、失败、超时、暂停或人工接管后先保留 Workspace；#14 不实现 TTL 或后台清理器。
+- Attempt 成功、失败、超时、暂停或人工接管后先保留 Workspace；当前 V1 不实现 TTL 或后台清理器。
 - 只有终态 Task 的未来 Runtime 策略或显式人工操作可以请求释放。释放前后均重新核对 Git 身份与 tracked/untracked 状态，使用无 `--force` 的 `git worktree remove`，不自动 stash、reset、clean、删分支或清理状态不一致的路径。
 
 ## 事实、日志、投影和证据
@@ -122,7 +120,7 @@ JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable
 
 macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/projects/<project-id>/`、`~/Library/Logs/Symphoneer/` 与 `~/Library/Caches/Symphoneer/`；其他平台使用各自原生位置，不从仓库路径推导。`project-id` 是 Runtime 分配或登记的稳定身份，不能只用可能冲突的仓库 basename。
 
-固定 Symphony SPEC 仍允许 repository contract 声明 `workspace.root`，并在未声明时回落到系统临时目录。Symphoneer 的安装 Host 必须用更高优先级的应用设置注入已解析的绝对 Workspace 根目录；因此进入 Git 的 `.symphoneer/WORKFLOW.md` 不声明机器存储位置，仓库配置也不能越过 Host 选择任意写入位置。当前 Issue #13 只验证 loader 的 Host 注入优先级、绝对路径约束和上游缺省行为；操作系统目录发现、真实 Runtime 持久化、轮转和恢复仍为 `Not verified`。
+固定 Symphony SPEC 仍允许 repository contract 声明 `workspace.root`，并在未声明时回落到系统临时目录。Symphoneer 的安装 Host 必须用更高优先级的应用设置注入已解析的绝对 Workspace 根目录；因此进入 Git 的 `.symphoneer/WORKFLOW.md` 不声明机器存储位置，仓库配置也不能越过 Host 选择任意写入位置。操作系统目录发现、真实 Runtime 持久化、轮转和恢复仍为 `Not verified`。
 
 凭据、Token、API key、Cookie、签名 URL、认证头、私有源码全文、原始 Provider payload 和未经脱敏的错误原因不得写入 Runtime Log、Domain Event、Verification Artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入任何记录边界前必须最小化并脱敏。
 

@@ -1,7 +1,7 @@
 # Core Beliefs
 
 > Decision status: Accepted  
-> Implementation evidence: Partial — Issue #13 deterministic contracts/core checks; real adapters and Runtime remain Not verified
+> Implementation evidence: Partial — deterministic contracts/core checks; real adapters and Runtime remain Not verified
 
 1. **Task-first**：持久身份是 Tracker Task；Attempt 是一次可重试的执行尝试；Thread 是运行上下文，不是业务任务。
 2. **Human authority**：自动化扩大执行能力，不替代资格、接管、验收、Merge 和 Close 判断。

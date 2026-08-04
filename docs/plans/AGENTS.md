@@ -1,6 +1,6 @@
 # Plans — Agent Guidance
 
-本目录保存需要本地恢复上下文的可选执行伴随物。这里区分需要本地恢复的执行计划和跨 Issue 协调索引：前者承载可执行的恢复步骤，后者只承载依赖顺序、Review Gate、特殊证据边界和事实源。Issue-driven 增量的目标、范围、依赖、验收和授权以 GitHub Issue 为准；Plan 不是第二份 Issue，也不能覆盖 [`../design-docs/`](../design-docs/) 中的确认决定。
+本目录保存需要本地恢复上下文的可选计划和跨 Issue 协调索引。GitHub Issue/PR 是增量的目标、范围、验收、进度和验证事实源；Plan 只补充本地恢复、依赖协调和特殊证据边界，不能复制 Issue 或覆盖 [`../design-docs/`](../design-docs/) 的决定。
 
 ## 当前计划
 
@@ -12,58 +12,40 @@
 
 ## 何时使用
 
-以下情况创建或更新 active plan：
+创建或更新 active plan：
 
-- 没有完整的 GitHub Issue，或 Issue 不能承载本地执行约束。
-- 需要跨多轮中断恢复、记录危险操作、外部资源重试或多个本地验证阶段。
-- 需要维护 V1 这类跨多个 Issue 的依赖、Review Gate 和整体证据索引。
+- Issue 不完整，或不能承载本地执行约束。
+- 需要跨轮恢复、记录危险操作、外部资源重试或多个本地验证阶段。
+- 需要维护跨 Issue 的依赖、Review Gate 或整体证据索引。
 
-以下情况不创建或维护重复的 active plan：
+不创建或维护重复的 active plan：
 
-- 关联 Issue 已包含目标、范围、非目标、依赖、验收和证据要求，且工作可由 Issue、PR 和提交历史恢复。
-- 单个 Issue 的普通实现、代码审查、单个事实核对和导航修复。
-
-错别字、小型文档修订、单个事实核对和导航修复不创建 plan。
+- 关联 Issue 已包含目标、范围、非目标、依赖、验收和证据要求，且可由 Issue、PR 和提交历史恢复。
+- 单个 Issue 的普通实现、代码审查、事实核对、文档修订和导航修复。
 
 ## 不可省略的性质
 
-需要本地恢复的执行计划必须：
+计划必须：
 
-- **自包含：** 记录本地恢复所需的上下文、路径和必要假设；Issue-driven 计划通过链接引用 Issue，不复制其目标和验收。
-- **按需更新：** 只在跨 Issue 决定、恢复入口、失败恢复约束或证据边界变化时更新；单个 Issue 的执行进度不复制到这里。
-- **结果导向：** 说明用户最终能做什么，以及如何观察它真实工作。
-- **可验证：** 给出准确命令、工作目录、预期结果和失败判定。
-- **可恢复：** 说明重复执行、失败重试、危险步骤和安全恢复方式。
-- **增量化：** 每一步都有明确输入、产物、验收和下一步。
+- 记录本地恢复所需的上下文、路径、假设、关键产物和安全恢复方式；通过链接引用 Issue/PR，不复制其目标和验收。
+- 只在跨 Issue 决定、恢复入口、失败恢复约束或证据边界变化时更新，不记录单个 Issue 的执行进度。
+- 说明用户结果、验证命令/预期/失败判定，以及每一步的输入、产物和下一步。
 
-跨 Issue 协调索引不承担每个 Issue 的可执行 runbook；它可以把具体命令、工作目录、预期结果和失败标准留在关联 Issue/PR 或任务专用执行计划中，只记录协调所需的事实源和特殊验收边界。
+跨 Issue 协调索引不承担每个 Issue 的 runbook；具体命令、工作目录、预期结果和失败标准留在 Issue/PR 或任务专用计划中。
 
 ## 必需章节
 
-active plan 必须依次包含：
+需要恢复的 active plan 至少包含：
 
-1. `Purpose / Big Picture`
-2. `Progress`
-3. `Surprises & Discoveries`
-4. `Decision Log`
-5. `Outcomes & Retrospective`
-6. `Context and Orientation`
-7. `Plan of Work`
-8. `Concrete Steps`
-9. `Validation and Acceptance`
-10. `Idempotence and Recovery`
-11. `Artifacts and Notes`
-12. `Interfaces and Dependencies`
+1. 目标与上下文
+2. 当前进度、决定和发现
+3. 工作步骤与产物
+4. 验证与验收
+5. 恢复、依赖和备注
 
 ## 维护规则
 
-- 开始或恢复时先检查工作树、当前分支、关联 Issue/PR 和本增量事实源；只有存在 active plan 时才读取它。
-- Issue、PR、依赖、assignee、标签、评论、分支和测试结果都是实时事实；不得把计划中的缓存文字当作当前状态，外部写入前也必须重新读取。
-- 每次只推进一个可判定增量；先写完成条件，再实施并运行对应检查。
-- 停止时优先更新 Issue/PR 的进度、命令结果和下一步；active plan 只更新跨 Issue 决策、恢复入口、失败原文和不可重复的本地/外部动作。
-- 交接状态记录当前路径、版本或分支、关键产物、失败原文、重试入口和不可重复的外部动作；不把 Issue 内容复制进计划。
-- 未执行的测试、Smoke 或外部集成保持 `Not verified`。
-- 只有目标行为和必需验证完成后才移入 `completed/`；不把过期 active plan 留作导航入口。
-- 新增、移动或完成计划时更新本文件。
+- 遵循根 `AGENTS.md` 的实时事实和 Issue/PR 写回规则；未执行的测试、Smoke 或外部集成保持 `Not verified`。
+- 新增或移动计划时更新本文件；目标行为及必需验证完成后移入 `completed/`，废弃计划也移出 `active/`，不保留过期导航入口。
 
 这些规则吸收 [Using PLANS.md for multi-hour problem solving](https://developers.openai.com/cookbook/articles/codex_exec_plans) 与 [`../research/2026-08-02-anthropic-long-running-agent-harness.md`](../research/2026-08-02-anthropic-long-running-agent-harness.md) 中适合本项目的增量任务、恢复和可验证验收习惯。
