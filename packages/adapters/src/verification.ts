@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
@@ -105,7 +105,7 @@ export class VerificationRunner {
         : "failed";
     const result = VerificationResultSchema.parse({
       schemaVersion: CONTRACT_SCHEMA_VERSION,
-      id: `verification:${input.attemptId}:${input.checkId}`,
+      id: verificationId(input.attemptId, input.checkId),
       attemptId: input.attemptId,
       checkId: input.checkId,
       status,
@@ -162,6 +162,10 @@ export class VerificationRunner {
   }
 }
 
+function verificationId(attemptId: string, checkId: string): string {
+  return `verification:${encodeURIComponent(attemptId)}:${encodeURIComponent(checkId)}`;
+}
+
 interface ExecutionResult {
   exitCode: number | null;
   timedOut: boolean;
@@ -198,12 +202,15 @@ function execute(argv: string[], cwd: string, timeoutMs: number): Promise<Execut
     const trackProcessTree = () => {
       const pid = processHandle.pid;
       if (pid == null) return;
-      try {
-        trackDescendants(pid, trackedPids);
-      } catch {
-        processTrackingFailed = true;
-      }
+      trackingPromise = trackingPromise.then(async () => {
+        try {
+          await trackDescendants(pid, trackedPids);
+        } catch {
+          processTrackingFailed = true;
+        }
+      });
     };
+    let trackingPromise = Promise.resolve();
     trackProcessTree();
     const trackingInterval = setInterval(trackProcessTree, 10);
     const timeout = setTimeout(() => {
@@ -249,6 +256,7 @@ function execute(argv: string[], cwd: string, timeoutMs: number): Promise<Execut
       clearInterval(trackingInterval);
       void (async () => {
         if (settled) return;
+        await trackingPromise;
         const pid = processHandle.pid;
         const descendantsExited =
           pid == null ||
@@ -268,7 +276,7 @@ async function waitForTrackedProcessesExit(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      trackDescendants(rootPid, trackedPids);
+      await trackDescendants(rootPid, trackedPids);
     } catch {
       return false;
     }
@@ -280,12 +288,9 @@ async function waitForTrackedProcessesExit(
 
 // ponytail: POSIX process-table snapshots avoid a process-tree dependency; use
 // OS job/cgroup isolation when verification must contain adversarial processes.
-function trackDescendants(rootPid: number, trackedPids: Set<number>): void {
+async function trackDescendants(rootPid: number, trackedPids: Set<number>): Promise<void> {
   const childrenByParent = new Map<number, number[]>();
-  const output = execFileSync("ps", ["-axo", "pid=,ppid="], {
-    encoding: "utf8",
-    maxBuffer: 4 * 2 ** 20,
-  });
+  const output = await readProcessTable();
   for (const line of output.split("\n")) {
     const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
     if (!match) continue;
@@ -306,6 +311,20 @@ function trackDescendants(rootPid: number, trackedPids: Set<number>): void {
       pending.push(childPid);
     }
   }
+}
+
+function readProcessTable(): Promise<string> {
+  return new Promise((resolvePromise, reject) => {
+    execFile(
+      "ps",
+      ["-axo", "pid=,ppid="],
+      { encoding: "utf8", maxBuffer: 4 * 2 ** 20 },
+      (error, stdout) => {
+        if (error) reject(error);
+        else resolvePromise(stdout);
+      },
+    );
+  });
 }
 
 function processExists(pid: number): boolean {

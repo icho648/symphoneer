@@ -29,6 +29,7 @@ class FakeCodexTransport implements CodexTransport {
   readonly #mode:
     | "colliding_ids"
     | "failed"
+    | "file_change"
     | "foreign_completed"
     | "interactive"
     | "manual"
@@ -40,6 +41,7 @@ class FakeCodexTransport implements CodexTransport {
     mode:
       | "colliding_ids"
       | "failed"
+      | "file_change"
       | "foreign_completed"
       | "interactive"
       | "manual"
@@ -105,7 +107,27 @@ class FakeCodexTransport implements CodexTransport {
             kind: "request",
             id: 41,
             method: "item/commandExecution/requestApproval",
-            params: { threadId: this.#threadId, turnId: this.#turnId },
+            params: {
+              threadId: this.#threadId,
+              turnId: this.#turnId,
+              command: "curl --token=secret-value https://example.test",
+              cwd: "/tmp/workspace",
+              reason: "Network access",
+            },
+          });
+        });
+      } else if (this.#mode === "file_change") {
+        queueMicrotask(() => {
+          this.#controller.enqueue({
+            kind: "request",
+            id: 42,
+            method: "item/fileChange/requestApproval",
+            params: {
+              threadId: this.#threadId,
+              turnId: this.#turnId,
+              reason: "Write outside the workspace",
+              grantRoot: "/tmp/other-root",
+            },
           });
         });
       }
@@ -135,7 +157,10 @@ class FakeCodexTransport implements CodexTransport {
           params: {
             threadId: this.#threadId,
             turnId: this.#turnId,
-            questions: [{ id: "scope", question: "Keep the change narrow?" }],
+            questions: [
+              { id: "scope", question: "Keep the change narrow?" },
+              { id: "reason", question: "Why is this change needed?" },
+            ],
           },
         });
       });
@@ -221,24 +246,63 @@ test("Codex adapter maps v2 Thread, Turn, approvals, and input to the Agent Runn
   const approval = (await events.next()).value;
   assert.equal(approval?.type, "intervention_requested");
   if (approval?.type !== "intervention_requested") assert.fail("approval event missing");
+  assert.deepEqual(approval.details, {
+    action: "command",
+    command: "curl --token=<redacted> https://example.test",
+    cwd: "/tmp/workspace",
+    reason: "Network access",
+  });
   await handle.respondToIntervention(approval.requestRef, { decision: "approved" });
 
   const input = (await events.next()).value;
   assert.equal(input?.type, "intervention_requested");
   if (input?.type !== "intervention_requested") assert.fail("input event missing");
+  assert.deepEqual(input.questionIds, ["scope", "reason"]);
   await handle.respondToIntervention(input.requestRef, {
     decision: "answered",
-    responses: { scope: ["Yes"] },
+    responses: { scope: ["Yes"], reason: ["No"] },
   });
   assert.deepEqual(await handle.completion, { outcome: "completed" });
   assert.deepEqual(transport.responses, [
     { id: 41, result: { decision: "accept" } },
-    { id: "input-14", result: { answers: { scope: { answers: ["Yes"] } } } },
+    {
+      id: "input-14",
+      result: {
+        answers: {
+          scope: { answers: ["Yes"] },
+          reason: { answers: ["No"] },
+        },
+      },
+    },
   ]);
   assert.deepEqual(
     transport.requests.map(({ method }) => method),
     ["initialize", "thread/start", "turn/start"],
   );
+});
+
+test("Codex adapter summarizes file-change approval details", async () => {
+  const transport = new FakeCodexTransport("thread-file-change", "file_change");
+  const handle = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+  }).startOrContinue({
+    attemptId: "attempt-file-change",
+    task,
+    workspace,
+    prompt: "Change files",
+    continuation: false,
+  });
+  const events = handle.events[Symbol.asyncIterator]();
+  await events.next();
+  const approval = (await events.next()).value;
+  if (approval?.type !== "intervention_requested") assert.fail("approval event missing");
+  assert.deepEqual(approval.details, {
+    action: "file_change",
+    reason: "Write outside the workspace",
+    scope: "additional_root",
+  });
+  await handle.respondToIntervention(approval.requestRef, { decision: "approved" });
+  assert.deepEqual(await handle.completion, { outcome: "completed" });
 });
 
 test("Codex continuation resumes the recorded Thread and interrupt pauses the Turn", async () => {
@@ -319,7 +383,7 @@ test("Codex adapter suspends the stall timeout while waiting for intervention", 
   if (input?.type !== "intervention_requested") assert.fail("input event missing");
   await handle.respondToIntervention(input.requestRef, {
     decision: "answered",
-    responses: { scope: ["Yes"] },
+    responses: { scope: ["Yes"], reason: ["No"] },
   });
   assert.deepEqual(await handle.completion, { outcome: "completed" });
 });

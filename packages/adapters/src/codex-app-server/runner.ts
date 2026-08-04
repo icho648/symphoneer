@@ -5,6 +5,7 @@ import type {
   AgentRunEvent,
   AgentRunner,
   AgentRunRequest,
+  InterventionDetails,
   InterventionResponse,
   RunHandle,
 } from "@symphoneer/symphony-core";
@@ -272,13 +273,18 @@ export class CodexAppServerAdapter implements AgentRunner {
       message.method === "item/commandExecution/requestApproval" ||
       message.method === "item/fileChange/requestApproval"
     ) {
+      const details = approvalDetails(message.method, message.params);
       pending.set(requestRef, { id: message.id, method: "approval" });
       emit({
         type: "intervention_requested",
         occurredAt: this.#now().toISOString(),
         requestRef,
         kind: "approval",
-        prompt: "Codex requests approval for a workspace action.",
+        prompt:
+          details.action === "command"
+            ? "Codex requests approval to run a command."
+            : "Codex requests approval to change files.",
+        details,
       });
       return;
     }
@@ -309,6 +315,7 @@ export class CodexAppServerAdapter implements AgentRunner {
         requestRef,
         kind: "input",
         prompt: questions.map(({ prompt }) => prompt).join("\n"),
+        questionIds: questions.map(({ id }) => id),
       });
       return;
     }
@@ -320,6 +327,40 @@ export class CodexAppServerAdapter implements AgentRunner {
       transport.reject(request.id, -32601, error);
     }
   }
+}
+
+function approvalDetails(
+  method: "item/commandExecution/requestApproval" | "item/fileChange/requestApproval",
+  params: unknown,
+): InterventionDetails {
+  const reason = safeInterventionText(stringField(params, "reason"));
+  if (method === "item/commandExecution/requestApproval") {
+    return {
+      action: "command",
+      command: safeInterventionText(stringField(params, "command")) ?? "<command unavailable>",
+      cwd: safeInterventionText(stringField(params, "cwd")),
+      reason,
+    };
+  }
+  return {
+    action: "file_change",
+    reason,
+    scope: stringField(params, "grantRoot") ? "additional_root" : "workspace",
+  };
+}
+
+function safeInterventionText(value: string | null): string | null {
+  if (value === null) return null;
+  const redacted = value
+    .replace(
+      /\b(?:sk-[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/g,
+      "<redacted>",
+    )
+    .replace(
+      /((?:api[_-]?key|token|secret|password|authorization)\s*[=:]\s*)[^\s]+/gi,
+      "$1<redacted>",
+    );
+  return redacted.length > 512 ? `${redacted.slice(0, 509)}...` : redacted;
 }
 
 function belongsToTurn(message: CodexServerMessage, threadId: string, turnId: string): boolean {

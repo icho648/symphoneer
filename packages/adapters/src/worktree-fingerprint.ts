@@ -9,10 +9,16 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   if (!topLevel) throw new Error("Git worktree root could not be read");
   const root = resolve(topLevel);
   await assertNoHiddenIndexPaths(root);
-  await assertNoUnsafeSubmodulePaths(root);
+  const submoduleStates = await assertNoUnsafeSubmodulePaths(root);
   const hash = createHash("sha256");
   hash.update("tracked\0");
   await hashGitDiff(root, hash);
+  hash.update("\0submodules\0");
+  for (const submodule of submoduleStates) {
+    hashField(hash, "submodule");
+    hashField(hash, submodule.path);
+    hashField(hash, submodule.state);
+  }
   hash.update("\0untracked\0");
   const untracked = (
     await Promise.all([
@@ -86,10 +92,16 @@ async function assertNoHiddenIndexPaths(cwd: string): Promise<void> {
   }
 }
 
-async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<void> {
+type SubmoduleState = {
+  path: Buffer;
+  state: "missing" | "empty" | "initialized";
+};
+
+async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<SubmoduleState[]> {
   await assertNoDirtySubmodules(cwd);
   const root = resolve((await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim());
   const gitlinks = parseGitlinks(await gitBytes(root, ["ls-files", "--stage", "-z"]));
+  const states: SubmoduleState[] = [];
   for (const gitlink of gitlinks) {
     validateRelativePath(gitlink);
     const path = Buffer.concat([Buffer.from(root + sep), gitlink]);
@@ -97,13 +109,19 @@ async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<void> {
     try {
       stats = await lstat(path);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        states.push({ path: gitlink, state: "missing" });
+        continue;
+      }
       throw error;
     }
     if (!stats.isDirectory() || stats.isSymbolicLink()) {
       throw new Error("Gitlink path is not an initialized submodule checkout");
     }
-    if ((await readdir(path)).length === 0) continue;
+    if ((await readdir(path)).length === 0) {
+      states.push({ path: gitlink, state: "empty" });
+      continue;
+    }
     try {
       const metadata = await lstat(Buffer.concat([path, Buffer.from(`${sep}.git`)]));
       if (!metadata.isFile() && !metadata.isDirectory()) {
@@ -115,7 +133,9 @@ async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<void> {
       }
       throw error;
     }
+    states.push({ path: gitlink, state: "initialized" });
   }
+  return states.sort((left, right) => Buffer.compare(left.path, right.path));
 }
 
 function parseGitlinks(output: Uint8Array): Buffer[] {

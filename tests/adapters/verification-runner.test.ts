@@ -57,6 +57,29 @@ test("Verification runs independently and writes a minimal immutable artifact", 
   );
 });
 
+test("Verification result identities frame attempt and check IDs independently", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const runner = new VerificationRunner({ artifactRoot: fixture.artifacts });
+  const results = await Promise.all(
+    (
+      [
+        ["attempt:a", "check"],
+        ["attempt", "a:check"],
+      ] as Array<[string, string]>
+    ).map(([attemptId, checkId]) =>
+      runner.run({
+        attemptId,
+        checkId,
+        argv: [process.execPath, "-e", "process.exit(0)"],
+        cwd: ".",
+        workspacePath: fixture.repository,
+        timeoutMs: 5_000,
+      }),
+    ),
+  );
+  assert.notEqual(results[0]?.result.id, results[1]?.result.id);
+});
+
 test("Verification keeps zero exit from passing when the checked revision changes", async (t) => {
   const fixture = await repositoryFixture(t);
   const runner = new VerificationRunner({ artifactRoot: fixture.artifacts });
@@ -325,6 +348,38 @@ test("Verification rejects populated deinitialized submodules", async (t) => {
     /Uninitialized submodule path contains local data/,
   );
   await access(localData);
+});
+
+test("Verification fingerprints initialized versus empty submodules", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const submodule = resolve(fixture.base, "submodule");
+  execFileSync("git", ["init", "-b", "main", submodule]);
+  execFileSync("git", ["-C", submodule, "config", "user.name", "Symphoneer Test"]);
+  execFileSync("git", ["-C", submodule, "config", "user.email", "test@example.com"]);
+  await writeFile(resolve(submodule, "nested.txt"), "baseline\n");
+  execFileSync("git", ["-C", submodule, "add", "nested.txt"]);
+  execFileSync("git", ["-C", submodule, "commit", "-m", "nested baseline"]);
+  execFileSync("git", [
+    "-C",
+    fixture.repository,
+    "-c",
+    "protocol.file.allow=always",
+    "submodule",
+    "add",
+    submodule,
+    "nested",
+  ]);
+  execFileSync("git", ["-C", fixture.repository, "commit", "-m", "add submodule"]);
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-empty-deinitialized-submodule",
+    checkId: "check",
+    argv: ["git", "-c", "protocol.file.allow=always", "submodule", "deinit", "-f", "--", "nested"],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(verification.result.exitCode, 0);
+  assert.equal(verification.result.status, "failed");
 });
 
 test("Verification binds the Workspace root when cwd is a nested Git repository", async (t) => {

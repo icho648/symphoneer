@@ -9,6 +9,19 @@ export interface AgentRunRequest {
   threadId?: string;
 }
 
+export type InterventionDetails =
+  | {
+      action: "command";
+      command: string;
+      cwd: string | null;
+      reason: string | null;
+    }
+  | {
+      action: "file_change";
+      reason: string | null;
+      scope: "workspace" | "additional_root";
+    };
+
 export type AgentRunEvent =
   | {
       type: "session_started";
@@ -28,6 +41,8 @@ export type AgentRunEvent =
       requestRef: string;
       kind: "approval" | "input";
       prompt: string;
+      details?: InterventionDetails;
+      questionIds?: string[];
     }
   | {
       type: "notification";
