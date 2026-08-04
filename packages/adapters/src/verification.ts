@@ -1,6 +1,6 @@
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, realpath, writeFile } from "node:fs/promises";
+import { mkdir, open, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -82,47 +82,47 @@ export class VerificationRunner {
       .digest("hex")}.json`;
     const artifactRef = `artifacts/${artifactName}`;
     const artifactPath = resolve(artifactRoot, artifactName);
-    const startedAt = this.#now().toISOString();
-    const execution = await execute(input.argv, cwd, input.timeoutMs);
-    const finishedAt = this.#now().toISOString();
-    let gitHeadAfter: string | null = null;
-    let worktreeFingerprintAfter: string | null = null;
-    let observationError: "git_observation_failed" | null = null;
+    const artifactFile = await createArtifactFile(artifactPath);
     try {
-      gitHeadAfter = await readGitHead(workspace);
-      worktreeFingerprintAfter = await readWorktreeFingerprint(workspace);
-    } catch {
-      observationError = "git_observation_failed";
-    }
-    const revisionMatched =
-      observationError === null &&
-      gitHeadAfter === gitHead &&
-      worktreeFingerprintAfter === worktreeFingerprint;
-    const status = execution.timedOut
-      ? "timed_out"
-      : execution.exitCode === 0 && revisionMatched
-        ? "passed"
-        : "failed";
-    const result = VerificationResultSchema.parse({
-      schemaVersion: CONTRACT_SCHEMA_VERSION,
-      id: verificationId(input.attemptId, input.checkId),
-      attemptId: input.attemptId,
-      checkId: input.checkId,
-      status,
-      argv: [basename(input.argv[0] as string), ...input.argv.slice(1).map(() => "<redacted>")],
-      cwd: child || ".",
-      gitHead,
-      worktreeFingerprint,
-      tool: { name: "symphoneer-verification", version: this.#toolVersion },
-      inputFingerprint,
-      startedAt,
-      finishedAt,
-      exitCode: execution.exitCode,
-      artifactRef,
-    });
-    try {
-      await writeFile(
-        artifactPath,
+      const startedAt = this.#now().toISOString();
+      const execution = await execute(input.argv, cwd, input.timeoutMs);
+      const finishedAt = this.#now().toISOString();
+      let gitHeadAfter: string | null = null;
+      let worktreeFingerprintAfter: string | null = null;
+      let observationError: "git_observation_failed" | null = null;
+      try {
+        gitHeadAfter = await readGitHead(workspace);
+        worktreeFingerprintAfter = await readWorktreeFingerprint(workspace);
+      } catch {
+        observationError = "git_observation_failed";
+      }
+      const revisionMatched =
+        observationError === null &&
+        gitHeadAfter === gitHead &&
+        worktreeFingerprintAfter === worktreeFingerprint;
+      const status = execution.timedOut
+        ? "timed_out"
+        : execution.exitCode === 0 && revisionMatched
+          ? "passed"
+          : "failed";
+      const result = VerificationResultSchema.parse({
+        schemaVersion: CONTRACT_SCHEMA_VERSION,
+        id: verificationId(input.attemptId, input.checkId),
+        attemptId: input.attemptId,
+        checkId: input.checkId,
+        status,
+        argv: [basename(input.argv[0] as string), ...input.argv.slice(1).map(() => "<redacted>")],
+        cwd: child || ".",
+        gitHead,
+        worktreeFingerprint,
+        tool: { name: "symphoneer-verification", version: this.#toolVersion },
+        inputFingerprint,
+        startedAt,
+        finishedAt,
+        exitCode: execution.exitCode,
+        artifactRef,
+      });
+      await artifactFile.writeFile(
         `${JSON.stringify(
           {
             ...result,
@@ -141,15 +141,12 @@ export class VerificationRunner {
           null,
           2,
         )}\n`,
-        { encoding: "utf8", flag: "wx", mode: 0o600 },
+        "utf8",
       );
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-        throw new VerificationError("artifact_exists", "Verification artifact already exists");
-      }
-      throw error;
+      return { result, artifactPath };
+    } finally {
+      await artifactFile.close();
     }
-    return { result, artifactPath };
   }
 
   async #artifactRootOutside(workspace: string): Promise<string> {
@@ -159,6 +156,17 @@ export class VerificationRunner {
     const actual = await realpath(this.#artifactRoot);
     assertOutsideWorkspace(workspace, actual);
     return actual;
+  }
+}
+
+async function createArtifactFile(path: string) {
+  try {
+    return await open(path, "wx", 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new VerificationError("artifact_exists", "Verification artifact already exists");
+    }
+    throw error;
   }
 }
 

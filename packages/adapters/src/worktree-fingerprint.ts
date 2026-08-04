@@ -196,7 +196,17 @@ function hashGitDiff(cwd: string, hash: Hash): Promise<void> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(
       "git",
-      ["-C", cwd, "diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD", "--"],
+      [
+        "--no-replace-objects",
+        "-C",
+        cwd,
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--binary",
+        "HEAD",
+        "--",
+      ],
       { stdio: ["ignore", "pipe", "ignore"] },
     );
     child.stdout.on("data", (chunk: Buffer) => hash.update(chunk));

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { access, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { VerificationError, VerificationRunner } from "../../packages/adapters/src/index.ts";
@@ -143,6 +143,63 @@ test("Verification disables external Git diff drivers", async (t) => {
   });
   assert.equal(verification.result.exitCode, 0);
   assert.equal(verification.result.status, "failed");
+});
+
+test("Verification ignores Git replacement objects", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-replacement-object",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      [
+        "const fs=require('node:fs');",
+        "const cp=require('node:child_process');",
+        "fs.writeFileSync('README.md','changed\\n');",
+        "cp.execFileSync('git',['add','README.md']);",
+        "const tree=cp.execFileSync('git',['write-tree'],{encoding:'utf8'}).trim();",
+        "const commit=cp.execFileSync('git',['commit-tree',tree,'-p','HEAD'],{input:'replacement\\n',encoding:'utf8'}).trim();",
+        "cp.execFileSync('git',['replace','HEAD',commit]);",
+      ].join(" "),
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(verification.result.exitCode, 0);
+  assert.equal(verification.result.status, "failed");
+  assert.equal(await readFile(resolve(fixture.repository, "README.md"), "utf8"), "changed\n");
+});
+
+test("Verification keeps artifact writes bound to the validated directory", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const movedArtifacts = resolve(fixture.base, "moved-artifacts");
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-artifact-swap",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      [
+        "const fs=require('node:fs');",
+        `fs.renameSync(${JSON.stringify(fixture.artifacts)},${JSON.stringify(movedArtifacts)});`,
+        `fs.symlinkSync(process.cwd(),${JSON.stringify(fixture.artifacts)},'dir');`,
+      ].join(" "),
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(verification.result.status, "passed");
+  assert.equal(
+    execFileSync("git", ["-C", fixture.repository, "status", "--porcelain"]).toString(),
+    "",
+  );
+  assert.match(
+    await readFile(resolve(movedArtifacts, basename(verification.artifactPath)), "utf8"),
+    /"status": "passed"/,
+  );
 });
 
 test("Verification keeps zero exit from passing when ignored state changes", async (t) => {
