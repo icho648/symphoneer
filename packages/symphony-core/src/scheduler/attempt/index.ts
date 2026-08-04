@@ -38,6 +38,7 @@ export function pauseAttempt(
     updatedAt: pausedAt,
   });
   const workspace = retainedWorkspace(running.workspace, request.workspace);
+  state.pausedThreads.set(attempt.providerSession.threadId, attempt.id);
   if (attempt.activeTurn) {
     state.activeTurns.delete(attempt.activeTurn.turnId);
     state.activeThreads.delete(attempt.activeTurn.threadId);
@@ -103,6 +104,7 @@ export function resumePausedAttempt(
     status: "launching_agent",
     updatedAt: resumedAt,
   });
+  releasePausedThread(state, attempt);
   state.attempts.set(resumed.id, resumed);
   state.running.set(attempt.taskId, {
     task: request.task,
@@ -244,4 +246,11 @@ function retainedWorkspace(
     );
   }
   return workspace;
+}
+
+function releasePausedThread(state: SchedulerState, attempt: AttemptSnapshot): void {
+  const threadId = attempt.providerSession?.threadId;
+  if (threadId && state.pausedThreads.get(threadId) === attempt.id) {
+    state.pausedThreads.delete(threadId);
+  }
 }

@@ -114,6 +114,10 @@ function cancelPausedAttempt(
     finishedAt,
     failure,
   });
+  const threadId = attempt.providerSession?.threadId;
+  if (threadId && state.pausedThreads.get(threadId) === attempt.id) {
+    state.pausedThreads.delete(threadId);
+  }
   state.attempts.set(canceled.id, canceled);
   return canceled;
 }

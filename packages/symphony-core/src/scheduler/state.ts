@@ -17,6 +17,7 @@ export interface SchedulerState {
   workspaces: Map<string, WorkspaceReference>;
   activeTurns: Map<string, { attemptId: string; threadId: string; turnId: string }>;
   activeThreads: Map<string, string>;
+  pausedThreads: Map<string, string>;
   retries: Map<string, RetryEntry>;
   pausedFailureRetries: Map<string, number>;
 }
@@ -29,6 +30,7 @@ export const createSchedulerState = (): SchedulerState => ({
   workspaces: new Map(),
   activeTurns: new Map(),
   activeThreads: new Map(),
+  pausedThreads: new Map(),
   retries: new Map(),
   pausedFailureRetries: new Map(),
 });

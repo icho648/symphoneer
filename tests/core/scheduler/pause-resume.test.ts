@@ -40,6 +40,26 @@ test("pause retains the Provider session and Workspace without scheduling a retr
   assert.deepEqual(scheduler.snapshot().retries, []);
   assert.deepEqual(scheduler.snapshot().activeAttempts, []);
   assert.deepEqual(scheduler.snapshot().claimedTaskIds, ["14"]);
+  scheduler.reserveAttempt({
+    task: task("15", "urgent"),
+    attemptId: "attempt-15",
+    sequence: 1,
+    startReason: "dispatch",
+    workspace: workspace("15", "attempt-15"),
+    startedAt: "2026-08-03T12:00:03.000Z",
+    idempotencyKey: "dispatch-15",
+  });
+  assert.throws(
+    () =>
+      scheduler.attachTurn({
+        attemptId: "attempt-15",
+        threadId: "thread-14",
+        turnId: "turn-15",
+        updatedAt: "2026-08-03T12:00:03.000Z",
+        idempotencyKey: "turn-15",
+      }),
+    (error) => error instanceof CoreError && error.code === "conflict",
+  );
   assert.throws(
     () =>
       scheduler.attachTurn({
@@ -127,6 +147,25 @@ test("terminal reconciliation requests cleanup without releasing a paused Worksp
   assert.equal(snapshot.attempts[0]?.status, "canceled_by_reconciliation");
   assert.equal(snapshot.workspaces[0]?.state, "retained");
   assert.deepEqual(snapshot.claimedTaskIds, []);
+  scheduler.reserveAttempt({
+    task: task("replacement", "urgent"),
+    attemptId: "attempt-replacement",
+    sequence: 1,
+    startReason: "dispatch",
+    workspace: workspace("replacement", "attempt-replacement"),
+    startedAt: "2026-08-03T12:00:04.000Z",
+    idempotencyKey: "dispatch-replacement",
+  });
+  assert.equal(
+    scheduler.attachTurn({
+      attemptId: "attempt-replacement",
+      threadId: "thread-15",
+      turnId: "turn-replacement",
+      updatedAt: "2026-08-03T12:00:05.000Z",
+      idempotencyKey: "turn-replacement",
+    }).activeTurn?.threadId,
+    "thread-15",
+  );
 });
 
 test("pause and resume preserve consecutive failure backoff", () => {

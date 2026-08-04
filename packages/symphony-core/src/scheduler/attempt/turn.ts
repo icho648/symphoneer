@@ -30,6 +30,9 @@ export function attachTurn(
     throw new CoreError("conflict", `Attempt ${request.attemptId} must resume its retained Thread`);
   }
   const threadOwner = state.activeThreads.get(request.threadId);
+  if (state.pausedThreads.has(request.threadId)) {
+    throw new CoreError("conflict", "Thread is retained by a paused Attempt");
+  }
   if (state.activeTurns.has(request.turnId) || (threadOwner && threadOwner !== attempt.id)) {
     throw new CoreError("conflict", "Thread or Turn already has another active owner");
   }
