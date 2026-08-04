@@ -77,6 +77,7 @@ RunHandle
 - `Attempt` 是 Symphoneer 业务对象；`threadId`、`turnId` 和未来 Provider 的 Session ID 只是运行引用，不能成为核心状态机的身份。
 - Codex Adapter 保留原生 Thread / Turn / Item 事件，并只向 Scheduler 提炼开始、介入、完成和失败所需语义。
 - `pause` 调用当前 `RunHandle.interrupt()`，保留 Workspace 和 Session 引用并停止自动继续；它不冻结 Runtime 进程，也不保证任意 Provider 都能无损恢复。
+- `completion` 落定表示该 Turn 的 Provider 进程已经停止；超时和中断也必须等到停止后才落定，否则 Verification、保留和重试会与仍在写入的 Agent 争用同一 checkout。
 - 不预建 Provider factory、通用事件全集或 capability 注册表。第二个生产 Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
 - 工具权限或白名单不能冒充文件系统、网络 sandbox 或宿主审批。每个生产 Adapter 未来必须通过共享契约测试和一条真实 Smoke；Fake 只验证本项目逻辑。
 
