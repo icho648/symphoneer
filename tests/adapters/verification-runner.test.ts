@@ -422,6 +422,24 @@ test("Verification rejects populated nested deinitialized submodules", async (t)
   ]);
   execFileSync("git", [
     "-C",
+    resolve(fixture.repository, "outer", "inner"),
+    "update-index",
+    "--assume-unchanged",
+    "inner.txt",
+  ]);
+  await assert.rejects(
+    readWorktreeFingerprint(fixture.repository),
+    /Tracked paths with hidden Git index flags cannot be fingerprinted safely/,
+  );
+  execFileSync("git", [
+    "-C",
+    resolve(fixture.repository, "outer", "inner"),
+    "update-index",
+    "--no-assume-unchanged",
+    "inner.txt",
+  ]);
+  execFileSync("git", [
+    "-C",
     resolve(fixture.repository, "outer"),
     "submodule",
     "deinit",

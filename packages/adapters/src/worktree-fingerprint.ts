@@ -147,6 +147,7 @@ async function inspectGitlinks(
       throw error;
     }
     states.push({ path: relativePath, state: "initialized" });
+    await assertNoHiddenIndexPaths(path.toString());
     await inspectGitlinks(root, path.toString(), relativePath, states);
   }
 }

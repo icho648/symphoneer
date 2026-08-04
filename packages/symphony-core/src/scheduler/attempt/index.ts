@@ -104,7 +104,9 @@ export function resumePausedAttempt(
     status: "launching_agent",
     updatedAt: resumedAt,
   });
+  const threadId = attempt.providerSession?.threadId;
   releasePausedThread(state, attempt);
+  if (threadId) state.activeThreads.set(threadId, resumed.id);
   state.attempts.set(resumed.id, resumed);
   state.running.set(attempt.taskId, {
     task: request.task,
@@ -137,6 +139,17 @@ export function finishAttempt(
     );
     if (!workspace)
       throw new CoreError("not_found", `Workspace ${attempt.workspaceId} does not exist`);
+    if (
+      [...state.attempts.values()].some(
+        (candidate) =>
+          candidate.workspaceId === attempt.workspaceId && candidate.sequence > attempt.sequence,
+      )
+    ) {
+      throw new CoreError(
+        "conflict",
+        `Attempt ${attempt.id} has a stale Workspace observation after a newer Attempt`,
+      );
+    }
     const ownerAttemptId = state.workspaceOwners.get(workspace.path);
     if (ownerAttemptId && ownerAttemptId !== attempt.id) {
       throw new CoreError(
@@ -218,6 +231,10 @@ export function terminateRunning(
   if (attempt.activeTurn) {
     state.activeTurns.delete(attempt.activeTurn.turnId);
     state.activeThreads.delete(attempt.activeTurn.threadId);
+  }
+  const threadId = attempt.providerSession?.threadId;
+  if (threadId && state.activeThreads.get(threadId) === attempt.id) {
+    state.activeThreads.delete(threadId);
   }
   state.attempts.set(finished.id, finished);
   state.workspaces.set(workspace.path, workspace);

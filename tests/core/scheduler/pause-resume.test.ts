@@ -85,6 +85,17 @@ test("pause retains the Provider session and Workspace without scheduling a retr
   assert.throws(
     () =>
       scheduler.attachTurn({
+        attemptId: "attempt-15",
+        threadId: "thread-14",
+        turnId: "turn-15-after-resume",
+        updatedAt: "2026-08-03T12:00:04.000Z",
+        idempotencyKey: "turn-15-after-resume",
+      }),
+    (error) => error instanceof CoreError && error.code === "conflict",
+  );
+  assert.throws(
+    () =>
+      scheduler.attachTurn({
         attemptId: "attempt-14",
         threadId: "foreign-thread",
         turnId: "foreign-turn",
