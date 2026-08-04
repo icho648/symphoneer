@@ -194,9 +194,11 @@ function validateRelativePath(path: Buffer): void {
 
 function hashGitDiff(cwd: string, hash: Hash): Promise<void> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn("git", ["-C", cwd, "diff", "--no-ext-diff", "--binary", "HEAD", "--"], {
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+    const child = spawn(
+      "git",
+      ["-C", cwd, "diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD", "--"],
+      { stdio: ["ignore", "pipe", "ignore"] },
+    );
     child.stdout.on("data", (chunk: Buffer) => hash.update(chunk));
     child.once("error", () => reject(new Error("Git worktree diff could not be read")));
     child.once("close", (code) => {

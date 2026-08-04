@@ -6,6 +6,7 @@ import type {
   AgentRunner,
   AgentRunRequest,
   InterventionDetails,
+  InterventionQuestion,
   InterventionResponse,
   RunHandle,
 } from "@symphoneer/symphony-core";
@@ -292,13 +293,8 @@ export class CodexAppServerAdapter implements AgentRunner {
       const rawQuestions = asRecord(message.params)?.questions;
       const questions = Array.isArray(rawQuestions)
         ? rawQuestions
-            .map((question) => ({
-              id: stringField(question, "id"),
-              prompt: stringField(question, "question"),
-            }))
-            .filter((question): question is { id: string; prompt: string } =>
-              Boolean(question.id && question.prompt),
-            )
+            .map(parseInterventionQuestion)
+            .filter((question): question is InterventionQuestion => question !== null)
         : [];
       if (questions.length === 0) {
         transportError(message, "Invalid request_user_input payload");
@@ -316,6 +312,7 @@ export class CodexAppServerAdapter implements AgentRunner {
         kind: "input",
         prompt: questions.map(({ prompt }) => prompt).join("\n"),
         questionIds: questions.map(({ id }) => id),
+        questions,
       });
       return;
     }
@@ -356,11 +353,26 @@ function safeInterventionText(value: string | null): string | null {
       /\b(?:sk-[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/g,
       "<redacted>",
     )
+    .replace(/(\b[A-Za-z][A-Za-z\d+.-]*:\/\/[^/\s:@]+:)[^@\s]+@/g, "$1<redacted>@")
     .replace(
       /((?:api[_-]?key|token|secret|password|authorization)\s*[=:]\s*)(?:[A-Za-z]+\s+)?[^\s]+/gi,
       "$1<redacted>",
     );
   return redacted.length > 512 ? `${redacted.slice(0, 509)}...` : redacted;
+}
+
+function parseInterventionQuestion(value: unknown): InterventionQuestion | null {
+  const id = stringField(value, "id");
+  const prompt = stringField(value, "question");
+  if (!id || !prompt) return null;
+  const rawOptions = asRecord(value)?.options;
+  const options = Array.isArray(rawOptions)
+    ? rawOptions.flatMap((option) => {
+        const label = stringField(option, "label");
+        return label ? [{ label, description: stringField(option, "description") }] : [];
+      })
+    : [];
+  return { id, prompt, options };
 }
 
 function belongsToTurn(message: CodexServerMessage, threadId: string, turnId: string): boolean {

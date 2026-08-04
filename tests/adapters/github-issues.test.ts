@@ -99,6 +99,18 @@ test("GitHub adapter makes conflicts and boundary failures explicit without resp
     );
   }
 
+  const secondaryRateLimited = new GitHubIssuesAdapter({
+    repository: "icho648/symphoneer",
+    token: "token",
+    fetch: (async () =>
+      response({ message: "You have exceeded a secondary rate limit." }, 403)) as typeof fetch,
+  });
+  await assert.rejects(
+    secondaryRateLimited.getIssue(14),
+    (error) =>
+      error instanceof GitHubAdapterError && error.code === "rate_limited" && error.retryable,
+  );
+
   for (const malformed of [
     { ...issue, labels: [{ name: 14 }] },
     { ...issue, updated_at: "not-a-timestamp" },

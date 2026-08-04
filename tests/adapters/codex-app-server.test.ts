@@ -111,7 +111,7 @@ class FakeCodexTransport implements CodexTransport {
               threadId: this.#threadId,
               turnId: this.#turnId,
               command:
-                "curl --token=secret-value -H Authorization: Bearer supersecret https://example.test",
+                "curl --token=secret-value -H Authorization: Bearer supersecret https://alice:supersecret@example.test",
               cwd: "/tmp/workspace",
               reason: "Network access",
             },
@@ -159,7 +159,14 @@ class FakeCodexTransport implements CodexTransport {
             threadId: this.#threadId,
             turnId: this.#turnId,
             questions: [
-              { id: "scope", question: "Keep the change narrow?" },
+              {
+                id: "scope",
+                question: "Keep the change narrow?",
+                options: [
+                  { label: "Yes", description: "Keep the scope narrow." },
+                  { label: "No", description: "Expand the scope." },
+                ],
+              },
               { id: "reason", question: "Why is this change needed?" },
             ],
           },
@@ -249,7 +256,8 @@ test("Codex adapter maps v2 Thread, Turn, approvals, and input to the Agent Runn
   if (approval?.type !== "intervention_requested") assert.fail("approval event missing");
   assert.deepEqual(approval.details, {
     action: "command",
-    command: "curl --token=<redacted> -H Authorization: <redacted> https://example.test",
+    command:
+      "curl --token=<redacted> -H Authorization: <redacted> https://alice:<redacted>@example.test",
     cwd: "/tmp/workspace",
     reason: "Network access",
   });
@@ -259,6 +267,17 @@ test("Codex adapter maps v2 Thread, Turn, approvals, and input to the Agent Runn
   assert.equal(input?.type, "intervention_requested");
   if (input?.type !== "intervention_requested") assert.fail("input event missing");
   assert.deepEqual(input.questionIds, ["scope", "reason"]);
+  assert.deepEqual(input.questions, [
+    {
+      id: "scope",
+      prompt: "Keep the change narrow?",
+      options: [
+        { label: "Yes", description: "Keep the scope narrow." },
+        { label: "No", description: "Expand the scope." },
+      ],
+    },
+    { id: "reason", prompt: "Why is this change needed?", options: [] },
+  ]);
   await handle.respondToIntervention(input.requestRef, {
     decision: "answered",
     responses: { scope: ["Yes"], reason: ["No"] },

@@ -106,7 +106,7 @@ export class GitHubIssuesAdapter {
     } catch {
       throw new GitHubAdapterError("network_error", true, "GitHub Issue read failed");
     }
-    if (!response.ok) throw this.#httpError(response);
+    if (!response.ok) throw await this.#httpError(response);
 
     let payload: GitHubIssuePayload;
     try {
@@ -161,15 +161,24 @@ export class GitHubIssuesAdapter {
     return { task, etag: response.headers.get("etag") };
   }
 
-  #httpError(response: Response): GitHubAdapterError {
+  async #httpError(response: Response): Promise<GitHubAdapterError> {
     if (response.status === 404) {
       return new GitHubAdapterError("not_found", false, "GitHub Issue was not found");
     }
+    const secondaryRateLimit =
+      response.status === 403 &&
+      /secondary rate limit/i.test(
+        await response
+          .clone()
+          .text()
+          .catch(() => ""),
+      );
     if (
       response.status === 429 ||
       (response.status === 403 &&
         (response.headers.get("x-ratelimit-remaining") === "0" ||
-          response.headers.has("retry-after")))
+          response.headers.has("retry-after"))) ||
+      secondaryRateLimit
     ) {
       return new GitHubAdapterError("rate_limited", true, "GitHub API rate limit was exhausted");
     }

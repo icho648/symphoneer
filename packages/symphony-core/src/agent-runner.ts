@@ -22,6 +22,12 @@ export type InterventionDetails =
       scope: "workspace" | "additional_root";
     };
 
+export interface InterventionQuestion {
+  id: string;
+  prompt: string;
+  options: Array<{ label: string; description: string | null }>;
+}
+
 export type AgentRunEvent =
   | {
       type: "session_started";
@@ -43,6 +49,7 @@ export type AgentRunEvent =
       prompt: string;
       details?: InterventionDetails;
       questionIds?: string[];
+      questions?: InterventionQuestion[];
     }
   | {
       type: "notification";

@@ -131,6 +131,7 @@ test("Verification disables external Git diff drivers", async (t) => {
   execFileSync("git", ["-C", fixture.repository, "add", ".gitattributes"]);
   execFileSync("git", ["-C", fixture.repository, "commit", "-m", "configure diff driver"]);
   execFileSync("git", ["-C", fixture.repository, "config", "diff.opaque.command", "true"]);
+  execFileSync("git", ["-C", fixture.repository, "config", "diff.opaque.textconv", "true"]);
 
   const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
     attemptId: "attempt-external-diff-driver",
