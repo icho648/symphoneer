@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -256,4 +256,50 @@ test("cleanup cannot remove a workspace prepared by the next Attempt", async (t)
   const preparedNext = await next;
   assert.equal(preparedNext.workspace.ownerAttemptId, "attempt-next");
   await access(preparedNext.workspace.path);
+});
+
+test("cleanup rejects a canonical-path alias for an active workspace", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-alias-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const removed: string[] = [];
+  const identity = { gitHead: "a".repeat(40), worktreeFingerprint: "b".repeat(64) };
+  const driver: WorkspaceDriver = {
+    prepare: async (workspace) => {
+      await mkdir(workspace.path);
+      return { createdNow: true, ...identity };
+    },
+    recover: async () => identity,
+    assertReady: async () => identity,
+    assertRemovable: async () => "present",
+    remove: async (workspace) => {
+      removed.push(workspace.path);
+      return "removed";
+    },
+  };
+  const manager = new WorkspaceManager({ root, driver });
+  const prepared = await manager.prepare({
+    taskId: "task-alias",
+    identifier: "REAL",
+    attemptId: "attempt-alias",
+    repository: "icho648/symphoneer",
+    branch: "codex/alias",
+    host: "local",
+  });
+  const retained = await manager.finish(prepared.workspace);
+  const alias = resolve(root, "ALIAS");
+  await symlink(prepared.workspace.path, alias, "dir");
+
+  await assert.rejects(
+    manager.remove({
+      ...retained.workspace,
+      id: "workspace:forged-alias",
+      taskId: "task-forged-alias",
+      path: alias,
+      state: "retained",
+      ownerAttemptId: null,
+    }),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
+  );
+  assert.deepEqual(removed, []);
+  await access(prepared.workspace.path);
 });

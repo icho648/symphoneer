@@ -28,10 +28,12 @@ export class WorkspaceRegistry {
     this.#root = resolve(root);
   }
 
-  register(workspace: WorkspaceReference): void {
+  async register(workspace: WorkspaceReference): Promise<void> {
     this.#assertWithinRoot(workspace);
+    await this.assertCanonicalPath(workspace);
+    const path = await this.canonicalPath(workspace.path);
     const registered = this.#byId.get(workspace.id);
-    const pathOwner = this.#byPath.get(workspace.path);
+    const pathOwner = this.#byPath.get(path);
     if (
       (registered && !isDeepStrictEqual(identity(registered), identity(workspace))) ||
       (registered &&
@@ -45,17 +47,18 @@ export class WorkspaceRegistry {
       );
     }
     this.update(workspace);
-    this.#byPath.set(workspace.path, workspace.id);
+    this.#byPath.set(path, workspace.id);
   }
 
-  require(input: WorkspaceReference): WorkspaceReference {
+  async require(input: WorkspaceReference): Promise<WorkspaceReference> {
     const workspace = canonicalizeWorkspaceReference(input);
     this.#assertWithinRoot(workspace);
+    await this.assertCanonicalPath(workspace);
     const registered = this.#byId.get(workspace.id);
     if (
       !registered ||
       !isDeepStrictEqual(registered, workspace) ||
-      this.#byPath.get(workspace.path) !== workspace.id
+      ![...this.#byPath.values()].includes(workspace.id)
     ) {
       throw new WorkspaceError(
         "workspace_identity_mismatch",
@@ -69,9 +72,10 @@ export class WorkspaceRegistry {
     this.#byId.set(workspace.id, structuredClone(workspace));
   }
 
-  unregister(workspace: WorkspaceReference): void {
+  async unregister(workspace: WorkspaceReference): Promise<void> {
+    const path = await this.canonicalPath(workspace.path);
     this.#byId.delete(workspace.id);
-    this.#byPath.delete(workspace.path);
+    if (this.#byPath.get(path) === workspace.id) this.#byPath.delete(path);
   }
 
   get(id: string): WorkspaceReference | undefined {
@@ -79,9 +83,13 @@ export class WorkspaceRegistry {
     return workspace ? structuredClone(workspace) : undefined;
   }
 
-  getByPath(path: string): WorkspaceReference | undefined {
-    const id = this.#byPath.get(path);
+  async getByPath(path: string): Promise<WorkspaceReference | undefined> {
+    const id = this.#byPath.get(await this.canonicalPath(path));
     return id ? this.get(id) : undefined;
+  }
+
+  canonicalPath(path: string): Promise<string> {
+    return canonicalPath(path);
   }
 
   assertPath(workspace: WorkspaceReference): void {
@@ -90,7 +98,7 @@ export class WorkspaceRegistry {
 
   async assertCanonicalPath(workspace: WorkspaceReference): Promise<void> {
     const root = await canonicalPath(this.#root);
-    const path = await canonicalPath(workspace.path);
+    const path = await this.canonicalPath(workspace.path);
     const child = relative(root, path);
     if (!child || child.startsWith("..") || isAbsolute(child)) {
       throw new WorkspaceError(

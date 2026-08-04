@@ -33,10 +33,11 @@ export class WorkspaceManager {
 
   async prepare(input: WorkspaceInput): Promise<PreparedWorkspace> {
     const workspace = createWorkspaceReference({ ...input, root: this.#root });
+    const canonicalPath = await this.#registry.canonicalPath(workspace.path);
     const key = JSON.stringify([
       workspace.id,
       workspace.taskId,
-      workspace.path,
+      canonicalPath,
       workspace.repository,
       workspace.branch,
       workspace.host,
@@ -45,7 +46,7 @@ export class WorkspaceManager {
     const existing = this.#preparing.get(key);
     if (existing) return existing;
 
-    const preparation = this.#exclusive(workspace, () => this.#prepare(workspace));
+    const preparation = this.#exclusive(workspace, canonicalPath, () => this.#prepare(workspace));
     this.#preparing.set(key, preparation);
     const clear = () => {
       if (this.#preparing.get(key) === preparation) this.#preparing.delete(key);
@@ -62,14 +63,16 @@ export class WorkspaceManager {
     const owner = ownerAttemptId.trim();
     if (!owner)
       throw new WorkspaceError("workspace_identity_mismatch", "Attempt owner is required");
-    return this.#exclusive(workspace, () => this.#recover(workspace, owner));
+    const canonicalPath = await this.#registry.canonicalPath(workspace.path);
+    return this.#exclusive(workspace, canonicalPath, () => this.#recover(workspace, owner));
   }
 
   async finish(workspaceInput: WorkspaceReference): Promise<FinishedWorkspace> {
     const input = canonicalizeWorkspaceReference(workspaceInput);
-    return this.#exclusive(input, async () => {
+    const canonicalPath = await this.#registry.canonicalPath(input.path);
+    return this.#exclusive(input, canonicalPath, async () => {
       await this.#registry.assertCanonicalPath(input);
-      const workspace = this.#registry.require(input);
+      const workspace = await this.#registry.require(input);
       if (workspace.state !== "ready" && workspace.state !== "reserved") {
         throw new WorkspaceError(
           "workspace_identity_mismatch",
@@ -90,12 +93,13 @@ export class WorkspaceManager {
 
   async remove(workspaceInput: WorkspaceReference): Promise<FinishedWorkspace> {
     const input = canonicalizeWorkspaceReference(workspaceInput);
-    return this.#exclusive(input, async () => {
+    const canonicalPath = await this.#registry.canonicalPath(input.path);
+    return this.#exclusive(input, canonicalPath, async () => {
       await this.#registry.assertCanonicalPath(input);
       const known = this.#registry.get(input.id);
       if (!known) {
         this.#registry.assertPath(input);
-        if (this.#registry.getByPath(input.path)) {
+        if (await this.#registry.getByPath(input.path)) {
           throw new WorkspaceError(
             "workspace_identity_mismatch",
             `Workspace ${input.id} conflicts with the managed path`,
@@ -128,9 +132,9 @@ export class WorkspaceManager {
             );
           }
         }
-        this.#registry.register(input);
+        await this.#registry.register(input);
       }
-      const workspace = this.#registry.require(input);
+      const workspace = await this.#registry.require(input);
       if (workspace.state === "released") {
         if ((await this.#driver.assertRemovable(workspace)) === "absent") {
           return { workspace, hookFailures: [] };
@@ -182,7 +186,7 @@ export class WorkspaceManager {
     const preparation = await this.#driver.prepare(expected);
     const workspace = observedWorkspace(expected, preparation);
     try {
-      this.#registry.register(workspace);
+      await this.#registry.register(workspace);
     } catch (error) {
       if (!preparation.createdNow) throw error;
       try {
@@ -203,7 +207,7 @@ export class WorkspaceManager {
         try {
           await this.#driver.assertRemovable(workspace);
           await this.#driver.remove(workspace);
-          this.#registry.unregister(workspace);
+          await this.#registry.unregister(workspace);
         } catch {
           this.#registry.update(await this.#retainObserved(workspace));
         }
@@ -235,7 +239,7 @@ export class WorkspaceManager {
     await this.#registry.assertCanonicalPath(workspace);
     const recoveredObservation = await this.#driver.recover(workspace);
     const retainedWorkspace = observedWorkspace(workspace, recoveredObservation);
-    this.#registry.register(retainedWorkspace);
+    await this.#registry.register(retainedWorkspace);
     const owned = WorkspaceReferenceSchema.parse({
       ...retainedWorkspace,
       state: "ready",
@@ -262,8 +266,12 @@ export class WorkspaceManager {
     }
   }
 
-  #exclusive<T>(workspace: WorkspaceReference, operation: () => Promise<T>): Promise<T> {
-    const keys = [`id:${workspace.id}`, `path:${workspace.path}`];
+  #exclusive<T>(
+    workspace: WorkspaceReference,
+    canonicalPath: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const keys = [`id:${workspace.id}`, `path:${canonicalPath}`];
     const previous = Promise.all(
       keys.map((key) => this.#operations.get(key)?.catch(() => undefined) ?? Promise.resolve()),
     );
