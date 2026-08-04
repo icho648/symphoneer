@@ -233,6 +233,34 @@ test("Git worktree preparation refreshes identity after a hook failure", async (
   await access(resolve(retried.workspace.path, "after-create.txt"));
 });
 
+test("Git worktree preparation rolls back when Workspace registration rejects identity", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const driver = new GitWorktreeDriver({
+    repositoryPath: fixture.repositoryPath,
+    repository: "icho648/symphoneer",
+    baseRevision: "HEAD",
+  });
+  const manager = new WorkspaceManager({ root: fixture.workspaceRoot, driver });
+  const initial = await manager.prepare(workspaceInput("codex/registration-old"));
+  const retained = await manager.finish(initial.workspace);
+  const changed = {
+    ...workspaceInput("codex/registration-new", "attempt-registration-new"),
+    identifier: "ISSUE-14-renamed",
+  };
+
+  await assert.rejects(
+    manager.prepare(changed),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
+  );
+  const worktreeList = execFileSync(
+    "git",
+    ["-C", fixture.repositoryPath, "worktree", "list", "--porcelain"],
+    { encoding: "utf8" },
+  );
+  assert.doesNotMatch(worktreeList, /registration-new/);
+  await access(retained.workspace.path);
+});
+
 test("Git worktree removal refuses populated deinitialized submodules", async (t) => {
   const fixture = await repositoryFixture(t);
   const submodule = resolve(fixture.base, "submodule");

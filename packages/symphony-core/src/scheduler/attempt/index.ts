@@ -137,6 +137,13 @@ export function finishAttempt(
     );
     if (!workspace)
       throw new CoreError("not_found", `Workspace ${attempt.workspaceId} does not exist`);
+    const ownerAttemptId = state.workspaceOwners.get(workspace.path);
+    if (ownerAttemptId && ownerAttemptId !== attempt.id) {
+      throw new CoreError(
+        "conflict",
+        `Workspace ${workspace.id} is owned by Attempt ${ownerAttemptId}`,
+      );
+    }
     const refreshedWorkspace = retainedWorkspace(workspace, request.workspace);
     state.workspaces.set(refreshedWorkspace.path, refreshedWorkspace);
     return { attempt, retry: null };

@@ -186,7 +186,21 @@ export class WorkspaceManager {
     await this.#registry.assertCanonicalPath(expected);
     const preparation = await this.#driver.prepare(expected);
     const workspace = observedWorkspace(expected, preparation);
-    this.#registry.register(workspace);
+    try {
+      this.#registry.register(workspace);
+    } catch (error) {
+      if (!preparation.createdNow) throw error;
+      try {
+        await this.#driver.remove(workspace);
+      } catch (cleanupError) {
+        throw new WorkspaceError(
+          "workspace_git_failed",
+          `Workspace ${workspace.id} could not be rolled back after registration failed`,
+          { cause: cleanupError },
+        );
+      }
+      throw error;
+    }
     if (preparation.createdNow) {
       try {
         await this.#hooks.run("afterCreate", workspace.path);
