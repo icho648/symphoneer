@@ -8,7 +8,12 @@ import {
   VerificationResultSchema,
 } from "@symphoneer/contracts";
 import { readWorktreeFingerprint } from "../worktree-fingerprint/index.ts";
-import { assertArtifactFileLinked, createArtifactFile, resolveArtifactRoot } from "./artifacts.ts";
+import {
+  assertArtifactFileLinked,
+  createArtifactFile,
+  removeArtifactFileIfLinked,
+  withHiddenArtifactRoot,
+} from "./artifacts.ts";
 import { VerificationError } from "./errors.ts";
 import { readGitHead } from "./git.ts";
 import { execute } from "./process.ts";
@@ -54,7 +59,6 @@ export class VerificationRunner {
     if (child.startsWith("..") || isAbsolute(child)) {
       throw new VerificationError("invalid_workspace", "Verification cwd escapes its Workspace");
     }
-    const artifactRoot = await resolveArtifactRoot(this.#artifactRoot, workspace);
     const gitHead = await readGitHead(workspace);
     const worktreeFingerprint = await readWorktreeFingerprint(workspace);
     const inputFingerprint = createHash("sha256")
@@ -74,74 +78,87 @@ export class VerificationRunner {
       .update(`${input.attemptId}\0${input.checkId}\0${inputFingerprint}`)
       .digest("hex")}.json`;
     const artifactRef = `artifacts/${artifactName}`;
-    const artifactPath = resolve(artifactRoot, artifactName);
-    const artifactFile = await createArtifactFile(artifactPath);
-    try {
-      const startedAt = this.#now().toISOString();
-      const execution = await execute(input.argv, cwd, input.timeoutMs);
-      const finishedAt = this.#now().toISOString();
-      let gitHeadAfter: string | null = null;
-      let worktreeFingerprintAfter: string | null = null;
-      let observationError: "git_observation_failed" | null = null;
-      try {
-        gitHeadAfter = await readGitHead(workspace);
-        worktreeFingerprintAfter = await readWorktreeFingerprint(workspace);
-      } catch {
-        observationError = "git_observation_failed";
-      }
-      const revisionMatched =
-        observationError === null &&
-        gitHeadAfter === gitHead &&
-        worktreeFingerprintAfter === worktreeFingerprint;
-      const status = execution.timedOut
-        ? "timed_out"
-        : execution.exitCode === 0 && revisionMatched
-          ? "passed"
-          : "failed";
-      const result = VerificationResultSchema.parse({
-        schemaVersion: CONTRACT_SCHEMA_VERSION,
-        id: verificationId(input.attemptId, input.checkId),
-        attemptId: input.attemptId,
-        checkId: input.checkId,
-        status,
-        argv: [basename(input.argv[0] as string), ...input.argv.slice(1).map(() => "<redacted>")],
-        cwd: child || ".",
-        gitHead,
-        worktreeFingerprint,
-        tool: { name: "symphoneer-verification", version: this.#toolVersion },
-        inputFingerprint,
-        startedAt,
-        finishedAt,
-        exitCode: execution.exitCode,
-        artifactRef,
-      });
-      await artifactFile.truncate(0);
-      await artifactFile.writeFile(
-        `${JSON.stringify(
-          {
-            ...result,
-            gitHeadAfter,
-            worktreeFingerprintAfter,
-            revisionMatched,
-            observationError,
-            startFailed: execution.startFailed,
-            output: {
-              stdoutBytes: execution.stdoutBytes,
-              stdoutSha256: execution.stdoutSha256,
-              stderrBytes: execution.stderrBytes,
-              stderrSha256: execution.stderrSha256,
-            },
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
-      await assertArtifactFileLinked(artifactPath, artifactFile);
-      return { result, artifactPath };
-    } finally {
-      await artifactFile.close();
-    }
+    return withHiddenArtifactRoot(
+      this.#artifactRoot,
+      workspace,
+      async (privateRoot, publicRoot) => {
+        const artifactPath = resolve(privateRoot, artifactName);
+        const publishedArtifactPath = resolve(publicRoot, artifactName);
+        const artifactFile = await createArtifactFile(artifactPath);
+        let published = false;
+        try {
+          const startedAt = this.#now().toISOString();
+          const execution = await execute(input.argv, cwd, input.timeoutMs);
+          const finishedAt = this.#now().toISOString();
+          let gitHeadAfter: string | null = null;
+          let worktreeFingerprintAfter: string | null = null;
+          let observationError: "git_observation_failed" | null = null;
+          try {
+            gitHeadAfter = await readGitHead(workspace);
+            worktreeFingerprintAfter = await readWorktreeFingerprint(workspace);
+          } catch {
+            observationError = "git_observation_failed";
+          }
+          const revisionMatched =
+            observationError === null &&
+            gitHeadAfter === gitHead &&
+            worktreeFingerprintAfter === worktreeFingerprint;
+          const status = execution.timedOut
+            ? "timed_out"
+            : execution.exitCode === 0 && revisionMatched
+              ? "passed"
+              : "failed";
+          const result = VerificationResultSchema.parse({
+            schemaVersion: CONTRACT_SCHEMA_VERSION,
+            id: verificationId(input.attemptId, input.checkId),
+            attemptId: input.attemptId,
+            checkId: input.checkId,
+            status,
+            argv: [
+              basename(input.argv[0] as string),
+              ...input.argv.slice(1).map(() => "<redacted>"),
+            ],
+            cwd: child || ".",
+            gitHead,
+            worktreeFingerprint,
+            tool: { name: "symphoneer-verification", version: this.#toolVersion },
+            inputFingerprint,
+            startedAt,
+            finishedAt,
+            exitCode: execution.exitCode,
+            artifactRef,
+          });
+          await artifactFile.truncate(0);
+          await artifactFile.writeFile(
+            `${JSON.stringify(
+              {
+                ...result,
+                gitHeadAfter,
+                worktreeFingerprintAfter,
+                revisionMatched,
+                observationError,
+                startFailed: execution.startFailed,
+                output: {
+                  stdoutBytes: execution.stdoutBytes,
+                  stdoutSha256: execution.stdoutSha256,
+                  stderrBytes: execution.stderrBytes,
+                  stderrSha256: execution.stderrSha256,
+                },
+              },
+              null,
+              2,
+            )}\n`,
+            "utf8",
+          );
+          await assertArtifactFileLinked(artifactPath, artifactFile);
+          published = true;
+          return { result, artifactPath: publishedArtifactPath };
+        } finally {
+          if (!published) await removeArtifactFileIfLinked(artifactPath, artifactFile);
+          await artifactFile.close();
+        }
+      },
+    );
   }
 }
 

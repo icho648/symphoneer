@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import {
+  type WorkspaceDriver,
   WorkspaceError,
   WorkspaceManager,
 } from "../../../packages/symphony-core/src/workspace/index.ts";
@@ -125,6 +126,45 @@ test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministic
   );
   assert.equal((await manager.remove(removed.workspace)).workspace.state, "released");
   await assert.rejects(access(reused.workspace.path));
+});
+
+test("Workspace finish remains retryable when final observation fails", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-finish-retry-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initial = { gitHead: "a".repeat(40), worktreeFingerprint: "b".repeat(64) };
+  const refreshed = { gitHead: "c".repeat(40), worktreeFingerprint: "d".repeat(64) };
+  let assertReadyCalls = 0;
+  const driver: WorkspaceDriver = {
+    prepare: async () => ({ ...initial, createdNow: true }),
+    recover: async () => initial,
+    assertReady: async () => {
+      assertReadyCalls += 1;
+      if (assertReadyCalls === 2) {
+        throw new WorkspaceError("workspace_git_failed", "transient observation failure");
+      }
+      return assertReadyCalls >= 3 ? refreshed : initial;
+    },
+    assertRemovable: async () => "present",
+    remove: async () => "removed",
+  };
+  const manager = new WorkspaceManager({ root, driver });
+  const prepared = await manager.prepare({
+    taskId: "task-finish-retry",
+    identifier: "ISSUE-FINISH-RETRY",
+    attemptId: "attempt-finish-retry",
+    repository: "icho648/symphoneer",
+    branch: "codex/finish-retry",
+    host: "local",
+  });
+
+  await assert.rejects(
+    manager.finish(prepared.workspace),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_git_failed",
+  );
+  const retried = await manager.finish(prepared.workspace);
+  assert.equal(retried.workspace.state, "retained");
+  assert.equal(retried.workspace.gitHead, refreshed.gitHead);
+  assert.equal(retried.workspace.worktreeFingerprint, refreshed.worktreeFingerprint);
 });
 
 test("concurrent identical preparation waits for workspace initialization", async (t) => {

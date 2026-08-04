@@ -183,42 +183,46 @@ test("Verification ignores Git replacement objects", async (t) => {
   assert.equal(await readFile(resolve(fixture.repository, "README.md"), "utf8"), "changed\n");
 });
 
-test("Verification keeps artifact writes bound to the validated directory", async (t) => {
+test("Verification hides published artifacts during checks", async (t) => {
   const fixture = await repositoryFixture(t);
-  const movedArtifacts = resolve(fixture.base, "moved-artifacts");
-  await assert.rejects(
-    new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
-      attemptId: "attempt-artifact-swap",
-      checkId: "check",
-      argv: [
-        process.execPath,
-        "-e",
-        [
-          "const fs=require('node:fs');",
-          `fs.renameSync(${JSON.stringify(fixture.artifacts)},${JSON.stringify(movedArtifacts)});`,
-          `fs.symlinkSync(process.cwd(),${JSON.stringify(fixture.artifacts)},'dir');`,
-        ].join(" "),
-      ],
-      cwd: ".",
-      workspacePath: fixture.repository,
-      timeoutMs: 5_000,
-    }),
-    (error) => error instanceof VerificationError && error.code === "artifact_replaced",
-  );
-  assert.equal(
-    execFileSync("git", ["-C", fixture.repository, "status", "--porcelain"]).toString(),
-    "",
-  );
-  const [artifactName] = await readdir(movedArtifacts);
-  assert.ok(artifactName);
-  assert.match(await readFile(resolve(movedArtifacts, artifactName), "utf8"), /"status": "passed"/);
+  const runner = new VerificationRunner({ artifactRoot: fixture.artifacts });
+  const first = await runner.run({
+    attemptId: "attempt-artifact-original",
+    checkId: "check",
+    argv: [process.execPath, "-e", "process.exit(0)"],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  const original = await readFile(first.artifactPath, "utf8");
+  const second = await runner.run({
+    attemptId: "attempt-artifact-hidden",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      [
+        "const fs=require('node:fs');",
+        "const path=require('node:path');",
+        `const root=${JSON.stringify(fixture.artifacts)};`,
+        "if (fs.existsSync(root) && fs.readdirSync(root).length) {",
+        "  fs.writeFileSync(path.join(root, fs.readdirSync(root)[0]), 'forged');",
+        "}",
+      ].join(" "),
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(second.result.status, "passed");
+  assert.equal(await readFile(first.artifactPath, "utf8"), original);
 });
 
-test("Verification rejects a replaced artifact file path", async (t) => {
+test("Verification rejects a replaced artifact root", async (t) => {
   const fixture = await repositoryFixture(t);
   await assert.rejects(
     new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
-      attemptId: "attempt-artifact-file-replaced",
+      attemptId: "attempt-artifact-root-replaced",
       checkId: "check",
       argv: [
         process.execPath,
@@ -227,9 +231,8 @@ test("Verification rejects a replaced artifact file path", async (t) => {
           "const fs=require('node:fs');",
           "const path=require('node:path');",
           `const root=${JSON.stringify(fixture.artifacts)};`,
-          "const artifact=path.join(root,fs.readdirSync(root)[0]);",
-          "fs.unlinkSync(artifact);",
-          "fs.writeFileSync(artifact,'forged');",
+          "fs.mkdirSync(root);",
+          "fs.writeFileSync(path.join(root,'forged'),'forged');",
         ].join(" "),
       ],
       cwd: ".",
@@ -240,33 +243,33 @@ test("Verification rejects a replaced artifact file path", async (t) => {
   );
   const [artifactName] = await readdir(fixture.artifacts);
   assert.ok(artifactName);
-  assert.equal(await readFile(resolve(fixture.artifacts, artifactName), "utf8"), "forged");
+  assert.match(
+    await readFile(resolve(fixture.artifacts, artifactName), "utf8"),
+    /"status": "passed"/,
+  );
 });
 
-test("Verification truncates artifact data written by the checked command", async (t) => {
+test("Verification removes an unpublished artifact after setup failure", async (t) => {
   const fixture = await repositoryFixture(t);
-  const marker = "attacker-trailing-data";
-  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
-    attemptId: "attempt-artifact-trailing-data",
+  const input = {
+    attemptId: "attempt-artifact-cleanup",
     checkId: "check",
-    argv: [
-      process.execPath,
-      "-e",
-      [
-        "const fs=require('node:fs');",
-        "const path=require('node:path');",
-        `const root=${JSON.stringify(fixture.artifacts)};`,
-        "const artifact=path.join(root,fs.readdirSync(root)[0]);",
-        `fs.writeFileSync(artifact,${JSON.stringify(marker.repeat(1000))});`,
-      ].join(" "),
-    ],
+    argv: [process.execPath, "-e", "process.exit(0)"],
     cwd: ".",
     workspacePath: fixture.repository,
     timeoutMs: 5_000,
-  });
-  const artifact = await readFile(verification.artifactPath, "utf8");
-  assert.doesNotMatch(artifact, new RegExp(marker));
-  assert.doesNotThrow(() => JSON.parse(artifact));
+  };
+  await assert.rejects(
+    new VerificationRunner({
+      artifactRoot: fixture.artifacts,
+      now: () => {
+        throw new Error("clock failed");
+      },
+    }).run(input),
+    /clock failed/,
+  );
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run(input);
+  assert.equal(verification.result.status, "passed");
 });
 
 test("Verification keeps zero exit from passing when ignored state changes", async (t) => {

@@ -111,7 +111,7 @@ class FakeCodexTransport implements CodexTransport {
               threadId: this.#threadId,
               turnId: this.#turnId,
               command:
-                "curl --token=secret-value -H Authorization: Bearer supersecret https://alice:supersecret@example.test AWS_SECRET_ACCESS_KEY=aws-secret Cookie: session=cookie-secret",
+                "curl --token=secret-value -H Authorization: Bearer supersecret https://alice:supersecret@example.test AWS_SECRET_ACCESS_KEY=aws-secret Cookie: theme=dark; sessionid=cookie-secret",
               cwd: "/tmp/workspace",
               reason: "Network access",
             },

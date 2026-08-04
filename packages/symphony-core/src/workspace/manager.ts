@@ -82,14 +82,9 @@ export class WorkspaceManager {
         state: "retained",
         ownerAttemptId: null,
       });
-      try {
-        const observed = observedWorkspace(retained, await this.#driver.assertReady(workspace));
-        this.#registry.update(observed);
-        return { workspace: observed, hookFailures };
-      } catch (error) {
-        this.#registry.update(retained);
-        throw error;
-      }
+      const observed = observedWorkspace(retained, await this.#driver.assertReady(workspace));
+      this.#registry.update(observed);
+      return { workspace: observed, hookFailures };
     });
   }
 

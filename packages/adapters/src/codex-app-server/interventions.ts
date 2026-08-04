@@ -98,6 +98,7 @@ function approvalDetails(
 function safeInterventionText(value: string | null): string | null {
   if (value === null) return null;
   const redacted = value
+    .replace(/(\b(?:cookie|set-cookie)\s*:\s*)[^\r\n]*/gi, "$1<redacted>")
     .replace(
       /\b(?:sk-[A-Za-z0-9_-]+|gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/g,
       "<redacted>",
