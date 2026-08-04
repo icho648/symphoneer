@@ -566,6 +566,18 @@ test("Verification rejects an artifact root inside the Workspace before executin
   await assert.rejects(readFile(marker));
   await assert.rejects(access(resolve(fixture.repository, ".artifacts")));
 
+  await assert.rejects(
+    new VerificationRunner({ artifactRoot: fixture.base }).run({
+      attemptId: "attempt-artifact-ancestor",
+      checkId: "check",
+      argv: [process.execPath, "-e", "process.exit(0)"],
+      cwd: ".",
+      workspacePath: fixture.repository,
+      timeoutMs: 5_000,
+    }),
+    (error) => error instanceof VerificationError && error.code === "invalid_workspace",
+  );
+
   const link = resolve(fixture.base, "artifact-link");
   await symlink(fixture.repository, link, "dir");
   await assert.rejects(

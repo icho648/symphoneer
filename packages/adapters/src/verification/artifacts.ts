@@ -9,7 +9,7 @@ import {
   rmdir,
   unlink,
 } from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import { VerificationError } from "./errors.ts";
 
@@ -157,8 +157,11 @@ async function canonicalPotentialPath(path: string): Promise<string> {
 }
 
 function assertOutsideWorkspace(workspace: string, artifactRoot: string): void {
-  const child = relative(workspace, artifactRoot);
-  if (!child || (!child.startsWith("..") && !isAbsolute(child))) {
+  const artifactFromWorkspace = relative(workspace, artifactRoot);
+  const workspaceFromArtifact = relative(artifactRoot, workspace);
+  const isWithin = (child: string) =>
+    !child || (!isAbsolute(child) && child !== ".." && !child.startsWith(`..${sep}`));
+  if (isWithin(artifactFromWorkspace) || isWithin(workspaceFromArtifact)) {
     throw new VerificationError(
       "invalid_workspace",
       "Verification artifacts must be outside the Workspace",

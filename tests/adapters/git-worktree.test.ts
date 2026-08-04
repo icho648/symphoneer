@@ -85,6 +85,23 @@ test("Git worktree lifecycle creates, recovers, retains, and safely releases", a
   );
 });
 
+test("Git worktree cleanup streams large tracked blobs", async (t) => {
+  const fixture = await repositoryFixture(t);
+  await writeFile(resolve(fixture.repositoryPath, "large.bin"), Buffer.alloc(5 * 2 ** 20, 0x61));
+  execFileSync("git", ["-C", fixture.repositoryPath, "add", "large.bin"]);
+  execFileSync("git", ["-C", fixture.repositoryPath, "commit", "-m", "add large blob"]);
+
+  const driver = new GitWorktreeDriver({
+    repositoryPath: fixture.repositoryPath,
+    repository: "icho648/symphoneer",
+    baseRevision: "HEAD",
+  });
+  const manager = new WorkspaceManager({ root: fixture.workspaceRoot, driver });
+  const prepared = await manager.prepare(workspaceInput("codex/large-blob"));
+  const retained = await manager.finish(prepared.workspace);
+  assert.equal((await manager.remove(retained.workspace)).workspace.state, "released");
+});
+
 test("Git worktree cleanup rejects aliases outside the configured Workspace root", async (t) => {
   const fixture = await repositoryFixture(t);
   const driver = new GitWorktreeDriver({

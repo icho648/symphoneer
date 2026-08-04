@@ -111,7 +111,7 @@ class FakeCodexTransport implements CodexTransport {
               threadId: this.#threadId,
               turnId: this.#turnId,
               command:
-                "curl --token=secret-value -H Authorization: Bearer supersecret https://alice:supersecret@example.test AWS_SECRET_ACCESS_KEY='super secret' Cookie: theme=dark; sessionid=cookie-secret",
+                "curl --token=secret-value -H Authorization: Bearer supersecret https://alice:supersecret@example.test/download?sig=url-secret&signature=other-secret AWS_SECRET_ACCESS_KEY='super secret' Cookie: theme=dark; sessionid=cookie-secret",
               cwd: "/tmp/workspace",
               reason: "Network access",
             },
@@ -257,7 +257,7 @@ test("Codex adapter maps v2 Thread, Turn, approvals, and input to the Agent Runn
   assert.deepEqual(approval.details, {
     action: "command",
     command:
-      "curl --token=<redacted> -H Authorization: <redacted> https://alice:<redacted>@example.test AWS_SECRET_ACCESS_KEY=<redacted> Cookie: <redacted>",
+      "curl --token=<redacted> -H Authorization: <redacted> https://alice:<redacted>@example.test/download?sig=<redacted>&signature=<redacted> AWS_SECRET_ACCESS_KEY=<redacted> Cookie: <redacted>",
     cwd: "/tmp/workspace",
     reason: "Network access",
   });

@@ -104,6 +104,7 @@ function safeInterventionText(value: string | null): string | null {
       "<redacted>",
     )
     .replace(/(\b[A-Za-z][A-Za-z\d+.-]*:\/\/[^/\s:@]+:)[^@\s]+@/g, "$1<redacted>@")
+    .replace(/([?&](?:sig|signature)=)[^&\s]+/gi, "$1<redacted>")
     .replace(
       /((?:(?:[A-Za-z][A-Za-z\d_-]*(?:key|token|secret|password|credential|cookie|authorization)[A-Za-z\d_-]*)|api[_-]?key|token|secret|password|credential|cookie|authorization|set-cookie)\s*[=:]\s*)(?:[A-Za-z]+\s+)?(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s]+)/gi,
       "$1<redacted>",
