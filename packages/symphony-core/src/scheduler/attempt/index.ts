@@ -213,12 +213,16 @@ export function terminateRunning(
   if (!running) throw new CoreError("not_found", `Task ${taskId} is not running`);
   const attempt = state.attempts.get(running.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${running.attemptId} does not exist`);
+  const parsedFinishedAt = AttemptSnapshotSchema.shape.updatedAt.parse(finishedAt);
+  if (Date.parse(parsedFinishedAt) < Date.parse(attempt.updatedAt)) {
+    throw new CoreError("invalid_transition", "Finish cannot precede the current Attempt state");
+  }
   const finished = AttemptSnapshotSchema.parse({
     ...attempt,
     status,
     activeTurn: null,
-    updatedAt: finishedAt,
-    finishedAt,
+    updatedAt: parsedFinishedAt,
+    finishedAt: parsedFinishedAt,
     failure,
   });
   const workspace = workspaceInput

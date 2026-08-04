@@ -112,6 +112,18 @@ test("worker outcomes schedule one deterministic retry and release active owners
       idempotencyKey: "finish-30-invalid",
     }),
   );
+  assert.throws(
+    () =>
+      scheduler.finishAttempt({
+        attemptId: "attempt-30-1",
+        status: "failed",
+        finishedAt: "2026-08-02T12:00:00.500Z",
+        workspace: retained(workspace("30", "attempt-30-1")),
+        error: "runner failed",
+        idempotencyKey: "finish-30-stale-time",
+      }),
+    (error) => error instanceof CoreError && error.code === "invalid_transition",
+  );
   assert.deepEqual(scheduler.snapshot(), beforeInvalidFinish);
   const finished = scheduler.finishAttempt({
     attemptId: "attempt-30-1",

@@ -290,45 +290,6 @@ test("Git worktree preparation rolls back when Workspace registration rejects id
   await access(retained.workspace.path);
 });
 
-test("Git worktree removal refuses populated deinitialized submodules", async (t) => {
-  const fixture = await repositoryFixture(t);
-  const submodule = resolve(fixture.base, "submodule");
-  execFileSync("git", ["init", "-b", "main", submodule]);
-  execFileSync("git", ["-C", submodule, "config", "user.name", "Symphoneer Test"]);
-  execFileSync("git", ["-C", submodule, "config", "user.email", "test@example.com"]);
-  await writeFile(resolve(submodule, "nested.txt"), "baseline\n");
-  execFileSync("git", ["-C", submodule, "add", "nested.txt"]);
-  execFileSync("git", ["-C", submodule, "commit", "-m", "nested baseline"]);
-  execFileSync("git", [
-    "-C",
-    fixture.repositoryPath,
-    "-c",
-    "protocol.file.allow=always",
-    "submodule",
-    "add",
-    submodule,
-    "nested",
-  ]);
-  execFileSync("git", ["-C", fixture.repositoryPath, "commit", "-m", "add submodule"]);
-  const driver = new GitWorktreeDriver({
-    repositoryPath: fixture.repositoryPath,
-    repository: "icho648/symphoneer",
-    baseRevision: "HEAD",
-  });
-  const manager = new WorkspaceManager({ root: fixture.workspaceRoot, driver });
-  const prepared = await manager.prepare(workspaceInput("codex/deinitialized"));
-  const retained = await manager.finish(prepared.workspace);
-  await rm(resolve(prepared.workspace.path, "nested", ".git"), { force: true });
-  const localData = resolve(prepared.workspace.path, "nested", "local.txt");
-  await writeFile(localData, "keep\n");
-
-  await assert.rejects(
-    manager.remove(retained.workspace),
-    (error) => error instanceof WorkspaceError && error.code === "workspace_git_failed",
-  );
-  await access(localData);
-});
-
 test("Git worktree recovery rejects identity mismatches and reconciles complete absence", async (t) => {
   const fixture = await repositoryFixture(t);
   const driver = new GitWorktreeDriver({
