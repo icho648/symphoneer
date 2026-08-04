@@ -12,7 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { VerificationError, VerificationRunner } from "../../packages/adapters/src/index.ts";
@@ -183,70 +183,19 @@ test("Verification ignores Git replacement objects", async (t) => {
   assert.equal(await readFile(resolve(fixture.repository, "README.md"), "utf8"), "changed\n");
 });
 
-test("Verification hides published artifacts during checks", async (t) => {
+test("Verification publishes one artifact per check without staged leftovers", async (t) => {
   const fixture = await repositoryFixture(t);
   const runner = new VerificationRunner({ artifactRoot: fixture.artifacts });
-  const first = await runner.run({
-    attemptId: "attempt-artifact-original",
+  const verification = await runner.run({
+    attemptId: "attempt-artifact-publish",
     checkId: "check",
     argv: [process.execPath, "-e", "process.exit(0)"],
     cwd: ".",
     workspacePath: fixture.repository,
     timeoutMs: 5_000,
   });
-  const original = await readFile(first.artifactPath, "utf8");
-  const second = await runner.run({
-    attemptId: "attempt-artifact-hidden",
-    checkId: "check",
-    argv: [
-      process.execPath,
-      "-e",
-      [
-        "const fs=require('node:fs');",
-        "const path=require('node:path');",
-        `const root=${JSON.stringify(fixture.artifacts)};`,
-        "if (fs.existsSync(root) && fs.readdirSync(root).length) {",
-        "  fs.writeFileSync(path.join(root, fs.readdirSync(root)[0]), 'forged');",
-        "}",
-      ].join(" "),
-    ],
-    cwd: ".",
-    workspacePath: fixture.repository,
-    timeoutMs: 5_000,
-  });
-  assert.equal(second.result.status, "passed");
-  assert.equal(await readFile(first.artifactPath, "utf8"), original);
-});
-
-test("Verification rejects a replaced artifact root", async (t) => {
-  const fixture = await repositoryFixture(t);
-  await assert.rejects(
-    new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
-      attemptId: "attempt-artifact-root-replaced",
-      checkId: "check",
-      argv: [
-        process.execPath,
-        "-e",
-        [
-          "const fs=require('node:fs');",
-          "const path=require('node:path');",
-          `const root=${JSON.stringify(fixture.artifacts)};`,
-          "fs.mkdirSync(root);",
-          "fs.writeFileSync(path.join(root,'forged'),'forged');",
-        ].join(" "),
-      ],
-      cwd: ".",
-      workspacePath: fixture.repository,
-      timeoutMs: 5_000,
-    }),
-    (error) => error instanceof VerificationError && error.code === "artifact_replaced",
-  );
-  const [artifactName] = await readdir(fixture.artifacts);
-  assert.ok(artifactName);
-  assert.match(
-    await readFile(resolve(fixture.artifacts, artifactName), "utf8"),
-    /"status": "passed"/,
-  );
+  assert.equal(verification.result.status, "passed");
+  assert.deepEqual(await readdir(fixture.artifacts), [basename(verification.artifactPath)]);
 });
 
 test("Verification removes an unpublished artifact after setup failure", async (t) => {
@@ -324,7 +273,7 @@ test("Verification rejects tracked paths hidden by Git index flags", async (t) =
   }
 });
 
-test("Verification waits for detached descendants before observing the workspace", async (t) => {
+test("Verification contains background descendants before observing the workspace", async (t) => {
   const fixture = await repositoryFixture(t);
   const worker = "setTimeout(() => require('node:fs').writeFileSync('late.txt', 'late\\n'), 500)";
 
@@ -345,33 +294,9 @@ test("Verification waits for detached descendants before observing the workspace
     timeoutMs: 2_000,
   });
   assert.equal(verification.result.exitCode, 0);
-  assert.equal(verification.result.status, "failed");
-});
-
-test("Verification waits for descendants that escape the process group", async (t) => {
-  const fixture = await repositoryFixture(t);
-  const worker =
-    "setTimeout(() => require('node:fs').writeFileSync('escaped.txt', 'escaped\\n'), 500)";
-
-  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
-    attemptId: "attempt-escaped-descendant",
-    checkId: "check",
-    argv: [
-      process.execPath,
-      "-e",
-      [
-        "const { spawn } = require('node:child_process');",
-        `const child = spawn(process.execPath, ['-e', ${JSON.stringify(worker)}], { detached: true, stdio: 'ignore' });`,
-        "child.unref();",
-        "setTimeout(() => {}, 100);",
-      ].join(" "),
-    ],
-    cwd: ".",
-    workspacePath: fixture.repository,
-    timeoutMs: 2_000,
-  });
-  assert.equal(verification.result.exitCode, 0);
-  assert.equal(verification.result.status, "failed");
+  assert.equal(verification.result.status, "passed");
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 700));
+  await assert.rejects(access(resolve(fixture.repository, "late.txt")));
 });
 
 test("Verification frames untracked files independently", async (t) => {

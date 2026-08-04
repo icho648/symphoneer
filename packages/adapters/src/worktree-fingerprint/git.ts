@@ -1,6 +1,6 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { pipeline } from "node:stream/promises";
 
 export type IndexEntry = {
   mode: "100644" | "100755" | "120000" | "160000";
@@ -36,22 +36,30 @@ export function gitBytes(cwd: string, args: string[]): Promise<Buffer> {
   });
 }
 
-export async function gitBlobHash(cwd: string, path: Buffer): Promise<string> {
-  const child = spawn("git", ["-C", cwd, "hash-object", "--no-filters", "--stdin"], {
-    stdio: ["pipe", "pipe", "ignore"],
-  });
-  if (!child.stdin || !child.stdout) throw new Error("Git worktree metadata could not be read");
-  const output = new Promise<string>((resolvePromise, reject) => {
-    const chunks: Buffer[] = [];
-    child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) resolvePromise(Buffer.concat(chunks).toString("ascii").trim());
-      else reject(new Error("Git worktree metadata could not be read"));
-    });
-  });
-  const [, hash] = await Promise.all([pipeline(createReadStream(path), child.stdin), output]);
-  return hash;
+export async function readObjectFormat(cwd: string): Promise<"sha1" | "sha256"> {
+  const format = (await gitOutput(cwd, ["rev-parse", "--show-object-format"])).trim();
+  if (format !== "sha1" && format !== "sha256") {
+    throw new Error("Git worktree metadata could not be read");
+  }
+  return format;
+}
+
+// Hashing the object id here keeps raw worktree bytes out of reach of Git's clean filters
+// without spawning one `git hash-object` per tracked file.
+export async function blobObjectId(
+  path: Buffer,
+  size: number,
+  format: "sha1" | "sha256",
+): Promise<string> {
+  const hash = createHash(format);
+  hash.update(`blob ${size}\0`);
+  let hashed = 0;
+  for await (const chunk of createReadStream(path)) {
+    hashed += (chunk as Buffer).byteLength;
+    hash.update(chunk as Buffer);
+  }
+  if (hashed !== size) throw new Error("Tracked worktree bytes changed while being read");
+  return hash.digest("hex");
 }
 
 export function parseIndexEntries(output: Uint8Array): IndexEntry[] {
