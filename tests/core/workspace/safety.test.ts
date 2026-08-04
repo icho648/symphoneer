@@ -9,7 +9,7 @@ import {
   WorkspaceError,
   WorkspaceManager,
   workspaceKey,
-} from "../../../packages/symphony-core/src/workspace/index.ts";
+} from "../../../src/runtime/workspace/index.ts";
 
 test("Workspace lifecycle rejects non-directories and times out fatal hooks", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-"));

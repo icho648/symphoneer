@@ -8,7 +8,7 @@ import {
   interpolate,
   isLocale,
   locales,
-} from "../../packages/i18n/src/index.ts";
+} from "../../src/web/i18n/index.ts";
 
 test("shared i18n exposes stable locales and complete dictionaries", () => {
   assert.deepEqual(locales, ["zh-CN", "en-US"]);

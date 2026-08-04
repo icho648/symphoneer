@@ -22,7 +22,7 @@ Browser → Next.js BFF → Runtime
 CLI ─────────────────→ Runtime
 ```
 
-本文后续的 Runtime 指 Symphoneer Runtime 进程；`packages/symphony-core` 是其中遵循固定 Symphony SPEC 的核心 Module。
+本文后续的 Runtime 指 Symphoneer Runtime 进程；`src/runtime` 是其中遵循固定 Symphony SPEC 的核心 Module。
 
 - Runtime 是由 launcher 持有生命周期的长期前台进程：输出 stdout / stderr，不自行 daemonize，不创建 PID 文件或后台 `start / stop / status` 系统。
 - `pnpm dev` 发现目标地址已有健康 Runtime 时，将其视为外部管理进程并复用；launcher 退出时只停止自己启动的 Runtime 和 Web 子进程。显式设置 `SYMPHONEER_DATA_DIR` 时不复用未知数据目录的现有 Runtime。

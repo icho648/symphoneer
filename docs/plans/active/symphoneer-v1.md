@@ -59,8 +59,8 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 
 当前真实结构见 [ARCHITECTURE.md](../../../ARCHITECTURE.md)。主要入口是：
 
-- [packages/contracts/](../../../packages/contracts/)：跨边界 Schema。
-- [packages/symphony-core/](../../../packages/symphony-core/)：Workflow、Eligibility、Scheduler、Workspace 和 Agent Runner seam。
+- [src/contracts/](../../../src/contracts/)：跨边界 Schema。
+- [src/runtime/](../../../src/runtime/)：Workflow、Eligibility、Scheduler、Workspace、Executor 和 Runtime API。
 - [tests/](../../../tests/)：根目录下的 contract、core 和 integration 测试。
 - [docs/design-docs/](../../design-docs/)：确认后的产品与系统边界。
 - [docs/references/](../../references/)：GitHub Issues、Symphony 和 Codex App Server 外部契约。

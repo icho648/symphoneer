@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-
-import { taskColumn } from "../../apps/web/lib/task-column.ts";
-import type { AttemptSnapshot, TaskSummary } from "../../packages/contracts/src/index.ts";
+import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
+import { taskColumn } from "../../src/web/lib/task-column.ts";
 
 const task = (overrides: Partial<TaskSummary> = {}): TaskSummary =>
   ({

@@ -10,22 +10,20 @@
 - `Observed`：`next-intl` 的典型 Web 结构是 `messages/en.json`、`i18n/request.ts`、`app/[locale]/layout.tsx`；它同时提供翻译、日期/数字格式化和国际化路由。[next-intl App Router setup](https://next-intl.dev/docs/getting-started/app-router)
 - `Observed`：`react-i18next` 常把资源按 `public/locales/<language>/translation.json` 和 namespace 管理，React Provider 与语言检测留在 Web 适配层。[react-i18next using hooks](https://react.i18next.com/latest/using-with-hooks)
 - `Observed`：FormatJS 使用 locale message map、稳定消息 ID 和 ICU Message Syntax，格式化 API 可以用于 React、Node、服务端和测试。[FormatJS internationalization principles](https://formatjs.github.io/docs/core-concepts/basic-internationalization-principles/)、[FormatJS React Intl API](https://formatjs.github.io/docs/react-intl/api/)
-- `Decision`：Symphoneer 不把 `next-intl`、`react-i18next` 或 React Provider 放进跨平台底层；新增纯 TypeScript `packages/i18n`，只提供 locale、字典和纯函数。Runtime、CLI、未来桌面端可以直接消费，Web 才负责路由、语言切换和 Provider。
-- `Decision`：本阶段使用带类型约束的 `.ts` locale 文件，而不是 JSON。它保留了“每个 locale 一个资源文件”的主流边界，同时让 TypeScript 在新增或遗漏 key 时直接报错；如果进入翻译供应商流程，再迁移到 JSON/ICU 资源，不改变 `packages/i18n` 的公开边界。
+- `Decision`：Symphoneer 不把 `next-intl`、`react-i18next` 或 React Provider 放进 Runtime；当前纯 TypeScript locale、字典和纯函数放在 `src/web/i18n`，由 Web 负责路由、语言切换和 Provider。
+- `Decision`：本阶段使用带类型约束的 `.ts` locale 文件，而不是 JSON。它保留了“每个 locale 一个资源文件”的 Web 内部边界，同时让 TypeScript 在新增或遗漏 key 时直接报错；如果进入翻译供应商流程，再迁移到 JSON/ICU 资源。
 
 ## 当前结构
 
 ```text
-packages/i18n/
-  package.json
-  src/
+src/web/i18n/
     index.ts              # 共享公开 Interface、字典读取、插值
     locales.ts            # Locale、默认语言、Accept-Language 检测
     messages/
       en-US.ts
       zh-CN.ts
 
-apps/web/
+src/web/
   middleware.ts           # 无 locale 路径重定向到 /zh-CN 或 /en-US
   app/[locale]/
     layout.tsx

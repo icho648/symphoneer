@@ -4,15 +4,12 @@ import { resolve } from "node:path";
 import { test } from "node:test";
 import { runtimeIsHealthy } from "../../scripts/dev.mjs";
 
-const webPackage = JSON.parse(
-  readFileSync(resolve(process.cwd(), "apps/web/package.json"), "utf8"),
-) as { scripts?: { dev?: string } };
 const rootPackage = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8")) as {
-  scripts?: { dev?: string };
+  scripts?: { dev?: string; "web:dev"?: string };
 };
 
 test("web dev uses polling to avoid monorepo watcher EMFILE", () => {
-  assert.equal(webPackage.scripts?.dev, "WATCHPACK_POLLING=true next dev");
+  assert.equal(rootPackage.scripts?.["web:dev"], "WATCHPACK_POLLING=true next dev src/web");
 });
 
 test("root dev starts the complete Runtime and Web process pair", () => {

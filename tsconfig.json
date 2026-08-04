@@ -12,5 +12,11 @@
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["packages/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/contracts/**/*.ts",
+    "src/runtime/**/*.ts",
+    "src/runtime-client.ts",
+    "src/cli/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }

@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  CONTRACT_SCHEMA_VERSION,
-  VerificationResultSchema,
-} from "../../packages/contracts/src/index.ts";
+import { CONTRACT_SCHEMA_VERSION, VerificationResultSchema } from "@symphoneer/contracts";
 
 test("Verification cannot claim pass without an independent zero exit status", () => {
   const result = {

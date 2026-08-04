@@ -12,15 +12,35 @@
     "check:format": "biome check .",
     "check:project": "node scripts/check-project.mjs",
     "check:types": "tsc --noEmit",
-    "check:web": "pnpm --filter @symphoneer/web build",
+    "check:web": "pnpm run web:build",
     "dev": "node scripts/dev.mjs",
-    "runtime:cli": "node packages/runtime/src/cli.ts",
-    "runtime:serve": "node packages/runtime/src/cli.ts serve",
+    "runtime:cli": "node src/cli/runtime.ts",
+    "runtime:serve": "node src/cli/runtime.ts serve",
+    "web:build": "next build src/web",
+    "web:dev": "WATCHPACK_POLLING=true next dev src/web",
+    "web:start": "next start src/web",
     "test": "node --test"
+  },
+  "dependencies": {
+    "@symphoneer/contracts": "link:src/contracts",
+    "@symphoneer/runtime": "link:src/runtime",
+    "@symphoneer/runtime-client": "link:src/runtime-client",
+    "liquidjs": "10.28.0",
+    "next": "15.5.7",
+    "next-themes": "^0.4.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.6",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.20.1",
-    "typescript": "7.0.2"
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "postcss": "^8.5.25",
+    "tailwindcss": "^4.3.3",
+    "typescript": "5.9.3"
   }
 }

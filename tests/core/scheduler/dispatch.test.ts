@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  CoreScheduler,
-  sortTasksForDispatch,
-} from "../../../packages/symphony-core/src/scheduler/index.ts";
+import { CoreScheduler, sortTasksForDispatch } from "../../../src/runtime/scheduler/index.ts";
 import { policy, task, workspace } from "./fixtures.ts";
 
 test("dispatch order is priority, oldest creation time, then identifier", () => {

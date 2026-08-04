@@ -10,14 +10,14 @@ import {
   type TaskSummary,
   type VerificationResult,
   type WorkspaceReference,
-} from "../../packages/contracts/src/index.ts";
+} from "@symphoneer/contracts";
 import {
   ImmutableArtifactStore,
   JsonlEventStore,
   RuntimeError,
   RuntimeHttpServer,
   RuntimeService,
-} from "../../packages/runtime/src/index.ts";
+} from "@symphoneer/runtime";
 
 const task: TaskSummary = {
   schemaVersion: CONTRACT_SCHEMA_VERSION,

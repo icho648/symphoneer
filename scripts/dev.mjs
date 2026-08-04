@@ -98,7 +98,7 @@ export async function main() {
       SYMPHONEER_RUNTIME_PORT: runtimePort,
     });
   }
-  start("Web", ["--filter", "@symphoneer/web", "dev", "--hostname", webHost, "--port", webPort], {
+  start("Web", ["run", "web:dev", "--", "--hostname", webHost, "--port", webPort], {
     SYMPHONEER_RUNTIME_URL: runtimeUrl,
   });
 }
