@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { createHash, type Hash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, readdir, readlink } from "node:fs/promises";
@@ -12,7 +12,7 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   const submoduleStates = await assertNoUnsafeSubmodulePaths(root);
   const hash = createHash("sha256");
   hash.update("tracked\0");
-  await hashGitDiff(root, hash);
+  await hashTrackedState(root, hash);
   hash.update("\0submodules\0");
   for (const submodule of submoduleStates) {
     hashField(hash, "submodule");
@@ -192,30 +192,43 @@ function validateRelativePath(path: Buffer): void {
   }
 }
 
-function hashGitDiff(cwd: string, hash: Hash): Promise<void> {
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn(
-      "git",
-      [
-        "--no-replace-objects",
-        "-C",
-        cwd,
-        "diff",
-        "--no-ext-diff",
-        "--no-textconv",
-        "--binary",
-        "HEAD",
-        "--",
-      ],
-      { stdio: ["ignore", "pipe", "ignore"] },
-    );
-    child.stdout.on("data", (chunk: Buffer) => hash.update(chunk));
-    child.once("error", () => reject(new Error("Git worktree diff could not be read")));
-    child.once("close", (code) => {
-      if (code === 0) resolvePromise();
-      else reject(new Error("Git worktree diff could not be read"));
-    });
-  });
+async function hashTrackedState(root: string, hash: Hash): Promise<void> {
+  const index = await gitBytes(root, ["ls-files", "--stage", "-z"]);
+  hashField(hash, "index");
+  hashField(hash, index);
+  const gitlinks = new Set(parseGitlinks(index).map((path) => path.toString("hex")));
+  const tracked = splitNull(await gitBytes(root, ["ls-files", "-z"])).sort(Buffer.compare);
+  for (const file of tracked) {
+    if (gitlinks.has(file.toString("hex"))) continue;
+    await hashTrackedPath(root, file, hash);
+  }
+}
+
+async function hashTrackedPath(root: string, file: Buffer, hash: Hash): Promise<void> {
+  validateRelativePath(file);
+  const path = Buffer.concat([Buffer.from(root + sep), file]);
+  hashField(hash, "tracked-file");
+  hashField(hash, file);
+  let stats: Awaited<ReturnType<typeof lstat>>;
+  try {
+    stats = await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      hashField(hash, "missing");
+      return;
+    }
+    throw error;
+  }
+  hashField(hash, String(stats.mode));
+  if (stats.isSymbolicLink()) {
+    hashField(hash, "symlink");
+    hashField(hash, await readlink(path, { encoding: "buffer" }));
+  } else if (stats.isFile()) {
+    hashField(hash, "file");
+    hashField(hash, await hashFile(path));
+  } else {
+    throw new Error("Tracked special files cannot be fingerprinted safely");
+  }
 }
 
 function gitOutput(cwd: string, args: string[]): Promise<string> {

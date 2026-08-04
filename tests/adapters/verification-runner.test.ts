@@ -127,11 +127,15 @@ test("Verification keeps zero exit from passing when tracked or untracked state 
 
 test("Verification disables external Git diff drivers", async (t) => {
   const fixture = await repositoryFixture(t);
-  await writeFile(resolve(fixture.repository, ".gitattributes"), "README.md diff=opaque\n");
+  await writeFile(
+    resolve(fixture.repository, ".gitattributes"),
+    "README.md diff=opaque filter=opaque\n",
+  );
   execFileSync("git", ["-C", fixture.repository, "add", ".gitattributes"]);
   execFileSync("git", ["-C", fixture.repository, "commit", "-m", "configure diff driver"]);
   execFileSync("git", ["-C", fixture.repository, "config", "diff.opaque.command", "true"]);
   execFileSync("git", ["-C", fixture.repository, "config", "diff.opaque.textconv", "true"]);
+  execFileSync("git", ["-C", fixture.repository, "config", "filter.opaque.clean", "true"]);
 
   const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
     attemptId: "attempt-external-diff-driver",
