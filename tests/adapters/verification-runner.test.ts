@@ -6,7 +6,10 @@ import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { VerificationError, VerificationRunner } from "../../packages/adapters/src/index.ts";
-import { splitNull } from "../../packages/adapters/src/worktree-fingerprint.ts";
+import {
+  readWorktreeFingerprint,
+  splitNull,
+} from "../../packages/adapters/src/worktree-fingerprint.ts";
 
 async function repositoryFixture(t: TestContext) {
   const base = await mkdtemp(resolve(tmpdir(), "symphoneer-verification-"));
@@ -348,6 +351,73 @@ test("Verification rejects populated deinitialized submodules", async (t) => {
     /Uninitialized submodule path contains local data/,
   );
   await access(localData);
+});
+
+test("Verification rejects populated nested deinitialized submodules", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const inner = resolve(fixture.base, "inner");
+  execFileSync("git", ["init", "-b", "main", inner]);
+  execFileSync("git", ["-C", inner, "config", "user.name", "Symphoneer Test"]);
+  execFileSync("git", ["-C", inner, "config", "user.email", "test@example.com"]);
+  await writeFile(resolve(inner, "inner.txt"), "inner\n");
+  execFileSync("git", ["-C", inner, "add", "inner.txt"]);
+  execFileSync("git", ["-C", inner, "commit", "-m", "inner baseline"]);
+
+  const outer = resolve(fixture.base, "outer");
+  execFileSync("git", ["init", "-b", "main", outer]);
+  execFileSync("git", ["-C", outer, "config", "user.name", "Symphoneer Test"]);
+  execFileSync("git", ["-C", outer, "config", "user.email", "test@example.com"]);
+  execFileSync("git", [
+    "-C",
+    outer,
+    "-c",
+    "protocol.file.allow=always",
+    "submodule",
+    "add",
+    inner,
+    "inner",
+  ]);
+  execFileSync("git", ["-C", outer, "add", "."]);
+  execFileSync("git", ["-C", outer, "commit", "-m", "outer baseline"]);
+
+  execFileSync("git", [
+    "-C",
+    fixture.repository,
+    "-c",
+    "protocol.file.allow=always",
+    "submodule",
+    "add",
+    outer,
+    "outer",
+  ]);
+  execFileSync("git", ["-C", fixture.repository, "commit", "-m", "add nested submodule"]);
+  execFileSync("git", [
+    "-C",
+    fixture.repository,
+    "-c",
+    "protocol.file.allow=always",
+    "submodule",
+    "update",
+    "--init",
+    "--recursive",
+  ]);
+  execFileSync("git", [
+    "-C",
+    resolve(fixture.repository, "outer"),
+    "submodule",
+    "deinit",
+    "-f",
+    "--",
+    "inner",
+  ]);
+  const localData = resolve(fixture.repository, "outer", "inner", "local.txt");
+  await mkdir(resolve(fixture.repository, "outer", "inner"), { recursive: true });
+  await writeFile(localData, "keep\n");
+
+  await assert.rejects(
+    readWorktreeFingerprint(fixture.repository),
+    /Uninitialized submodule path contains local data/,
+  );
 });
 
 test("Verification fingerprints initialized versus empty submodules", async (t) => {

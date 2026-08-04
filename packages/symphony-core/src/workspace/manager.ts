@@ -68,6 +68,7 @@ export class WorkspaceManager {
   async finish(workspaceInput: WorkspaceReference): Promise<FinishedWorkspace> {
     const input = canonicalizeWorkspaceReference(workspaceInput);
     return this.#exclusive(input, async () => {
+      await this.#registry.assertCanonicalPath(input);
       const workspace = this.#registry.require(input);
       if (workspace.state !== "ready" && workspace.state !== "reserved") {
         throw new WorkspaceError(
@@ -95,6 +96,7 @@ export class WorkspaceManager {
   async remove(workspaceInput: WorkspaceReference): Promise<FinishedWorkspace> {
     const input = canonicalizeWorkspaceReference(workspaceInput);
     return this.#exclusive(input, async () => {
+      await this.#registry.assertCanonicalPath(input);
       const known = this.#registry.get(input.id);
       if (!known) {
         this.#registry.assertPath(input);
@@ -181,6 +183,7 @@ export class WorkspaceManager {
       gitHead: previous?.gitHead ?? null,
       worktreeFingerprint: previous?.worktreeFingerprint ?? null,
     });
+    await this.#registry.assertCanonicalPath(expected);
     const preparation = await this.#driver.prepare(expected);
     const workspace = observedWorkspace(expected, preparation);
     this.#registry.register(workspace);
@@ -220,6 +223,7 @@ export class WorkspaceManager {
       );
     }
     this.#registry.assertPath(workspace);
+    await this.#registry.assertCanonicalPath(workspace);
     const recoveredObservation = await this.#driver.recover(workspace);
     const retainedWorkspace = observedWorkspace(workspace, recoveredObservation);
     this.#registry.register(retainedWorkspace);

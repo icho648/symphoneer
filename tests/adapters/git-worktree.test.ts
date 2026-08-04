@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { GitWorktreeDriver } from "../../packages/adapters/src/index.ts";
@@ -83,6 +83,34 @@ test("Git worktree lifecycle creates, recovers, retains, and safely releases", a
       .workspace.state,
     "released",
   );
+});
+
+test("Git worktree cleanup rejects aliases outside the configured Workspace root", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const driver = new GitWorktreeDriver({
+    repositoryPath: fixture.repositoryPath,
+    repository: "icho648/symphoneer",
+    baseRevision: "HEAD",
+  });
+  const externalRoot = resolve(fixture.base, "external-workspaces");
+  const external = new WorkspaceManager({ root: externalRoot, driver });
+  const prepared = await external.prepare(workspaceInput("codex/alias"));
+  const retained = await external.finish(prepared.workspace);
+
+  const configuredRoot = resolve(fixture.base, "configured-workspaces");
+  await mkdir(configuredRoot);
+  const aliasRoot = resolve(configuredRoot, "alias");
+  await symlink(externalRoot, aliasRoot, "dir");
+  const alias = resolve(aliasRoot, basename(prepared.workspace.path));
+
+  await assert.rejects(
+    new WorkspaceManager({ root: configuredRoot, driver }).remove({
+      ...retained.workspace,
+      path: alias,
+    }),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_outside_root",
+  );
+  await access(prepared.workspace.path);
 });
 
 test("Git worktree removal refuses dirty state and records a failed cleanup hook", async (t) => {

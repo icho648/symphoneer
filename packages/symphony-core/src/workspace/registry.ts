@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import type { WorkspaceReference } from "@symphoneer/contracts";
@@ -87,6 +88,18 @@ export class WorkspaceRegistry {
     this.#assertWithinRoot(workspace);
   }
 
+  async assertCanonicalPath(workspace: WorkspaceReference): Promise<void> {
+    const root = await canonicalPath(this.#root);
+    const path = await canonicalPath(workspace.path);
+    const child = relative(root, path);
+    if (!child || child.startsWith("..") || isAbsolute(child)) {
+      throw new WorkspaceError(
+        "workspace_outside_root",
+        `Workspace path escapes its root: ${workspace.path}`,
+      );
+    }
+  }
+
   #assertWithinRoot(workspace: WorkspaceReference): void {
     const child = relative(this.#root, workspace.path);
     if (!child || child.startsWith("..") || isAbsolute(child)) {
@@ -94,6 +107,27 @@ export class WorkspaceRegistry {
         "workspace_outside_root",
         `Workspace path escapes its root: ${workspace.path}`,
       );
+    }
+  }
+}
+
+async function canonicalPath(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    const suffix: string[] = [];
+    let ancestor = resolve(path);
+    for (;;) {
+      try {
+        return resolve(await realpath(ancestor), ...suffix);
+      } catch (ancestorError) {
+        if ((ancestorError as NodeJS.ErrnoException).code !== "ENOENT") throw ancestorError;
+        const parent = dirname(ancestor);
+        if (parent === ancestor) return resolve(path);
+        suffix.unshift(basename(ancestor));
+        ancestor = parent;
+      }
     }
   }
 }

@@ -100,17 +100,30 @@ type SubmoduleState = {
 async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<SubmoduleState[]> {
   await assertNoDirtySubmodules(cwd);
   const root = resolve((await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim());
-  const gitlinks = parseGitlinks(await gitBytes(root, ["ls-files", "--stage", "-z"]));
   const states: SubmoduleState[] = [];
+  await inspectGitlinks(root, root, Buffer.alloc(0), states);
+  return states.sort((left, right) => Buffer.compare(left.path, right.path));
+}
+
+async function inspectGitlinks(
+  root: string,
+  repositoryPath: string,
+  prefix: Buffer,
+  states: SubmoduleState[],
+): Promise<void> {
+  const gitlinks = parseGitlinks(await gitBytes(repositoryPath, ["ls-files", "--stage", "-z"]));
   for (const gitlink of gitlinks) {
-    validateRelativePath(gitlink);
-    const path = Buffer.concat([Buffer.from(root + sep), gitlink]);
+    const relativePath = prefix.length
+      ? Buffer.concat([prefix, Buffer.from("/"), gitlink])
+      : gitlink;
+    validateRelativePath(relativePath);
+    const path = Buffer.concat([Buffer.from(root + sep), relativePath]);
     let stats: Awaited<ReturnType<typeof lstat>>;
     try {
       stats = await lstat(path);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        states.push({ path: gitlink, state: "missing" });
+        states.push({ path: relativePath, state: "missing" });
         continue;
       }
       throw error;
@@ -119,7 +132,7 @@ async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<SubmoduleState
       throw new Error("Gitlink path is not an initialized submodule checkout");
     }
     if ((await readdir(path)).length === 0) {
-      states.push({ path: gitlink, state: "empty" });
+      states.push({ path: relativePath, state: "empty" });
       continue;
     }
     try {
@@ -133,9 +146,9 @@ async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<SubmoduleState
       }
       throw error;
     }
-    states.push({ path: gitlink, state: "initialized" });
+    states.push({ path: relativePath, state: "initialized" });
+    await inspectGitlinks(root, path.toString(), relativePath, states);
   }
-  return states.sort((left, right) => Buffer.compare(left.path, right.path));
 }
 
 function parseGitlinks(output: Uint8Array): Buffer[] {
