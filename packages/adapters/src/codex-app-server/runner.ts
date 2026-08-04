@@ -357,7 +357,7 @@ function safeInterventionText(value: string | null): string | null {
       "<redacted>",
     )
     .replace(
-      /((?:api[_-]?key|token|secret|password|authorization)\s*[=:]\s*)[^\s]+/gi,
+      /((?:api[_-]?key|token|secret|password|authorization)\s*[=:]\s*)(?:[A-Za-z]+\s+)?[^\s]+/gi,
       "$1<redacted>",
     );
   return redacted.length > 512 ? `${redacted.slice(0, 509)}...` : redacted;

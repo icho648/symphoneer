@@ -110,7 +110,8 @@ class FakeCodexTransport implements CodexTransport {
             params: {
               threadId: this.#threadId,
               turnId: this.#turnId,
-              command: "curl --token=secret-value https://example.test",
+              command:
+                "curl --token=secret-value -H Authorization: Bearer supersecret https://example.test",
               cwd: "/tmp/workspace",
               reason: "Network access",
             },
@@ -248,7 +249,7 @@ test("Codex adapter maps v2 Thread, Turn, approvals, and input to the Agent Runn
   if (approval?.type !== "intervention_requested") assert.fail("approval event missing");
   assert.deepEqual(approval.details, {
     action: "command",
-    command: "curl --token=<redacted> https://example.test",
+    command: "curl --token=<redacted> -H Authorization: <redacted> https://example.test",
     cwd: "/tmp/workspace",
     reason: "Network access",
   });

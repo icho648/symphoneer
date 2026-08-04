@@ -193,7 +193,7 @@ function validateRelativePath(path: Buffer): void {
 
 function hashGitDiff(cwd: string, hash: Hash): Promise<void> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn("git", ["-C", cwd, "diff", "--binary", "HEAD", "--"], {
+    const child = spawn("git", ["-C", cwd, "diff", "--no-ext-diff", "--binary", "HEAD", "--"], {
       stdio: ["ignore", "pipe", "ignore"],
     });
     child.stdout.on("data", (chunk: Buffer) => hash.update(chunk));
