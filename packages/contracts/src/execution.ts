@@ -10,6 +10,11 @@ export const WorkspaceReferenceSchema = z
     path: NonEmptyString,
     repository: NonEmptyString,
     branch: NonEmptyString,
+    gitHead: NonEmptyString.nullable(),
+    worktreeFingerprint: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .nullable(),
     host: NonEmptyString,
     state: z.enum(["reserved", "ready", "retained", "released"]),
     ownerAttemptId: NonEmptyString.nullable(),
@@ -33,6 +38,7 @@ export const AttemptStatusSchema = z.enum([
   "launching_agent",
   "initializing_session",
   "streaming_turn",
+  "paused",
   "finishing",
   "succeeded",
   "failed",
@@ -65,6 +71,13 @@ export const AttemptSnapshotSchema = z
       })
       .nullable()
       .optional(),
+    providerSession: z
+      .object({
+        threadId: NonEmptyString,
+        lastTurnId: NonEmptyString,
+      })
+      .nullable()
+      .optional(),
     startedAt: Timestamp,
     updatedAt: Timestamp,
     finishedAt: Timestamp.nullable().optional(),
@@ -84,6 +97,20 @@ export const AttemptSnapshotSchema = z
         code: "custom",
         path: ["activeTurn"],
         message: "streaming_turn and active Turn ownership must exist together",
+      });
+    }
+    if (attempt.activeTurn && attempt.providerSession?.threadId !== attempt.activeTurn.threadId) {
+      context.addIssue({
+        code: "custom",
+        path: ["providerSession"],
+        message: "active Turn must belong to the retained Provider session",
+      });
+    }
+    if (attempt.status === "paused" && attempt.providerSession == null) {
+      context.addIssue({
+        code: "custom",
+        path: ["providerSession"],
+        message: "paused Attempts retain their Provider session reference",
       });
     }
     if (attempt.status === "succeeded" && attempt.failure != null) {

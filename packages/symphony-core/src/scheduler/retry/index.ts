@@ -1,8 +1,4 @@
-import {
-  AttemptSnapshotSchema,
-  type TaskSummary,
-  WorkspaceReferenceSchema,
-} from "@symphoneer/contracts";
+import { AttemptSnapshotSchema, type TaskSummary } from "@symphoneer/contracts";
 
 import { reserve } from "../dispatch/index.ts";
 import { evaluateEligibility } from "../eligibility.ts";
@@ -109,19 +105,9 @@ function releaseRetry(state: SchedulerState, taskId: string, cleanupWorkspace: b
   state.retries.delete(taskId);
   state.claims.delete(taskId);
   if (!cleanupWorkspace) return [];
-
-  const cleanupWorkspaceIds: string[] = [];
-  for (const [path, workspace] of state.workspaces) {
-    if (workspace.taskId !== taskId) continue;
-    const released = WorkspaceReferenceSchema.parse({
-      ...workspace,
-      state: "released",
-      ownerAttemptId: null,
-    });
-    state.workspaces.set(path, released);
-    cleanupWorkspaceIds.push(released.id);
-  }
-  return cleanupWorkspaceIds;
+  return [...state.workspaces.values()]
+    .filter((workspace) => workspace.taskId === taskId && workspace.state === "retained")
+    .map((workspace) => workspace.id);
 }
 
 export { releaseRetry };

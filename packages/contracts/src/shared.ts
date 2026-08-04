@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CONTRACT_SCHEMA_VERSION = 1 as const;
+export const CONTRACT_SCHEMA_VERSION = 2 as const;
 export const PROJECTION_SCHEMA_VERSION = 1 as const;
 
 export const NonEmptyString = z.string().trim().min(1);

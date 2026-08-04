@@ -15,12 +15,14 @@
 | 复杂任务与执行计划 | `docs/plans/AGENTS.md` | 仅在任务需要本地恢复上下文时读取 `docs/plans/active/` |
 | 实现结构、测试与工程约束 | 关联 GitHub Issue；若存在则读取 active plan | `ARCHITECTURE.md`、`docs/design-docs/core-beliefs.md`、`docs/design-docs/system-boundaries.md` |
 
-## 项目 Harness
+## 工作规则（执行主线）
 
-- GitHub Issue 已具备目标、范围、非目标、依赖、验收和证据要求时，Issue 是该增量的实现计划，不再创建或维护重复的 active ExecPlan。没有完整 Issue，或任务需要跨多轮本地恢复、危险操作记录或独立的本地执行上下文时，才按 `docs/plans/AGENTS.md` 创建或更新 active plan；小型文档修订、单个事实核对和索引修复不创建计划。
+**先读实时事实和授权范围，做最小改动，围绕同一验收目标验证，最后把结果写回事实源。**
+
+- GitHub Issue 是 Issue-driven 增量的目标、范围、依赖、验收和授权事实源；只有 Issue 不完整，或需要跨轮恢复、危险操作记录、外部重试或跨 Issue 协调时，才使用 `docs/plans/AGENTS.md` 规定的 active plan。小型文档修订、事实核对和索引修复不创建计划。
 - 每次只推进一个可判定增量；实现、检查和证据必须对应同一验收目标。
-- 停止前把用户可观察进度、失败、决定和验证写回关联 Issue 或 PR；若存在 active plan，只记录 Issue 没有承载的本地恢复信息，不复制 Issue 内容。
-- GitHub Issue、PR、依赖、assignee、标签、评论以及本地分支、工作树和测试结果都是实时事实；开始或恢复、合并前和外部写入前直接读取，不使用计划或 README 中的缓存状态。
+- Issue、PR、依赖、评论、分支、工作树和测试结果都是实时事实；开始、恢复、合并和外部写入前直接读取，不使用计划或 README 的缓存状态。
+- 停止时把进度、失败、决定和验证写回 Issue/PR；active plan 只补充 Issue 未承载的本地恢复信息，不复制 Issue 内容。
 - Planner、Evaluator 或多 Agent Harness 可以辅助开发，但不是 Symphoneer 的产品对象、状态或 V1 功能。
 
 ## 证据与状态
@@ -29,12 +31,13 @@
 - 具体声明使用 `Observed`、`Decision`、`Proposed`、`Not verified`、`Out of scope`。
 - Agent 自述、静态文档和计划不能证明真实运行、兼容性、质量或交付完成。
 
-## 工作规则
+## 工程约束
 
 - `README.md` 只维护面向人的稳定项目介绍和入口；当前阶段、授权范围与验收由关联 Issue 决定，V1 跨 Issue 顺序可由 active plan 作为协调索引，不在 README 复制进度。
 - 修改文档导航或局部规则时，更新 `docs/AGENTS.md` 或最近的局部 `AGENTS.md`；只有人类入口发生变化时才更新 `README.md`。
 - 只实现当前关联 Issue 明确授权的 Module、Seam 与验收；active plan 只能补充本地恢复约束，不能扩大 Issue 范围，也不为后续阶段预装依赖或搭空结构。
-- 代码改动必须增加与同一验收目标对应的根 `tests/` 测试并通过 `pnpm check`。
+- 测试只证明同一验收目标的关键可观察行为：先查现有覆盖，只补最小正向或高风险失败场景，不为数量、覆盖率或内部实现凑用例。
+- 新行为或 Bug 修复先让验收测试在旧实现上失败；通过公共 Module Interface 验证，Mock 只用于外部边界，最终运行 `pnpm check`。若没有新行为或已有覆盖足够，说明不新增测试。
 - 目标仓库不保存软件运行数据；详细存储责任见 `docs/design-docs/system-boundaries.md`。
 - 顶层先按稳定 Module 分类；多文件功能统一放进同名目录，内部再按业务行为或生命周期聚类。行为私有内容跟随行为；只有共享不变量留在 Module 根，避免无边界的 `utils/`、`helpers/`、`types/` 桶。
 - 代码目录存在清晰入口时可以使用 `index.ts`：Module 根只暴露稳定 Interface，功能目录可以承载主行为或顶层编排，但不得隐藏导入副作用或无差别暴露内部文件。

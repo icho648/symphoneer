@@ -18,6 +18,15 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/adapters:
+    dependencies:
+      '@symphoneer/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@symphoneer/symphony-core':
+        specifier: workspace:*
+        version: link:../symphony-core
+
   packages/contracts:
     dependencies:
       zod:

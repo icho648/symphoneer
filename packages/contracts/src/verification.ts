@@ -20,6 +20,12 @@ export const VerificationResultSchema = z
     argv: z.array(NonEmptyString).min(1),
     cwd: NonEmptyString,
     gitHead: NonEmptyString,
+    worktreeFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    tool: z.object({
+      name: NonEmptyString,
+      version: NonEmptyString,
+    }),
+    inputFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     startedAt: Timestamp,
     finishedAt: Timestamp.nullable(),
     exitCode: z.int().nullable(),
@@ -34,11 +40,11 @@ export const VerificationResultSchema = z
         message: "only executed checks have completion time and immutable artifact reference",
       });
     }
-    if ((verification.status === "passed") !== (verification.exitCode === 0)) {
+    if (verification.status === "passed" && verification.exitCode !== 0) {
       context.addIssue({
         code: "custom",
         path: ["exitCode"],
-        message: "exitCode 0 must be equivalent to passed Verification",
+        message: "passed Verification requires exitCode 0",
       });
     }
     if (!ran && verification.exitCode !== null) {

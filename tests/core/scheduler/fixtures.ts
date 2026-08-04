@@ -1,6 +1,7 @@
 import {
   CONTRACT_SCHEMA_VERSION,
   type TaskSummary,
+  type WorkspaceReference,
 } from "../../../packages/contracts/src/index.ts";
 import type { CoreScheduler } from "../../../packages/symphony-core/src/scheduler/index.ts";
 import { createWorkspaceReference } from "../../../packages/symphony-core/src/workspace/index.ts";
@@ -34,6 +35,12 @@ export function workspace(taskId: string, attemptId: string, identifier = `#${ta
   });
 }
 
+export const retained = (workspace: WorkspaceReference): WorkspaceReference => ({
+  ...workspace,
+  state: "retained",
+  ownerAttemptId: null,
+});
+
 export const policy = {
   activeStates: ["open", "urgent"],
   terminalStates: ["closed"],
@@ -45,12 +52,13 @@ export const policy = {
 };
 
 export function queueFailedAttempt(scheduler: CoreScheduler, id: string) {
+  const owned = workspace(id, `attempt-${id}-1`);
   scheduler.reserveAttempt({
     task: task(id),
     attemptId: `attempt-${id}-1`,
     sequence: 1,
     startReason: "dispatch",
-    workspace: workspace(id, `attempt-${id}-1`),
+    workspace: owned,
     startedAt: "2026-08-02T12:00:00.000Z",
     idempotencyKey: `dispatch-${id}-1`,
   });
@@ -58,6 +66,7 @@ export function queueFailedAttempt(scheduler: CoreScheduler, id: string) {
     attemptId: `attempt-${id}-1`,
     status: "failed",
     finishedAt: "2026-08-02T12:00:02.000Z",
+    workspace: retained(owned),
     error: "runner failed",
     idempotencyKey: `finish-${id}-1`,
   }).retry;

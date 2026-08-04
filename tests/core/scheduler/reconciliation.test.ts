@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CoreScheduler } from "../../../packages/symphony-core/src/scheduler/index.ts";
-import { policy, queueFailedAttempt, task, workspace } from "./fixtures.ts";
+import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
 
 test("reconciliation stops terminal, unroutable, and missing Tasks without duplicate cleanup", () => {
   const scheduler = new CoreScheduler({
@@ -72,6 +72,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
     attemptId: "attempt-61",
     status: "canceled_by_reconciliation",
     finishedAt: "2026-08-02T12:00:02.000Z",
+    workspace: retained(workspace("61", "attempt-61")),
     idempotencyKey: "finish-61",
   });
   assert.equal(
@@ -119,7 +120,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     snapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:40", "released"],
+      ["workspace:40", "retained"],
       ["workspace:41", "retained"],
       ["workspace:42", "retained"],
     ],
@@ -145,11 +146,45 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     retrySnapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:43", "released"],
+      ["workspace:43", "retained"],
       ["workspace:44", "retained"],
       ["workspace:45", "retained"],
     ],
   );
+});
+
+test("terminal reconciliation accepts a later retained Workspace observation", () => {
+  const scheduler = new CoreScheduler(policy);
+  const owned = workspace("46", "attempt-46");
+  scheduler.reserveAttempt({
+    task: task("46"),
+    attemptId: "attempt-46",
+    sequence: 1,
+    startReason: "dispatch",
+    workspace: owned,
+    startedAt: "2026-08-02T12:00:00.000Z",
+    idempotencyKey: "dispatch-46",
+  });
+
+  scheduler.reconcile({
+    tasks: [{ ...task("46"), state: "closed" }],
+    observedAt: "2026-08-02T12:00:01.000Z",
+    idempotencyKey: "reconcile-46",
+  });
+  const observed = {
+    ...retained(owned),
+    gitHead: "b".repeat(40),
+    worktreeFingerprint: "b".repeat(64),
+  };
+  scheduler.finishAttempt({
+    attemptId: "attempt-46",
+    status: "canceled_by_reconciliation",
+    finishedAt: "2026-08-02T12:00:02.000Z",
+    workspace: observed,
+    idempotencyKey: "finish-46",
+  });
+
+  assert.equal(scheduler.snapshot().workspaces[0]?.worktreeFingerprint, "b".repeat(64));
 });
 
 test("the in-memory idempotency replay window stays bounded", () => {

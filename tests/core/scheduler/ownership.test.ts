@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { CoreError, CoreScheduler } from "../../../packages/symphony-core/src/scheduler/index.ts";
 import { workspaceKey } from "../../../packages/symphony-core/src/workspace/index.ts";
-import { policy, task, workspace } from "./fixtures.ts";
+import { policy, retained, task, workspace } from "./fixtures.ts";
 
 test("workspace and active Turn ownership are unique and idempotent", () => {
   const scheduler = new CoreScheduler({
@@ -146,6 +146,7 @@ test("Workspace reservations reject task and stable identity changes", () => {
     attemptId: "attempt-24-1",
     status: "canceled_by_reconciliation",
     finishedAt: "2026-08-02T12:00:01.000Z",
+    workspace: retained(workspace("24", "attempt-24-1")),
     idempotencyKey: "finish-24-1",
   });
 

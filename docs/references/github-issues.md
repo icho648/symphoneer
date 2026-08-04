@@ -2,8 +2,8 @@
 
 > Decision status: Accepted as the V1 Tracker  
 > External source status: Official source locators observed 2026-08-01; selected endpoint behavior not verified  
-> Contract evidence: Not verified  
-> Implementation evidence: Not verified
+> Contract evidence: REST `2022-11-28` request and payload mapping covered by deterministic Adapter tests
+> Implementation evidence: Fake HTTP only; live Adapter network behavior remains Not verified
 
 ## 官方核验入口
 
@@ -36,12 +36,13 @@
 
 以上是 Symphoneer 的采用方向，不证明 GitHub API、写回权限、Project 字段或父子关系已经在本项目中完成 Smoke。
 
-## 实现前待核验
+## 已固定与仍待 Smoke
 
-- 标签门禁在当前 GitHub API 、权限模型和最终一致性下的真实行为。
+- Adapter 已固定 `open + symphoneer:ready - symphoneer:review` 门禁、原生 database ID、Issue URL、ETag 和 `updated_at` 冲突检查。
+- 标签门禁在当前 GitHub API、权限模型和最终一致性下的真实行为。
 - 其他原生 Issue 状态与 Symphoneer Task 投影的映射。
 - Adapter 的读取、评论、状态更新和交接写回权限。
 - PR、Checks、Review 和 Merge 与 Issue 的原生关联方式。
 - 限流、权限不足、删除、转移和最终一致性下的失败表达。
 
-标签规则和 fixture 是已接受的项目决定，不是已观察的 GitHub 行为。所有映射只有在固定 API 契约并完成真实仓库 Smoke 后才能升级为 `Verified`。
+标签规则和 fixture 是已接受的项目决定；fake HTTP contract tests 不是 GitHub 网络证据。所有外部行为只有在后续真实仓库 Smoke 后才能升级为 `Verified`。

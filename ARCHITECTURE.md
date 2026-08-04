@@ -14,11 +14,21 @@ ARCHITECTURE.md              当前物理结构和依赖
 .symphoneer/
   WORKFLOW.md                进入 Git 的 repository-owned 配置与 Prompt
 package.json                 pnpm check / test 入口
-pnpm-workspace.yaml          当前两个 package 的 workspace
+pnpm-workspace.yaml          当前三个 package 的 workspace
 packages/
   contracts/
     src/                     版本化边界 Schema
       index.ts               package 公开 Interface
+  adapters/
+    src/                     真实边界 Adapter；不承载调度或持久化
+      index.ts               package 公开 Interface
+      github-issues.ts       GitHub Issue 读取、原生身份和 dispatch gate
+      git-worktree/          Git worktree 创建、恢复、脏目录保护和安全释放
+        index.ts             GitWorktreeDriver 公开 Interface
+      worktree-fingerprint/  Git Worktree 与 Verification 共享的状态不变量
+      codex-app-server/      Codex v2 JSONL transport 与 Agent Runner Adapter
+      verification/          独立检查进程与 immutable artifact
+        index.ts             VerificationRunner 公开 Interface
   symphony-core/
     src/
       scheduler/             Attempt、Turn、retry、reconciliation 与所有权状态机
@@ -34,6 +44,7 @@ packages/
       agent-runner.ts        Agent Runner Interface
 scripts/check-project.mjs    链接、Agent 导航、Plan、测试位置和依赖检查
 tests/
+  adapters/                  真实 Adapter 的确定性 contract / failure checks
   contracts/                 共享 Schema 与 Agent Runner contract
   core/
     scheduler/               eligibility、调度、retry、reconciliation 与所有权场景
@@ -54,22 +65,24 @@ docs/
       symphoneer-v1.md       当前 V1 执行计划
 ```
 
-当前没有 `apps/runtime`、`apps/web`、真实 Tracker / Agent Adapter、数据库、队列、CI、部署配置或生成流水线。现有代码只覆盖 Issue #13 的本地 Core seam。
+当前没有 `apps/runtime`、`apps/web`、数据库、队列、CI、部署配置或生成流水线。Issue #14 已加入真实边界 Adapter 代码和确定性 contract tests；GitHub 网络、Codex 真实 Turn、安装态存储与完整执行闭环仍未做 Smoke。
 
 ## 当前代码依赖
 
 ```text
 packages/contracts ──> Zod
 packages/symphony-core ──> contracts + Node stdlib + YAML + LiquidJS + Zod
-tests ──> contracts + symphony-core + tests/fixtures/FakeAgentRunner
+packages/adapters ──> contracts + symphony-core + Node stdlib
+tests ──> contracts + symphony-core + adapters + tests/fixtures/FakeAgentRunner
 ```
 
 - `contracts` 不依赖 Core、Web 或 Provider。
 - `symphony-core` 不依赖 Next.js、GitHub SDK 或 Codex 进程实现。
+- `adapters` 使用 Node 原生 `fetch`、Git CLI、Codex stdio JSONL 和子进程，不引入 Provider SDK。
 - `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一内存写入权威；幂等重放窗口有界。
-- `WorkspaceManager` 用 Node.js 标准库实现本地目录创建、复用、规范路径、身份登记、lifecycle hook、超时和安全回收；它不是 Git worktree manager。
+- `WorkspaceManager` 通过小型 driver seam 管理身份、所有权和 lifecycle hook；默认目录 driver 保留 #13 的准备行为，但只能非递归删除空目录且不支持重启恢复；Git driver 使用无 `--force` 的原生 worktree 操作。
 - `.symphoneer/WORKFLOW.md` 已验证解析与 Host Workspace root 优先级；没有 Runtime 消费者，因此不证明操作系统应用目录发现、动态 reload 或真实执行。
-- `FakeAgentRunner` 只位于测试分区，不能升级为 Codex 兼容证据。
+- `CodexAppServerAdapter` 根据本机 `codex-cli 0.146.0` 生成的 v2 Schema 实现协议子集；确定性 transcript test 与 Fake 均不升级为真实兼容证据。
 - Scheduler 当前按 `dispatch / attempt / retry` 行为聚类；公开导出仍由 `scheduler/index.ts` 提供。
 
 ## 设计与计划入口

@@ -46,7 +46,7 @@ test("RetryQueued transitions atomically enforce due time, refresh state, slots,
     }),
     { kind: "released", reason: "terminal", cleanupWorkspaceIds: ["workspace:50"] },
   );
-  assert.equal(early.snapshot().workspaces[0]?.state, "released");
+  assert.equal(early.snapshot().workspaces[0]?.state, "retained");
   assert.equal(early.snapshot().claimedTaskIds.length, 0);
 
   const missing = new CoreScheduler(policy);

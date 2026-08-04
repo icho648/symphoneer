@@ -9,6 +9,9 @@ export function attachTurn(
 ): AttemptSnapshot {
   const attempt = state.attempts.get(request.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${request.attemptId} does not exist`);
+  if (state.running.get(attempt.taskId)?.attemptId !== attempt.id) {
+    throw new CoreError("invalid_transition", `Attempt ${attempt.id} is not active`);
+  }
   const updatedAt = AttemptSnapshotSchema.shape.updatedAt.parse(request.updatedAt);
   if (Date.parse(updatedAt) < Date.parse(attempt.updatedAt)) {
     throw new CoreError(
@@ -23,7 +26,13 @@ export function attachTurn(
   if (activeTurn != null && activeTurn.threadId !== request.threadId) {
     throw new CoreError("conflict", `Attempt ${request.attemptId} already has another Thread`);
   }
+  if (attempt.providerSession && attempt.providerSession.threadId !== request.threadId) {
+    throw new CoreError("conflict", `Attempt ${request.attemptId} must resume its retained Thread`);
+  }
   const threadOwner = state.activeThreads.get(request.threadId);
+  if (state.pausedThreads.has(request.threadId)) {
+    throw new CoreError("conflict", "Thread is retained by a paused Attempt");
+  }
   if (state.activeTurns.has(request.turnId) || (threadOwner && threadOwner !== attempt.id)) {
     throw new CoreError("conflict", "Thread or Turn already has another active owner");
   }
@@ -31,6 +40,7 @@ export function attachTurn(
     ...attempt,
     status: "streaming_turn",
     activeTurn: { threadId: request.threadId, turnId: request.turnId },
+    providerSession: { threadId: request.threadId, lastTurnId: request.turnId },
     updatedAt,
   });
   if (activeTurn) state.activeTurns.delete(activeTurn.turnId);

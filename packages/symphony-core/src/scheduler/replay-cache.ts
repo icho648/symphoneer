@@ -5,7 +5,7 @@ import { CoreError } from "./types.ts";
 const fingerprint = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
-// ponytail: bounded process-local replay; external writes will require a persistent operation ledger.
+// Bounded process-local replay; external writes will require a persistent operation ledger.
 const MAX_IDEMPOTENCY_ENTRIES = 1_000;
 
 export class ReplayCache {

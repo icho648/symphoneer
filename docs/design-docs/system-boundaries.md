@@ -1,11 +1,9 @@
 # System Boundaries
 
 > Decision status: Accepted  
-> Implementation evidence: Partial — versioned contracts, deterministic Symphony Core and local directory Workspace lifecycle only; external systems remain Not verified
+> Implementation evidence: Partial — contract v2, deterministic Core, adapter contract tests, Git worktree and Verification temp-repository checks; external compatibility remains Not verified
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
-
-Issue #13 已实现 Task、Attempt、Workspace、Verification、ReviewDecision、Intervention 与 Domain Event 的版本化边界 Schema，以及单一 Core Scheduler 权威、Workspace / Turn 所有权、retry/backoff、reconciliation、本地目录创建/复用与 lifecycle hooks、Agent Runner Fake。真实 GitHub、Codex、Git worktree 隔离与脏目录保护、Verification 执行、持久化和 Runtime 仍未实现；下文涉及这些能力时继续视为 `Not verified`。
 
 ## Runtime 进程拓扑
 
@@ -79,6 +77,7 @@ RunHandle
 - `Attempt` 是 Symphoneer 业务对象；`threadId`、`turnId` 和未来 Provider 的 Session ID 只是运行引用，不能成为核心状态机的身份。
 - Codex Adapter 保留原生 Thread / Turn / Item 事件，并只向 Scheduler 提炼开始、介入、完成和失败所需语义。
 - `pause` 调用当前 `RunHandle.interrupt()`，保留 Workspace 和 Session 引用并停止自动继续；它不冻结 Runtime 进程，也不保证任意 Provider 都能无损恢复。
+- `completion` 落定表示该 Turn 的 Provider 进程已经停止；超时和中断也必须等到停止后才落定，否则 Verification、保留和重试会与仍在写入的 Agent 争用同一 checkout。
 - 不预建 Provider factory、通用事件全集或 capability 注册表。第二个生产 Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
 - 工具权限或白名单不能冒充文件系统、网络 sandbox 或宿主审批。每个生产 Adapter 未来必须通过共享契约测试和一条真实 Smoke；Fake 只验证本项目逻辑。
 
@@ -89,6 +88,8 @@ RunHandle
 - `Thread` 使用 Workspace 路径作为 `cwd`，但不拥有 Workspace 的创建、复用、回收或并发锁。
 - 同一 Workspace 可以被同一 Attempt 的连续 Turn 使用；并行写入者必须使用不同 Worktree。
 - Retry 或恢复前必须重新核对仓库、分支、HEAD、未提交改动和所有权；不能因为 Thread 仍存在就直接复用目录。
+- Attempt 成功、失败、超时、暂停或人工接管后先保留 Workspace；当前 V1 不实现 TTL 或后台清理器。
+- 只有终态 Task 的未来 Runtime 策略或显式人工操作可以请求释放。释放前后均重新核对 Git 身份与 tracked/untracked 状态，使用无 `--force` 的 `git worktree remove`，不自动 stash、reset、clean、删分支或清理状态不一致的路径。
 
 ## 事实、日志、投影和证据
 
@@ -106,6 +107,12 @@ RunHandle
 
 JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
 
+### Verification 的容纳边界
+
+Verification 运行仓库自己声明的检查，因此它防的是「把 Agent 或 Turn 的成功声明当成验收」，不是防一个主动伪造证据的检查进程。Runtime 只承担三件可以自己保证的事：检查在独立进程组中启动并在观察前被容纳；artifact 一次性原子发布，既不覆盖已有证据也不因失败留下占位；检查前后的 Git HEAD 与 Workspace 状态绑定进同一条证据。
+
+脱离进程组的后台进程、同一 OS 身份对历史 artifact 的改写，以及仓库自带 Git 配置的滥用，都需要 OS 级 sandbox、job/cgroup 或独立存储身份才能真正阻止。Agent 自己的 Turn 同样拥有该身份的文件系统权限，所以这些属于安装 Host 的隔离责任，V1 不承担，也不用 in-process 的路径隐藏、进程表轮询或启发式扫描假装承担。同理，进入记录边界的 Provider 文本按最小化和脱敏处理，但脱敏是尽力而为的模式匹配，不能替代「不写入原始 Provider payload」这条硬边界。
+
 ### 项目归属与软件存储责任
 
 “与某个项目关联”不等于“由该项目仓库保存”。存储位置由数据的写入者、生命周期和恢复责任决定：
@@ -120,7 +127,7 @@ JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable
 
 macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/projects/<project-id>/`、`~/Library/Logs/Symphoneer/` 与 `~/Library/Caches/Symphoneer/`；其他平台使用各自原生位置，不从仓库路径推导。`project-id` 是 Runtime 分配或登记的稳定身份，不能只用可能冲突的仓库 basename。
 
-固定 Symphony SPEC 仍允许 repository contract 声明 `workspace.root`，并在未声明时回落到系统临时目录。Symphoneer 的安装 Host 必须用更高优先级的应用设置注入已解析的绝对 Workspace 根目录；因此进入 Git 的 `.symphoneer/WORKFLOW.md` 不声明机器存储位置，仓库配置也不能越过 Host 选择任意写入位置。当前 Issue #13 只验证 loader 的 Host 注入优先级、绝对路径约束和上游缺省行为；操作系统目录发现、真实 Runtime 持久化、轮转和恢复仍为 `Not verified`。
+固定 Symphony SPEC 仍允许 repository contract 声明 `workspace.root`，并在未声明时回落到系统临时目录。Symphoneer 的安装 Host 必须用更高优先级的应用设置注入已解析的绝对 Workspace 根目录；因此进入 Git 的 `.symphoneer/WORKFLOW.md` 不声明机器存储位置，仓库配置也不能越过 Host 选择任意写入位置。操作系统目录发现、真实 Runtime 持久化、轮转和恢复仍为 `Not verified`。
 
 凭据、Token、API key、Cookie、签名 URL、认证头、私有源码全文、原始 Provider payload 和未经脱敏的错误原因不得写入 Runtime Log、Domain Event、Verification Artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入任何记录边界前必须最小化并脱敏。
 
@@ -137,4 +144,4 @@ macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/proj
 
 Tracker 与执行投影冲突时，展示来源差异并停止危险写回；Retry、Cancel、Timeout、失联、进程重启和人工接管必须能对账。调度重试不等于业务 exactly-once。
 
-真实 Schema、权限、Workspace 隔离、Codex 生命周期、JSONL 恢复、Web / CLI / MCP 共用状态和 Phoenix 脱敏均在 Smoke 前保持 `Not verified`。
+真实 GitHub 权限、Codex 生命周期、JSONL 恢复、Web / CLI / MCP 共用状态和 Phoenix 脱敏均在匹配 Smoke 前保持 `Not verified`；临时仓库中的 Git worktree 与 Verification 检查只证明受控本地边界。

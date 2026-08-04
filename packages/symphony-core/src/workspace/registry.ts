@@ -1,4 +1,5 @@
-import { isAbsolute, relative, resolve } from "node:path";
+import { realpath } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import type { WorkspaceReference } from "@symphoneer/contracts";
@@ -13,6 +14,8 @@ const identity = (workspace: WorkspaceReference) => ({
   path: workspace.path,
   repository: workspace.repository,
   branch: workspace.branch,
+  gitHead: workspace.gitHead,
+  worktreeFingerprint: workspace.worktreeFingerprint,
   host: workspace.host,
 });
 
@@ -25,9 +28,12 @@ export class WorkspaceRegistry {
     this.#root = resolve(root);
   }
 
-  register(workspace: WorkspaceReference): void {
+  async register(workspace: WorkspaceReference): Promise<void> {
+    this.#assertWithinRoot(workspace);
+    await this.assertCanonicalPath(workspace);
+    const path = await this.canonicalPath(workspace.path);
     const registered = this.#byId.get(workspace.id);
-    const pathOwner = this.#byPath.get(workspace.path);
+    const pathOwner = this.#byPath.get(path);
     if (
       (registered && !isDeepStrictEqual(identity(registered), identity(workspace))) ||
       (registered &&
@@ -41,23 +47,18 @@ export class WorkspaceRegistry {
       );
     }
     this.update(workspace);
-    this.#byPath.set(workspace.path, workspace.id);
+    this.#byPath.set(path, workspace.id);
   }
 
-  require(input: WorkspaceReference): WorkspaceReference {
+  async require(input: WorkspaceReference): Promise<WorkspaceReference> {
     const workspace = canonicalizeWorkspaceReference(input);
-    const child = relative(this.#root, workspace.path);
-    if (!child || child.startsWith("..") || isAbsolute(child)) {
-      throw new WorkspaceError(
-        "workspace_outside_root",
-        `Workspace path escapes its root: ${workspace.path}`,
-      );
-    }
+    this.#assertWithinRoot(workspace);
+    await this.assertCanonicalPath(workspace);
     const registered = this.#byId.get(workspace.id);
     if (
       !registered ||
       !isDeepStrictEqual(registered, workspace) ||
-      this.#byPath.get(workspace.path) !== workspace.id
+      ![...this.#byPath.values()].includes(workspace.id)
     ) {
       throw new WorkspaceError(
         "workspace_identity_mismatch",
@@ -71,8 +72,70 @@ export class WorkspaceRegistry {
     this.#byId.set(workspace.id, structuredClone(workspace));
   }
 
-  unregister(workspace: WorkspaceReference): void {
+  async unregister(workspace: WorkspaceReference): Promise<void> {
+    const path = await this.canonicalPath(workspace.path);
     this.#byId.delete(workspace.id);
-    this.#byPath.delete(workspace.path);
+    if (this.#byPath.get(path) === workspace.id) this.#byPath.delete(path);
+  }
+
+  get(id: string): WorkspaceReference | undefined {
+    const workspace = this.#byId.get(id);
+    return workspace ? structuredClone(workspace) : undefined;
+  }
+
+  async getByPath(path: string): Promise<WorkspaceReference | undefined> {
+    const id = this.#byPath.get(await this.canonicalPath(path));
+    return id ? this.get(id) : undefined;
+  }
+
+  canonicalPath(path: string): Promise<string> {
+    return canonicalPath(path);
+  }
+
+  assertPath(workspace: WorkspaceReference): void {
+    this.#assertWithinRoot(workspace);
+  }
+
+  async assertCanonicalPath(workspace: WorkspaceReference): Promise<void> {
+    const root = await canonicalPath(this.#root);
+    const path = await this.canonicalPath(workspace.path);
+    const child = relative(root, path);
+    if (!child || child.startsWith("..") || isAbsolute(child)) {
+      throw new WorkspaceError(
+        "workspace_outside_root",
+        `Workspace path escapes its root: ${workspace.path}`,
+      );
+    }
+  }
+
+  #assertWithinRoot(workspace: WorkspaceReference): void {
+    const child = relative(this.#root, workspace.path);
+    if (!child || child.startsWith("..") || isAbsolute(child)) {
+      throw new WorkspaceError(
+        "workspace_outside_root",
+        `Workspace path escapes its root: ${workspace.path}`,
+      );
+    }
+  }
+}
+
+async function canonicalPath(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    const suffix: string[] = [];
+    let ancestor = resolve(path);
+    for (;;) {
+      try {
+        return resolve(await realpath(ancestor), ...suffix);
+      } catch (ancestorError) {
+        if ((ancestorError as NodeJS.ErrnoException).code !== "ENOENT") throw ancestorError;
+        const parent = dirname(ancestor);
+        if (parent === ancestor) return resolve(path);
+        suffix.unshift(basename(ancestor));
+        ancestor = parent;
+      }
+    }
   }
 }

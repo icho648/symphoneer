@@ -6,6 +6,26 @@ export interface AgentRunRequest {
   workspace: WorkspaceReference;
   prompt: string;
   continuation: boolean;
+  threadId?: string;
+}
+
+export type InterventionDetails =
+  | {
+      action: "command";
+      command: string;
+      cwd: string | null;
+      reason: string | null;
+    }
+  | {
+      action: "file_change";
+      reason: string | null;
+      scope: "workspace" | "additional_root";
+    };
+
+export interface InterventionQuestion {
+  id: string;
+  prompt: string;
+  options: Array<{ label: string; description: string | null }>;
 }
 
 export type AgentRunEvent =
@@ -14,6 +34,12 @@ export type AgentRunEvent =
       occurredAt: string;
       threadId: string;
       turnId: string;
+      provider: {
+        name: "codex-app-server" | "fake";
+        version: string;
+        schema: string;
+        inputFingerprint: string;
+      };
     }
   | {
       type: "intervention_requested";
@@ -21,6 +47,9 @@ export type AgentRunEvent =
       requestRef: string;
       kind: "approval" | "input";
       prompt: string;
+      details?: InterventionDetails;
+      questionIds?: string[];
+      questions?: InterventionQuestion[];
     }
   | {
       type: "notification";
@@ -31,6 +60,7 @@ export type AgentRunEvent =
 export interface InterventionResponse {
   decision: "approved" | "rejected" | "answered" | "canceled";
   response?: string;
+  responses?: Record<string, string[]>;
 }
 
 export interface AgentRunCompletion {

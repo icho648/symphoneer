@@ -16,6 +16,9 @@ test("Verification cannot claim pass without an independent zero exit status", (
     argv: ["pnpm", "check"],
     cwd: ".",
     gitHead: "33ebe0568f053266f7ad9b8de082be8c57b1b949",
+    worktreeFingerprint: "b".repeat(64),
+    tool: { name: "symphoneer-verification", version: "0.0.0+node-v24" },
+    inputFingerprint: "a".repeat(64),
     startedAt: "2026-08-02T12:00:00.000Z",
     finishedAt: "2026-08-02T12:01:00.000Z",
     exitCode: 0,
@@ -24,7 +27,10 @@ test("Verification cannot claim pass without an independent zero exit status", (
 
   assert.equal(VerificationResultSchema.parse(result).status, "passed");
   assert.throws(() => VerificationResultSchema.parse({ ...result, exitCode: 1 }));
-  assert.throws(() => VerificationResultSchema.parse({ ...result, status: "failed", exitCode: 0 }));
+  assert.equal(
+    VerificationResultSchema.parse({ ...result, status: "failed", exitCode: 0 }).status,
+    "failed",
+  );
   assert.throws(() =>
     VerificationResultSchema.parse({ ...result, finishedAt: "2026-08-02T11:59:59.000Z" }),
   );
