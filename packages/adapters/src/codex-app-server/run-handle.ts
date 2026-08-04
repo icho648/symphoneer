@@ -44,28 +44,30 @@ export function createRunHandle(options: {
   };
   let settled = false;
   let stallTimer: NodeJS.Timeout | undefined;
-  const turnTimer = setTimeout(() => {
+  const interruptAndFail = (error: "turn_stalled" | "turn_timed_out") => {
     void transport.request("turn/interrupt", { threadId, turnId }).catch(() => undefined);
-    finish({ outcome: "failed", error: "turn_timed_out" });
-  }, turnTimeoutMs);
+    finish({ outcome: "failed", error });
+  };
+  const turnTimer = setTimeout(() => interruptAndFail("turn_timed_out"), turnTimeoutMs);
   const resetStall = () => {
     if (stallTimer) {
       clearTimeout(stallTimer);
       stallTimer = undefined;
     }
     if (pending.size > 0 || stallTimeoutMs === 0) return;
-    stallTimer = setTimeout(() => {
-      void transport.request("turn/interrupt", { threadId, turnId }).catch(() => undefined);
-      finish({ outcome: "failed", error: "turn_stalled" });
-    }, stallTimeoutMs);
+    stallTimer = setTimeout(() => interruptAndFail("turn_stalled"), stallTimeoutMs);
   };
   const finish = (result: AgentRunCompletion) => {
     if (settled) return;
     settled = true;
     clearTimeout(turnTimer);
     if (stallTimer) clearTimeout(stallTimer);
-    completion.resolve(result);
-    void transport.close().catch(() => undefined);
+    // An interrupted Turn can still be writing to the Workspace, so completion stays pending
+    // until the Provider process has stopped; consumers may then verify or retry that checkout.
+    void transport
+      .close()
+      .catch(() => undefined)
+      .then(() => completion.resolve(result));
     if (!eventsCanceled) {
       try {
         controller.close();

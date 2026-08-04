@@ -374,6 +374,45 @@ test("Codex adapter exposes failed and timed-out Turns without Provider error pa
   assert.deepEqual(await timed.completion, { outcome: "failed", error: "turn_timed_out" });
 });
 
+test("Codex completion waits for the interrupted Provider process to stop", async () => {
+  const stopped = Promise.withResolvers<void>();
+  const transport = new FakeCodexTransport("thread-contained", "silent");
+  const contained: CodexTransport = {
+    ...transport,
+    messages: transport.messages,
+    closed: transport.closed,
+    request: (method, params) => transport.request(method, params),
+    notify: () => transport.notify(),
+    respond: (id, result) => transport.respond(id, result),
+    reject: () => transport.reject(),
+    close: async () => {
+      await stopped.promise;
+      await transport.close();
+    },
+  };
+  const handle = await new CodexAppServerAdapter({
+    transportFactory: async () => contained,
+    turnTimeoutMs: 20,
+    stallTimeoutMs: 0,
+  }).startOrContinue({
+    attemptId: "attempt-contained",
+    task,
+    workspace,
+    prompt: "Time out safely",
+    continuation: false,
+  });
+  let completed = false;
+  void handle.completion.then(() => {
+    completed = true;
+  });
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 60));
+  assert.equal(completed, false);
+
+  stopped.resolve();
+  assert.deepEqual(await handle.completion, { outcome: "failed", error: "turn_timed_out" });
+  assert.equal(transport.closeCalls, 1);
+});
+
 test("Codex adapter suspends the stall timeout while waiting for intervention", async () => {
   const transport = new FakeCodexTransport("thread-intervention-stall");
   const handle = await new CodexAppServerAdapter({
