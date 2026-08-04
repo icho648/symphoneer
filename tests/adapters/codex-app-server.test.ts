@@ -189,6 +189,16 @@ class FakeCodexTransport implements CodexTransport {
     this.#complete(status);
   }
 
+  notifyItem(count: number): void {
+    for (let index = 0; index < count; index += 1) {
+      this.#controller.enqueue({
+        kind: "notification",
+        method: "item/updated",
+        params: { threadId: this.#threadId, turnId: this.#turnId, index },
+      });
+    }
+  }
+
   #complete(status: "completed" | "failed" | "interrupted") {
     this.#controller.enqueue({
       kind: "notification",
@@ -544,6 +554,27 @@ test("Codex completion survives an event consumer canceling early", async () => 
   transport.complete("completed");
   assert.deepEqual(await handle.completion, { outcome: "completed" });
   assert.equal(transport.closeCalls, 1);
+});
+
+test("Codex bounds the event queue for a consumer that stops reading", async () => {
+  const transport = new FakeCodexTransport("thread-slow-consumer", "manual");
+  const handle = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+  }).startOrContinue({
+    attemptId: "attempt-slow-consumer",
+    task,
+    workspace,
+    prompt: "Emit a long Turn",
+    continuation: false,
+  });
+  transport.notifyItem(5_000);
+  transport.complete("completed");
+  assert.deepEqual(await handle.completion, { outcome: "completed" });
+
+  const queued: string[] = [];
+  for await (const event of handle.events) queued.push(event.type);
+  assert.equal(queued[0], "session_started");
+  assert.ok(queued.length < 1_000, `queued ${queued.length} events`);
 });
 
 test("Codex stdio transport turns an input-pipe race into a process failure", async () => {

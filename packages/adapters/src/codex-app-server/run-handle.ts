@@ -16,6 +16,7 @@ import { asRecord, belongsToTurn, stringField } from "./protocol.ts";
 import type { CodexTransport } from "./transport.ts";
 
 const CODEX_PROTOCOL = "v2";
+const EVENT_QUEUE_LIMIT = 256;
 
 export function createRunHandle(options: {
   transport: CodexTransport;
@@ -31,16 +32,22 @@ export function createRunHandle(options: {
   const pending = new Map<string, PendingIntervention>();
   let controller!: ReadableStreamDefaultController<AgentRunEvent>;
   let eventsCanceled = false;
-  const stream = new ReadableStream<AgentRunEvent>({
-    start: (value) => {
-      controller = value;
+  const stream = new ReadableStream<AgentRunEvent>(
+    {
+      start: (value) => {
+        controller = value;
+      },
+      cancel: () => {
+        eventsCanceled = true;
+      },
     },
-    cancel: () => {
-      eventsCanceled = true;
-    },
-  });
+    new CountQueuingStrategy({ highWaterMark: EVENT_QUEUE_LIMIT }),
+  );
   const emit = (event: AgentRunEvent) => {
-    if (!eventsCanceled) controller.enqueue(event);
+    if (eventsCanceled) return;
+    // Notifications are diagnostic, so a slow consumer drops them instead of growing the queue.
+    if (event.type === "notification" && (controller.desiredSize ?? 0) <= 0) return;
+    controller.enqueue(event);
   };
   let settled = false;
   let stallTimer: NodeJS.Timeout | undefined;
