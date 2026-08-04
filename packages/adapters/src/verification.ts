@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
@@ -193,6 +193,19 @@ function execute(argv: string[], cwd: string, timeoutMs: number): Promise<Execut
       stderrBytes += chunk.byteLength;
       stderrHash.update(chunk);
     });
+    const trackedPids = new Set<number>();
+    let processTrackingFailed = false;
+    const trackProcessTree = () => {
+      const pid = processHandle.pid;
+      if (pid == null) return;
+      try {
+        trackDescendants(pid, trackedPids);
+      } catch {
+        processTrackingFailed = true;
+      }
+    };
+    trackProcessTree();
+    const trackingInterval = setInterval(trackProcessTree, 10);
     const timeout = setTimeout(() => {
       timedOut = true;
       if (processHandle.pid == null) return;
@@ -201,6 +214,7 @@ function execute(argv: string[], cwd: string, timeoutMs: number): Promise<Execut
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ESRCH") processHandle.kill("SIGKILL");
       }
+      killTrackedProcesses(trackedPids);
     }, timeoutMs);
     const finish = (exitCode: number | null, startFailed = false) => {
       if (settled) return;
@@ -217,6 +231,7 @@ function execute(argv: string[], cwd: string, timeoutMs: number): Promise<Execut
       });
     };
     processHandle.once("error", () => {
+      clearInterval(trackingInterval);
       clearTimeout(timeout);
       if (settled) return;
       settled = true;
@@ -231,23 +246,75 @@ function execute(argv: string[], cwd: string, timeoutMs: number): Promise<Execut
       });
     });
     processHandle.once("close", (code) => {
+      clearInterval(trackingInterval);
       void (async () => {
         if (settled) return;
         const pid = processHandle.pid;
-        const groupExited = pid == null || (await waitForProcessGroupExit(pid, timeoutMs + 1_000));
-        finish(groupExited ? code : null);
+        const descendantsExited =
+          pid == null ||
+          (!processTrackingFailed &&
+            (await waitForTrackedProcessesExit(pid, trackedPids, timeoutMs + 1_000)));
+        finish(descendantsExited ? code : null);
       })();
     });
   });
 }
 
-async function waitForProcessGroupExit(pid: number, timeoutMs: number): Promise<boolean> {
+async function waitForTrackedProcessesExit(
+  rootPid: number,
+  trackedPids: Set<number>,
+  timeoutMs: number,
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
-  while (processGroupExists(pid)) {
-    if (Date.now() >= deadline) return false;
+  while (Date.now() < deadline) {
+    try {
+      trackDescendants(rootPid, trackedPids);
+    } catch {
+      return false;
+    }
+    if (!processGroupExists(rootPid) && ![...trackedPids].some(processExists)) return true;
     await delay(10);
   }
-  return true;
+  return false;
+}
+
+// ponytail: POSIX process-table snapshots avoid a process-tree dependency; use
+// OS job/cgroup isolation when verification must contain adversarial processes.
+function trackDescendants(rootPid: number, trackedPids: Set<number>): void {
+  const childrenByParent = new Map<number, number[]>();
+  const output = execFileSync("ps", ["-axo", "pid=,ppid="], {
+    encoding: "utf8",
+    maxBuffer: 4 * 2 ** 20,
+  });
+  for (const line of output.split("\n")) {
+    const match = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    if (!match) continue;
+    const pid = Number(match[1]);
+    const parentPid = Number(match[2]);
+    const children = childrenByParent.get(parentPid) ?? [];
+    children.push(pid);
+    childrenByParent.set(parentPid, children);
+  }
+  const pending = [rootPid, ...trackedPids];
+  const visited = new Set<number>();
+  while (pending.length > 0) {
+    const parentPid = pending.pop() as number;
+    if (visited.has(parentPid)) continue;
+    visited.add(parentPid);
+    for (const childPid of childrenByParent.get(parentPid) ?? []) {
+      trackedPids.add(childPid);
+      pending.push(childPid);
+    }
+  }
+}
+
+function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
+  }
 }
 
 function processGroupExists(pid: number): boolean {
@@ -256,6 +323,16 @@ function processGroupExists(pid: number): boolean {
     return true;
   } catch (error) {
     return (error as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+}
+
+function killTrackedProcesses(trackedPids: Set<number>): void {
+  for (const pid of trackedPids) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // The process may have exited between the snapshot and the kill.
+    }
   }
 }
 

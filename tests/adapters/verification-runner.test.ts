@@ -118,6 +118,39 @@ test("Verification keeps zero exit from passing when ignored state changes", asy
   assert.equal(verification.result.status, "failed");
 });
 
+test("Verification rejects tracked paths hidden by Git index flags", async (t) => {
+  const fixture = await repositoryFixture(t);
+  for (const flag of ["--assume-unchanged", "--skip-worktree"]) {
+    execFileSync("git", [
+      "-C",
+      fixture.repository,
+      "update-index",
+      "--no-assume-unchanged",
+      "--no-skip-worktree",
+      "README.md",
+    ]);
+    execFileSync("git", ["-C", fixture.repository, "update-index", flag, "README.md"]);
+    const marker = resolve(fixture.repository, `${flag.slice(2)}-must-not-run.txt`);
+
+    await assert.rejects(
+      new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+        attemptId: `attempt-${flag.slice(2)}`,
+        checkId: "check",
+        argv: [
+          process.execPath,
+          "-e",
+          `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`,
+        ],
+        cwd: ".",
+        workspacePath: fixture.repository,
+        timeoutMs: 5_000,
+      }),
+      /Tracked paths with hidden Git index flags cannot be fingerprinted safely/,
+    );
+    await assert.rejects(access(marker));
+  }
+});
+
 test("Verification waits for detached descendants before observing the workspace", async (t) => {
   const fixture = await repositoryFixture(t);
   const worker = "setTimeout(() => require('node:fs').writeFileSync('late.txt', 'late\\n'), 500)";
@@ -132,6 +165,32 @@ test("Verification waits for detached descendants before observing the workspace
         "const { spawn } = require('node:child_process');",
         `const child = spawn(process.execPath, ['-e', ${JSON.stringify(worker)}], { stdio: 'ignore' });`,
         "child.unref();",
+      ].join(" "),
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 2_000,
+  });
+  assert.equal(verification.result.exitCode, 0);
+  assert.equal(verification.result.status, "failed");
+});
+
+test("Verification waits for descendants that escape the process group", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const worker =
+    "setTimeout(() => require('node:fs').writeFileSync('escaped.txt', 'escaped\\n'), 500)";
+
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-escaped-descendant",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      [
+        "const { spawn } = require('node:child_process');",
+        `const child = spawn(process.execPath, ['-e', ${JSON.stringify(worker)}], { detached: true, stdio: 'ignore' });`,
+        "child.unref();",
+        "setTimeout(() => {}, 100);",
       ].join(" "),
     ],
     cwd: ".",

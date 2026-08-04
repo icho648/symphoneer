@@ -8,6 +8,7 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   const topLevel = (await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim();
   if (!topLevel) throw new Error("Git worktree root could not be read");
   const root = resolve(topLevel);
+  await assertNoHiddenIndexPaths(root);
   await assertNoUnsafeSubmodulePaths(root);
   const hash = createHash("sha256");
   hash.update("tracked\0");
@@ -75,6 +76,14 @@ async function assertNoDirtySubmodules(cwd: string): Promise<void> {
     "git status --porcelain=v2 --untracked-files=all --ignored",
   ]);
   if (status.trim()) throw new Error("Dirty submodules cannot be fingerprinted safely");
+}
+
+async function assertNoHiddenIndexPaths(cwd: string): Promise<void> {
+  const entries = splitNull(await gitBytes(cwd, ["ls-files", "-v", "-z"]));
+  // `git ls-files -v` reports assume-unchanged as `h` and skip-worktree as `S`.
+  if (entries.some((entry) => entry[0] === 0x68 || entry[0] === 0x53)) {
+    throw new Error("Tracked paths with hidden Git index flags cannot be fingerprinted safely");
+  }
 }
 
 async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<void> {
