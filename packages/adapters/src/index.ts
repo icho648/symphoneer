@@ -6,7 +6,7 @@ export {
   type JsonRpcId,
   StdioCodexTransport,
 } from "./codex-app-server/transport.ts";
-export { GitWorktreeDriver } from "./git-worktree.ts";
+export { GitWorktreeDriver } from "./git-worktree/index.ts";
 export {
   GitHubAdapterError,
   type GitHubIssueSnapshot,
@@ -17,4 +17,4 @@ export {
   type VerificationRunInput,
   VerificationRunner,
   type VerificationRunOutput,
-} from "./verification.ts";
+} from "./verification/index.ts";

@@ -21,10 +21,14 @@ packages/
       index.ts               package 公开 Interface
   adapters/
     src/                     真实边界 Adapter；不承载调度或持久化
+      index.ts               package 公开 Interface
       github-issues.ts       GitHub Issue 读取、原生身份和 dispatch gate
-      git-worktree.ts        Git worktree 创建、恢复、脏目录保护和安全释放
+      git-worktree/          Git worktree 创建、恢复、脏目录保护和安全释放
+        index.ts             GitWorktreeDriver 公开 Interface
+      worktree-fingerprint/  Git Worktree 与 Verification 共享的状态不变量
       codex-app-server/      Codex v2 JSONL transport 与 Agent Runner Adapter
-      verification.ts       独立检查进程与 immutable artifact
+      verification/          独立检查进程与 immutable artifact
+        index.ts             VerificationRunner 公开 Interface
   symphony-core/
     src/
       scheduler/             Attempt、Turn、retry、reconciliation 与所有权状态机

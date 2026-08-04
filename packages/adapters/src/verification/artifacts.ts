@@ -1,7 +1,7 @@
 import { type FileHandle, lstat, mkdir, open, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 
-import { VerificationError } from "./verification-errors.ts";
+import { VerificationError } from "./errors.ts";
 
 export async function resolveArtifactRoot(
   artifactRoot: string,

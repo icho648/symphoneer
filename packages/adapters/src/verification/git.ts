@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import { VerificationError } from "./verification-errors.ts";
+import { VerificationError } from "./errors.ts";
 
 export function readGitHead(cwd: string): Promise<string> {
   return new Promise((resolvePromise, reject) => {

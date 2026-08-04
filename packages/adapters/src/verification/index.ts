@@ -7,18 +7,13 @@ import {
   type VerificationResult,
   VerificationResultSchema,
 } from "@symphoneer/contracts";
+import { readWorktreeFingerprint } from "../worktree-fingerprint/index.ts";
+import { assertArtifactFileLinked, createArtifactFile, resolveArtifactRoot } from "./artifacts.ts";
+import { VerificationError } from "./errors.ts";
+import { readGitHead } from "./git.ts";
+import { execute } from "./process.ts";
 
-import {
-  assertArtifactFileLinked,
-  createArtifactFile,
-  resolveArtifactRoot,
-} from "./verification-artifacts.ts";
-import { VerificationError } from "./verification-errors.ts";
-import { readGitHead } from "./verification-git.ts";
-import { execute } from "./verification-process.ts";
-import { readWorktreeFingerprint } from "./worktree-fingerprint.ts";
-
-export { VerificationError } from "./verification-errors.ts";
+export { VerificationError } from "./errors.ts";
 
 export interface VerificationRunInput {
   attemptId: string;
@@ -120,6 +115,7 @@ export class VerificationRunner {
         exitCode: execution.exitCode,
         artifactRef,
       });
+      await artifactFile.truncate(0);
       await artifactFile.writeFile(
         `${JSON.stringify(
           {

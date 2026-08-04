@@ -16,10 +16,7 @@ import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { VerificationError, VerificationRunner } from "../../packages/adapters/src/index.ts";
-import {
-  readWorktreeFingerprint,
-  splitNull,
-} from "../../packages/adapters/src/worktree-fingerprint.ts";
+import { splitNull } from "../../packages/adapters/src/worktree-fingerprint/index.ts";
 
 async function repositoryFixture(t: TestContext) {
   const base = await mkdtemp(resolve(tmpdir(), "symphoneer-verification-"));
@@ -246,6 +243,32 @@ test("Verification rejects a replaced artifact file path", async (t) => {
   assert.equal(await readFile(resolve(fixture.artifacts, artifactName), "utf8"), "forged");
 });
 
+test("Verification truncates artifact data written by the checked command", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const marker = "attacker-trailing-data";
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-artifact-trailing-data",
+    checkId: "check",
+    argv: [
+      process.execPath,
+      "-e",
+      [
+        "const fs=require('node:fs');",
+        "const path=require('node:path');",
+        `const root=${JSON.stringify(fixture.artifacts)};`,
+        "const artifact=path.join(root,fs.readdirSync(root)[0]);",
+        `fs.writeFileSync(artifact,${JSON.stringify(marker.repeat(1000))});`,
+      ].join(" "),
+    ],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  const artifact = await readFile(verification.artifactPath, "utf8");
+  assert.doesNotMatch(artifact, new RegExp(marker));
+  assert.doesNotThrow(() => JSON.parse(artifact));
+});
+
 test("Verification keeps zero exit from passing when ignored state changes", async (t) => {
   const fixture = await repositoryFixture(t);
   await writeFile(resolve(fixture.repository, ".gitignore"), "ignored.txt\n");
@@ -420,7 +443,14 @@ test("Verification rejects repositories with submodules", async (t) => {
   ]);
   execFileSync("git", ["-C", fixture.repository, "commit", "-m", "add submodule"]);
   await assert.rejects(
-    readWorktreeFingerprint(fixture.repository),
+    new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+      attemptId: "attempt-submodule",
+      checkId: "check",
+      argv: [process.execPath, "-e", "process.exit(0)"],
+      cwd: ".",
+      workspacePath: fixture.repository,
+      timeoutMs: 5_000,
+    }),
     /Git submodules are not supported by the V1 Workspace boundary/,
   );
 });

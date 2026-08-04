@@ -4,7 +4,10 @@ import { basename, dirname, resolve } from "node:path";
 
 import type { WorkspaceReference } from "@symphoneer/contracts";
 import { type WorkspaceDriver, WorkspaceError } from "@symphoneer/symphony-core";
-import { assertWorktreeMatchesIndex, readWorktreeFingerprint } from "./worktree-fingerprint.ts";
+import {
+  assertWorktreeMatchesIndex,
+  readWorktreeFingerprint,
+} from "../worktree-fingerprint/index.ts";
 
 interface WorktreeRecord {
   path: string;

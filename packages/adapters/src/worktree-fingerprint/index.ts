@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
-import { hashOtherPath, hashTrackedState } from "./worktree-files.ts";
-import { gitBytes, gitOutput, parseGitlinks, splitNull as splitNullPaths } from "./worktree-git.ts";
+import { hashOtherPath, hashTrackedState } from "./files.ts";
+import { gitBytes, gitOutput, parseGitlinks, splitNull as splitNullPaths } from "./git.ts";
 
-export { assertWorktreeMatchesIndex } from "./worktree-files.ts";
-export { splitNull } from "./worktree-git.ts";
+export { assertWorktreeMatchesIndex } from "./cleanup.ts";
+export { splitNull } from "./git.ts";
 
 export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   const topLevel = (await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim();
