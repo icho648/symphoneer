@@ -15,7 +15,7 @@
   "include": [
     "src/contracts/**/*.ts",
     "src/runtime/**/*.ts",
-    "src/runtime-client.ts",
+    "src/runtime-client/**/*.ts",
     "src/cli/**/*.ts",
     "tests/**/*.ts"
   ]
