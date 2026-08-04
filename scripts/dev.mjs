@@ -65,15 +65,46 @@ function signalChild(child, signal) {
   }
 }
 
-process.once("SIGINT", () => shutdown(0));
-process.once("SIGTERM", () => shutdown(0));
+export async function runtimeIsHealthy(url, fetcher = fetch) {
+  try {
+    const response = await fetcher(new URL("/healthz", url), {
+      signal: AbortSignal.timeout(750),
+    });
+    if (!response.ok) return false;
+    const body = await response.json();
+    return (
+      body?.schemaVersion === 2 &&
+      body?.status === "ok" &&
+      body?.runtime?.status === "online" &&
+      body?.process?.status === "running"
+    );
+  } catch {
+    return false;
+  }
+}
 
-process.stdout.write(`Runtime: ${runtimeUrl}\nWeb: ${webHost}:${webPort}\nData: ${dataDir}\n`);
-start("Runtime", ["runtime:serve"], {
-  SYMPHONEER_DATA_DIR: dataDir,
-  SYMPHONEER_RUNTIME_HOST: runtimeHost,
-  SYMPHONEER_RUNTIME_PORT: runtimePort,
-});
-start("Web", ["--filter", "@symphoneer/web", "dev", "--hostname", webHost, "--port", webPort], {
-  SYMPHONEER_RUNTIME_URL: runtimeUrl,
-});
+export async function main() {
+  process.once("SIGINT", () => shutdown(0));
+  process.once("SIGTERM", () => shutdown(0));
+
+  process.stdout.write(`Runtime: ${runtimeUrl}\nWeb: ${webHost}:${webPort}\nData: ${dataDir}\n`);
+  if (await runtimeIsHealthy(runtimeUrl)) {
+    process.stdout.write(`Runtime already healthy; reusing ${runtimeUrl}\n`);
+  } else {
+    start("Runtime", ["runtime:serve"], {
+      SYMPHONEER_DATA_DIR: dataDir,
+      SYMPHONEER_RUNTIME_HOST: runtimeHost,
+      SYMPHONEER_RUNTIME_PORT: runtimePort,
+    });
+  }
+  start("Web", ["--filter", "@symphoneer/web", "dev", "--hostname", webHost, "--port", webPort], {
+    SYMPHONEER_RUNTIME_URL: runtimeUrl,
+  });
+}
+
+if (import.meta.main) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : "Dev launcher failed"}\n`);
+    process.exitCode = 1;
+  });
+}
