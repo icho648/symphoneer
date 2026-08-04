@@ -8,6 +8,26 @@ export {
 } from "./execution.ts";
 export type { Intervention, ReviewDecision } from "./human.ts";
 export { InterventionSchema, ReviewDecisionSchema } from "./human.ts";
+export type {
+  RuntimeAttemptDetail,
+  RuntimeCommand,
+  RuntimeCommandResult,
+  RuntimeConnection,
+  RuntimeEvent,
+  RuntimeHealth,
+  RuntimeProcess,
+  RuntimeSnapshot,
+} from "./runtime.ts";
+export {
+  RuntimeAttemptDetailSchema,
+  RuntimeCommandResultSchema,
+  RuntimeCommandSchema,
+  RuntimeConnectionSchema,
+  RuntimeEventSchema,
+  RuntimeHealthSchema,
+  RuntimeProcessSchema,
+  RuntimeSnapshotSchema,
+} from "./runtime.ts";
 export type { JsonValue } from "./shared.ts";
 export {
   CONTRACT_SCHEMA_VERSION,

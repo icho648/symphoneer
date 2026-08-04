@@ -5,18 +5,22 @@
   "type": "module",
   "packageManager": "pnpm@11.15.1",
   "engines": {
-    "node": ">=24.0.0"
+    "node": "22.x"
   },
   "scripts": {
-    "check": "pnpm check:format && pnpm check:types && pnpm check:project && pnpm test",
+    "check": "pnpm check:format && pnpm check:types && pnpm check:project && pnpm test && pnpm check:web",
     "check:format": "biome check .",
     "check:project": "node scripts/check-project.mjs",
     "check:types": "tsc --noEmit",
+    "check:web": "pnpm --filter @symphoneer/web build",
+    "dev": "node scripts/dev.mjs",
+    "runtime:cli": "node packages/runtime/src/cli.ts",
+    "runtime:serve": "node packages/runtime/src/cli.ts serve",
     "test": "node --test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.6",
-    "@types/node": "24.13.3",
+    "@types/node": "^22.20.1",
     "typescript": "7.0.2"
   }
 }

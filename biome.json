@@ -7,6 +7,14 @@
       }
     }
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
+  "files": {
+    "includes": ["**", "!!**/.next"]
+  },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",

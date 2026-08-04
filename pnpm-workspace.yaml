@@ -1,2 +1,5 @@
 packages:
   - packages/*
+  - apps/*
+allowBuilds:
+  sharp: false

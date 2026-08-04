@@ -1,0 +1,17 @@
+{
+  "name": "@symphoneer/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./protocol": "./src/protocol.ts"
+  },
+  "bin": {
+    "symphoneer-runtime": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@symphoneer/contracts": "workspace:*"
+  }
+}
