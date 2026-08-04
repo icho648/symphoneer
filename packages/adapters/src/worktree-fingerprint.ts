@@ -1,8 +1,12 @@
-import { execFile } from "node:child_process";
-import { createHash, type Hash } from "node:crypto";
-import { createReadStream } from "node:fs";
-import { lstat, readdir, readlink } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
+
+import { hashField, hashOtherPath, hashTrackedState } from "./worktree-files.ts";
+import { gitBytes, gitOutput, splitNull as splitNullPaths } from "./worktree-git.ts";
+import { assertNoHiddenIndexPaths, assertNoUnsafeSubmodulePaths } from "./worktree-submodules.ts";
+
+export { assertWorktreeMatchesIndex } from "./worktree-files.ts";
+export { splitNull } from "./worktree-git.ts";
 
 export async function readWorktreeFingerprint(cwd: string): Promise<string> {
   const topLevel = (await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim();
@@ -18,6 +22,7 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
     hashField(hash, "submodule");
     hashField(hash, submodule.path);
     hashField(hash, submodule.state);
+    hashField(hash, submodule.gitHead ?? "");
   }
   hash.update("\0untracked\0");
   const untracked = (
@@ -26,235 +31,10 @@ export async function readWorktreeFingerprint(cwd: string): Promise<string> {
       gitBytes(root, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]),
     ])
   )
-    .flatMap(splitNull)
+    .flatMap(splitNullPaths)
     .sort(Buffer.compare);
   for (const file of untracked) {
     await hashOtherPath(root, file, hash);
   }
   return hash.digest("hex");
-}
-
-async function hashOtherPath(root: string, file: Buffer, hash: Hash): Promise<void> {
-  const relative = file[file.length - 1] === 47 ? file.subarray(0, file.length - 1) : file;
-  validateRelativePath(relative);
-  const path = Buffer.concat([Buffer.from(root + sep), relative]);
-  const stats = await lstat(path);
-  hashField(hash, "untracked-file");
-  hashField(hash, relative);
-  hashField(hash, String(stats.mode));
-  if (stats.isSymbolicLink()) {
-    hashField(hash, "symlink");
-    hashField(hash, await readlink(path, { encoding: "buffer" }));
-  } else if (stats.isFile()) {
-    hashField(hash, "file");
-    hashField(hash, await hashFile(path));
-  } else if (stats.isDirectory()) {
-    hashField(hash, "directory");
-    const children = (await readdir(path, { encoding: "buffer" })).sort(Buffer.compare);
-    for (const child of children) {
-      await hashOtherPath(root, Buffer.concat([relative, Buffer.from("/"), child]), hash);
-    }
-  } else {
-    throw new Error("Untracked special files cannot be fingerprinted safely");
-  }
-}
-
-function hashField(hash: Hash, value: string | Uint8Array): void {
-  const bytes = typeof value === "string" ? Buffer.from(value) : value;
-  const length = Buffer.allocUnsafe(8);
-  length.writeBigUInt64BE(BigInt(bytes.byteLength));
-  hash.update(length);
-  hash.update(bytes);
-}
-
-async function hashFile(path: Buffer): Promise<Uint8Array> {
-  const hash = createHash("sha256");
-  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
-  return hash.digest();
-}
-
-async function assertNoDirtySubmodules(cwd: string): Promise<void> {
-  const status = await gitOutput(cwd, [
-    "submodule",
-    "foreach",
-    "--quiet",
-    "--recursive",
-    "git status --porcelain=v2 --untracked-files=all --ignored",
-  ]);
-  if (status.trim()) throw new Error("Dirty submodules cannot be fingerprinted safely");
-}
-
-async function assertNoHiddenIndexPaths(cwd: string): Promise<void> {
-  const entries = splitNull(await gitBytes(cwd, ["ls-files", "-v", "-z"]));
-  // `git ls-files -v` reports assume-unchanged as `h` and skip-worktree as `S`.
-  if (entries.some((entry) => entry[0] === 0x68 || entry[0] === 0x53)) {
-    throw new Error("Tracked paths with hidden Git index flags cannot be fingerprinted safely");
-  }
-}
-
-type SubmoduleState = {
-  path: Buffer;
-  state: "missing" | "empty" | "initialized";
-};
-
-async function assertNoUnsafeSubmodulePaths(cwd: string): Promise<SubmoduleState[]> {
-  await assertNoDirtySubmodules(cwd);
-  const root = resolve((await gitOutput(cwd, ["rev-parse", "--show-toplevel"])).trim());
-  const states: SubmoduleState[] = [];
-  await inspectGitlinks(root, root, Buffer.alloc(0), states);
-  return states.sort((left, right) => Buffer.compare(left.path, right.path));
-}
-
-async function inspectGitlinks(
-  root: string,
-  repositoryPath: string,
-  prefix: Buffer,
-  states: SubmoduleState[],
-): Promise<void> {
-  const gitlinks = parseGitlinks(await gitBytes(repositoryPath, ["ls-files", "--stage", "-z"]));
-  for (const gitlink of gitlinks) {
-    const relativePath = prefix.length
-      ? Buffer.concat([prefix, Buffer.from("/"), gitlink])
-      : gitlink;
-    validateRelativePath(relativePath);
-    const path = Buffer.concat([Buffer.from(root + sep), relativePath]);
-    let stats: Awaited<ReturnType<typeof lstat>>;
-    try {
-      stats = await lstat(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        states.push({ path: relativePath, state: "missing" });
-        continue;
-      }
-      throw error;
-    }
-    if (!stats.isDirectory() || stats.isSymbolicLink()) {
-      throw new Error("Gitlink path is not an initialized submodule checkout");
-    }
-    if ((await readdir(path)).length === 0) {
-      states.push({ path: relativePath, state: "empty" });
-      continue;
-    }
-    try {
-      const metadata = await lstat(Buffer.concat([path, Buffer.from(`${sep}.git`)]));
-      if (!metadata.isFile() && !metadata.isDirectory()) {
-        throw new Error("Gitlink path is not an initialized submodule checkout");
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new Error("Uninitialized submodule path contains local data");
-      }
-      throw error;
-    }
-    states.push({ path: relativePath, state: "initialized" });
-    await assertNoHiddenIndexPaths(path.toString());
-    await inspectGitlinks(root, path.toString(), relativePath, states);
-  }
-}
-
-function parseGitlinks(output: Uint8Array): Buffer[] {
-  return splitNull(output)
-    .map((entry) => {
-      const tab = entry.indexOf(9);
-      if (tab < 0) throw new Error("Git returned invalid index metadata");
-      return entry.subarray(0, tab).subarray(0, 6).equals(Buffer.from("160000"))
-        ? entry.subarray(tab + 1)
-        : null;
-    })
-    .filter((path): path is Buffer => path !== null);
-}
-
-export function splitNull(output: Uint8Array): Buffer[] {
-  const bytes = Buffer.from(output);
-  const paths: Buffer[] = [];
-  let start = 0;
-  for (let end = 0; end < bytes.length; end += 1) {
-    if (bytes[end] !== 0) continue;
-    if (end > start) paths.push(Buffer.from(bytes.subarray(start, end)));
-    start = end + 1;
-  }
-  if (start !== bytes.length) throw new Error("Git returned invalid untracked paths");
-  return paths;
-}
-
-function validateRelativePath(path: Buffer): void {
-  if (path.length === 0 || path[0] === 47) {
-    throw new Error("Git returned an invalid untracked path");
-  }
-  let segmentStart = 0;
-  for (let end = 0; end <= path.length; end += 1) {
-    if (end < path.length && path[end] !== 47) continue;
-    const segment = path.subarray(segmentStart, end);
-    if (segment.length === 0 || segment.equals(Buffer.from(".."))) {
-      throw new Error("Git returned an invalid untracked path");
-    }
-    segmentStart = end + 1;
-  }
-}
-
-async function hashTrackedState(root: string, hash: Hash): Promise<void> {
-  const index = await gitBytes(root, ["ls-files", "--stage", "-z"]);
-  hashField(hash, "index");
-  hashField(hash, index);
-  const gitlinks = new Set(parseGitlinks(index).map((path) => path.toString("hex")));
-  const tracked = splitNull(await gitBytes(root, ["ls-files", "-z"])).sort(Buffer.compare);
-  for (const file of tracked) {
-    if (gitlinks.has(file.toString("hex"))) continue;
-    await hashTrackedPath(root, file, hash);
-  }
-}
-
-async function hashTrackedPath(root: string, file: Buffer, hash: Hash): Promise<void> {
-  validateRelativePath(file);
-  const path = Buffer.concat([Buffer.from(root + sep), file]);
-  hashField(hash, "tracked-file");
-  hashField(hash, file);
-  let stats: Awaited<ReturnType<typeof lstat>>;
-  try {
-    stats = await lstat(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      hashField(hash, "missing");
-      return;
-    }
-    throw error;
-  }
-  hashField(hash, String(stats.mode));
-  if (stats.isSymbolicLink()) {
-    hashField(hash, "symlink");
-    hashField(hash, await readlink(path, { encoding: "buffer" }));
-  } else if (stats.isFile()) {
-    hashField(hash, "file");
-    hashField(hash, await hashFile(path));
-  } else {
-    throw new Error("Tracked special files cannot be fingerprinted safely");
-  }
-}
-
-function gitOutput(cwd: string, args: string[]): Promise<string> {
-  return new Promise((resolvePromise, reject) => {
-    execFile(
-      "git",
-      ["-C", cwd, ...args],
-      { encoding: "utf8", maxBuffer: 4 * 2 ** 20 },
-      (error, stdout) => {
-        if (error) reject(new Error("Git worktree metadata could not be read"));
-        else resolvePromise(stdout);
-      },
-    );
-  });
-}
-
-function gitBytes(cwd: string, args: string[]): Promise<Buffer> {
-  return new Promise((resolvePromise, reject) => {
-    execFile(
-      "git",
-      ["-C", cwd, ...args],
-      { encoding: "buffer", maxBuffer: 4 * 2 ** 20 },
-      (error, stdout) => {
-        if (error) reject(new Error("Git worktree metadata could not be read"));
-        else resolvePromise(Buffer.from(stdout));
-      },
-    );
-  });
 }

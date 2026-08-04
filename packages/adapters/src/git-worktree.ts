@@ -4,7 +4,7 @@ import { basename, dirname, resolve } from "node:path";
 
 import type { WorkspaceReference } from "@symphoneer/contracts";
 import { type WorkspaceDriver, WorkspaceError } from "@symphoneer/symphony-core";
-import { readWorktreeFingerprint } from "./worktree-fingerprint.ts";
+import { assertWorktreeMatchesIndex, readWorktreeFingerprint } from "./worktree-fingerprint.ts";
 
 interface WorktreeRecord {
   path: string;
@@ -175,6 +175,14 @@ export class GitWorktreeDriver implements WorkspaceDriver {
     if (!record && !exists) return "absent";
     if (!record || !exists) throw identityMismatch(workspace);
     const observation = await this.assertReady(workspace);
+    try {
+      await assertWorktreeMatchesIndex(workspace.path);
+    } catch {
+      throw new WorkspaceError(
+        "workspace_dirty",
+        `Workspace ${workspace.id} has tracked bytes that differ from the Git index`,
+      );
+    }
     const status = await runGit(workspace.path, [
       "status",
       "--porcelain=v2",

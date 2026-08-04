@@ -167,6 +167,35 @@ test("Git worktree removal refuses ignored files", async (t) => {
   await access(ignored);
 });
 
+test("Git worktree removal refuses tracked bytes hidden by a clean filter", async (t) => {
+  const fixture = await repositoryFixture(t);
+  await writeFile(resolve(fixture.repositoryPath, "filtered.txt"), "");
+  await writeFile(
+    resolve(fixture.repositoryPath, ".gitattributes"),
+    "filtered.txt filter=opaque\n",
+  );
+  execFileSync("git", ["-C", fixture.repositoryPath, "add", ".gitattributes", "filtered.txt"]);
+  execFileSync("git", ["-C", fixture.repositoryPath, "commit", "-m", "add clean filter"]);
+  execFileSync("git", ["-C", fixture.repositoryPath, "config", "filter.opaque.clean", "true"]);
+
+  const driver = new GitWorktreeDriver({
+    repositoryPath: fixture.repositoryPath,
+    repository: "icho648/symphoneer",
+    baseRevision: "HEAD",
+  });
+  const manager = new WorkspaceManager({ root: fixture.workspaceRoot, driver });
+  const prepared = await manager.prepare(workspaceInput("codex/filtered"));
+  const retained = await manager.finish(prepared.workspace);
+  const filtered = resolve(prepared.workspace.path, "filtered.txt");
+  await writeFile(filtered, "changed but normalized by clean filter\n");
+
+  await assert.rejects(
+    manager.remove(retained.workspace),
+    (error) => error instanceof WorkspaceError && error.code === "workspace_dirty",
+  );
+  await access(filtered);
+});
+
 test("Git worktree preparation rolls back after stale identity validation", async (t) => {
   const fixture = await repositoryFixture(t);
   const driver = new GitWorktreeDriver({

@@ -1,8 +1,18 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { access, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { VerificationError, VerificationRunner } from "../../packages/adapters/src/index.ts";
@@ -179,31 +189,61 @@ test("Verification ignores Git replacement objects", async (t) => {
 test("Verification keeps artifact writes bound to the validated directory", async (t) => {
   const fixture = await repositoryFixture(t);
   const movedArtifacts = resolve(fixture.base, "moved-artifacts");
-  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
-    attemptId: "attempt-artifact-swap",
-    checkId: "check",
-    argv: [
-      process.execPath,
-      "-e",
-      [
-        "const fs=require('node:fs');",
-        `fs.renameSync(${JSON.stringify(fixture.artifacts)},${JSON.stringify(movedArtifacts)});`,
-        `fs.symlinkSync(process.cwd(),${JSON.stringify(fixture.artifacts)},'dir');`,
-      ].join(" "),
-    ],
-    cwd: ".",
-    workspacePath: fixture.repository,
-    timeoutMs: 5_000,
-  });
-  assert.equal(verification.result.status, "passed");
+  await assert.rejects(
+    new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+      attemptId: "attempt-artifact-swap",
+      checkId: "check",
+      argv: [
+        process.execPath,
+        "-e",
+        [
+          "const fs=require('node:fs');",
+          `fs.renameSync(${JSON.stringify(fixture.artifacts)},${JSON.stringify(movedArtifacts)});`,
+          `fs.symlinkSync(process.cwd(),${JSON.stringify(fixture.artifacts)},'dir');`,
+        ].join(" "),
+      ],
+      cwd: ".",
+      workspacePath: fixture.repository,
+      timeoutMs: 5_000,
+    }),
+    (error) => error instanceof VerificationError && error.code === "artifact_replaced",
+  );
   assert.equal(
     execFileSync("git", ["-C", fixture.repository, "status", "--porcelain"]).toString(),
     "",
   );
-  assert.match(
-    await readFile(resolve(movedArtifacts, basename(verification.artifactPath)), "utf8"),
-    /"status": "passed"/,
+  const [artifactName] = await readdir(movedArtifacts);
+  assert.ok(artifactName);
+  assert.match(await readFile(resolve(movedArtifacts, artifactName), "utf8"), /"status": "passed"/);
+});
+
+test("Verification rejects a replaced artifact file path", async (t) => {
+  const fixture = await repositoryFixture(t);
+  await assert.rejects(
+    new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+      attemptId: "attempt-artifact-file-replaced",
+      checkId: "check",
+      argv: [
+        process.execPath,
+        "-e",
+        [
+          "const fs=require('node:fs');",
+          "const path=require('node:path');",
+          `const root=${JSON.stringify(fixture.artifacts)};`,
+          "const artifact=path.join(root,fs.readdirSync(root)[0]);",
+          "fs.unlinkSync(artifact);",
+          "fs.writeFileSync(artifact,'forged');",
+        ].join(" "),
+      ],
+      cwd: ".",
+      workspacePath: fixture.repository,
+      timeoutMs: 5_000,
+    }),
+    (error) => error instanceof VerificationError && error.code === "artifact_replaced",
   );
+  const [artifactName] = await readdir(fixture.artifacts);
+  assert.ok(artifactName);
+  assert.equal(await readFile(resolve(fixture.artifacts, artifactName), "utf8"), "forged");
 });
 
 test("Verification keeps zero exit from passing when ignored state changes", async (t) => {
@@ -539,6 +579,18 @@ test("Verification fingerprints initialized versus empty submodules", async (t) 
     "nested",
   ]);
   execFileSync("git", ["-C", fixture.repository, "commit", "-m", "add submodule"]);
+  const beforeHeadChange = await readWorktreeFingerprint(fixture.repository);
+  await writeFile(resolve(fixture.repository, "nested", "next.txt"), "next\n");
+  execFileSync("git", ["-C", resolve(fixture.repository, "nested"), "add", "next.txt"]);
+  execFileSync("git", [
+    "-C",
+    resolve(fixture.repository, "nested"),
+    "commit",
+    "-m",
+    "advance submodule",
+  ]);
+  const afterHeadChange = await readWorktreeFingerprint(fixture.repository);
+  assert.notEqual(beforeHeadChange, afterHeadChange);
   const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
     attemptId: "attempt-empty-deinitialized-submodule",
     checkId: "check",
