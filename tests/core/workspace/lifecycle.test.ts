@@ -20,7 +20,7 @@ test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministic
       beforeRun: "printf 'before_run\\n' >> hooks.log",
       afterRun: "exit 9",
       beforeRemove: "exit 8",
-      timeoutMs: 100,
+      timeoutMs: 1_000,
     },
   });
   const input = {

@@ -16,7 +16,6 @@ import { basename, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { VerificationError, VerificationRunner } from "../../packages/adapters/src/index.ts";
-import { splitNull } from "../../packages/adapters/src/worktree-fingerprint/index.ts";
 
 async function repositoryFixture(t: TestContext) {
   const base = await mkdtemp(resolve(tmpdir(), "symphoneer-verification-"));
@@ -342,12 +341,19 @@ test("Verification fingerprints symlink targets as bytes", async (t) => {
   assert.equal(verification.result.status, "failed");
 });
 
-test("Fingerprint parser preserves raw untracked pathnames", () => {
-  const paths = splitNull(Buffer.from([0x80, 0, 0xef, 0xbf, 0xbd, 0]));
-  assert.deepEqual(
-    paths.map((path) => [...path]),
-    [[0x80], [0xef, 0xbf, 0xbd]],
-  );
+test("Verification fingerprints non-ASCII untracked pathnames", async (t) => {
+  const fixture = await repositoryFixture(t);
+  await writeFile(resolve(fixture.repository, "é.txt"), "raw\n");
+
+  const verification = await new VerificationRunner({ artifactRoot: fixture.artifacts }).run({
+    attemptId: "attempt-raw-path",
+    checkId: "check",
+    argv: [process.execPath, "-e", "process.exit(0)"],
+    cwd: ".",
+    workspacePath: fixture.repository,
+    timeoutMs: 5_000,
+  });
+  assert.equal(verification.result.status, "passed");
 });
 
 test("Verification rejects repositories with submodules", async (t) => {

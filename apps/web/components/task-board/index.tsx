@@ -35,11 +35,15 @@ export function TaskBoard({
 
   useEffect(() => {
     let disposed = false;
+    const fetchRuntimeJson = async <T,>(path: string): Promise<T> => {
+      const response = await fetch(path, { cache: "no-store" });
+      const body = (await response.json()) as T;
+      if (!response.ok) throw new Error(dictionary.board.runtimeUnavailable);
+      return body;
+    };
     const refreshHealth = async () => {
       try {
-        const response = await fetch("/api/runtime/health", { cache: "no-store" });
-        const body = (await response.json()) as RuntimeHealth & { message?: string };
-        if (!response.ok) throw new Error(dictionary.board.runtimeUnavailable);
+        const body = await fetchRuntimeJson<RuntimeHealth>("/api/runtime/health");
         if (!disposed) {
           setHealth(body);
           setConnection("online");
@@ -54,9 +58,7 @@ export function TaskBoard({
     };
     const refreshSnapshot = async () => {
       try {
-        const response = await fetch("/api/runtime/snapshot", { cache: "no-store" });
-        const body = (await response.json()) as RuntimeSnapshot & { message?: string };
-        if (!response.ok) throw new Error(dictionary.board.runtimeUnavailable);
+        const body = await fetchRuntimeJson<RuntimeSnapshot>("/api/runtime/snapshot");
         if (!disposed) {
           setSnapshot(body);
           setNotice(dictionary.board.projectionSynchronized);

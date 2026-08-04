@@ -2,6 +2,8 @@
 
 核验日期：2026-08-04
 
+本快照是调研输入；当前规范以 [`product-boundary.md`](../design-docs/product-boundary.md) 和 [`system-boundaries.md`](../design-docs/system-boundaries.md) 为准。
+
 ## 结论
 
 - `Observed`：主流 Next App Router 方案把 locale 放在 `[locale]`/`[lang]` 动态段，消息按 locale 分文件，并在服务端按请求加载。[Next.js Internationalization](https://nextjs.org/docs/app/guides/internationalization) 说明了 locale 检测、子路径和 `generateStaticParams` 的组合方式。

@@ -9,6 +9,7 @@ const webHost = process.env.SYMPHONEER_WEB_HOST ?? "127.0.0.1";
 const webPort = process.env.SYMPHONEER_WEB_PORT ?? "3000";
 const runtimeUrl = process.env.SYMPHONEER_RUNTIME_URL ?? `http://${runtimeHost}:${runtimePort}`;
 const dataDir = process.env.SYMPHONEER_DATA_DIR ?? path.join(os.tmpdir(), "symphoneer-runtime");
+const canReuseRuntime = process.env.SYMPHONEER_DATA_DIR === undefined;
 
 const children = new Map();
 let shuttingDown = false;
@@ -88,7 +89,7 @@ export async function main() {
   process.once("SIGTERM", () => shutdown(0));
 
   process.stdout.write(`Runtime: ${runtimeUrl}\nWeb: ${webHost}:${webPort}\nData: ${dataDir}\n`);
-  if (await runtimeIsHealthy(runtimeUrl)) {
+  if (canReuseRuntime && (await runtimeIsHealthy(runtimeUrl))) {
     process.stdout.write(`Runtime already healthy; reusing ${runtimeUrl}\n`);
   } else {
     start("Runtime", ["runtime:serve"], {

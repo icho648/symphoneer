@@ -1,16 +1,7 @@
-import type { AttemptSnapshot, RuntimeSnapshot, TaskSummary } from "@symphoneer/contracts";
+import type { RuntimeSnapshot, TaskSummary } from "@symphoneer/contracts";
 import type { Dictionary } from "@symphoneer/i18n";
 
-type BoardColumn = "READY" | "RUNNING" | "REVIEW" | "BLOCKED";
-
-const activeStatuses = new Set([
-  "preparing_workspace",
-  "building_prompt",
-  "launching_agent",
-  "initializing_session",
-  "streaming_turn",
-  "finishing",
-]);
+import { type BoardColumn, taskColumn } from "../../lib/task-column";
 
 export function TaskColumns({
   dictionary,
@@ -34,8 +25,7 @@ export function TaskColumns({
     <div className="grid grid-cols-1 gap-[11px] min-[701px]:grid-cols-2 min-[1101px]:grid-cols-4">
       {columns.map((column) => {
         const tasks = (snapshot?.tasks ?? []).filter(
-          (task) =>
-            taskColumn(task, snapshot?.attempts ?? [], snapshot?.reviews ?? []) === column.id,
+          (task) => taskColumn(task, snapshot?.attempts ?? []) === column.id,
         );
         return (
           <section
@@ -79,17 +69,4 @@ export function TaskColumns({
       })}
     </div>
   );
-}
-
-function taskColumn(
-  task: TaskSummary,
-  attempts: readonly AttemptSnapshot[],
-  reviews: RuntimeSnapshot["reviews"],
-): BoardColumn {
-  const taskAttempts = attempts.filter((attempt) => attempt.taskId === task.id);
-  if (taskAttempts.some((attempt) => activeStatuses.has(attempt.status))) return "RUNNING";
-  if (taskAttempts.some((attempt) => reviews.some((review) => review.attemptId === attempt.id))) {
-    return "REVIEW";
-  }
-  return task.dispatchable ? "READY" : "BLOCKED";
 }
