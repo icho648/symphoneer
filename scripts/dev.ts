@@ -96,7 +96,16 @@ export async function main(): Promise<void> {
   process.once("SIGINT", () => shutdown(0));
   process.once("SIGTERM", () => shutdown(0));
 
-  process.stdout.write(`Runtime: ${runtimeUrl}\nWeb: ${webHost}:${webPort}\nData: ${dataDir}\n`);
+  process.stdout.write(
+    [
+      "Symphoneer local stack",
+      `  Runtime  ${runtimeUrl}`,
+      `  Web      http://${webHost}:${webPort}`,
+      `  Data     ${dataDir}`,
+      "  MCP      Host-spawned (`pnpm mcp:serve`); keep Runtime up, do not start MCP here",
+      "",
+    ].join("\n"),
+  );
   if (canReuseRuntime && (await runtimeIsHealthy(runtimeUrl))) {
     process.stdout.write(`Runtime already healthy; reusing ${runtimeUrl}\n`);
   } else {

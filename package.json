@@ -13,6 +13,7 @@
     "check:project": "node scripts/check-project.mjs",
     "check:types": "tsc --noEmit",
     "check:web": "pnpm run web:build",
+    "up": "node scripts/dev.ts",
     "dev": "node scripts/dev.ts",
     "runtime:cli": "node src/cli/runtime.ts",
     "runtime:serve": "node src/runtime/serve.ts",
