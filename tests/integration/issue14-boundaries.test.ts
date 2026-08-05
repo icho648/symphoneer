@@ -94,7 +94,7 @@ test("Issue, worktree, Codex, and independent Verification form one minimal clos
         }),
       )) as typeof fetch,
   });
-  const task = (await tracker.getIssue(14)).task;
+  const task = (await tracker.getTask("14")).task;
   const manager = new WorkspaceManager({
     root: resolve(fixture.base, "workspaces"),
     driver: new GitWorktreeDriver({

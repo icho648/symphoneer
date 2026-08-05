@@ -9,11 +9,11 @@ export function LocaleSwitcher({ dictionary, locale }: { dictionary: Dictionary;
   };
 
   return (
-    <label className="flex items-center border border-line bg-panel/70 px-2 text-[10px] text-muted">
+    <label className="macos-btn gap-1 px-2 py-1 text-[11px] text-muted">
       <span className="sr-only">{dictionary.controls.language}</span>
       <select
         aria-label={dictionary.controls.language}
-        className="cursor-pointer bg-transparent py-2 outline-none"
+        className="cursor-pointer appearance-none bg-transparent py-0.5 pr-1 outline-none"
         onChange={(event) => changeLocale(event.currentTarget.value)}
         value={locale}
       >

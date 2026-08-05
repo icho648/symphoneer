@@ -162,24 +162,19 @@ export function TaskBoard({
       snapshot={snapshot}
     >
       <section
-        className="min-w-0 px-[38px] pb-20 pt-[38px] max-[1100px]:px-6 max-[700px]:px-3.5 max-[700px]:pb-[50px] max-[700px]:pt-[26px]"
+        className="min-w-0 px-4 pb-8 pt-4 max-[700px]:px-3 max-[700px]:pb-6"
         id="task-board"
         aria-labelledby="board-title"
       >
-        <div className="mb-[30px] flex items-center justify-between gap-6 max-[700px]:flex-col max-[700px]:items-start">
+        <div className="mb-3 flex items-end justify-between gap-4 max-[700px]:flex-col max-[700px]:items-start">
           <div>
-            <p className="mb-[9px] font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
-              {dictionary.board.eyebrow}
-            </p>
-            <h1
-              className="mb-0 max-w-[560px] font-display text-[clamp(28px,4vw,48px)] font-semibold leading-[1.05] tracking-[-0.045em]"
-              id="board-title"
-            >
+            <p className="mb-0.5 text-[11px] font-medium text-faint">{dictionary.board.eyebrow}</p>
+            <h1 className="mb-0 text-[22px] font-semibold tracking-[-0.03em]" id="board-title">
               {dictionary.board.title}
             </h1>
           </div>
           <span
-            className="max-w-60 text-right font-mono text-[11px] leading-relaxed text-muted max-[700px]:max-w-none max-[700px]:text-left"
+            className="max-w-72 truncate rounded-full bg-panel px-2.5 py-1 text-[11px] text-muted shadow-[0_0_0_0.5px_var(--line)] max-[700px]:max-w-none"
             aria-live="polite"
           >
             {notice}

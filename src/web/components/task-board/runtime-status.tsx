@@ -14,22 +14,22 @@ export function RuntimeStatus({
   const running = health?.process.status === "running";
   return (
     <section
-      className="mt-7 border border-line bg-page/45 p-3.5 max-[700px]:mt-0 max-[700px]:min-w-0 max-[700px]:flex-1"
+      className="mt-3 rounded-[10px] border border-line bg-panel/70 p-3 max-[700px]:mt-2"
       aria-label={dictionary.runtime.process}
       aria-live="polite"
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-faint">
           {dictionary.runtime.process}
         </span>
         <span
-          className={`font-mono text-[10px] uppercase ${running ? "text-signal" : "text-danger"}`}
+          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${running ? "bg-success/15 text-success" : "bg-danger/15 text-danger"}`}
         >
           {running ? dictionary.runtime.running : dictionary.runtime.offline}
         </span>
       </div>
       {health ? (
-        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] text-muted">
+        <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 text-[11px] text-muted">
           <div>
             <dt className="text-faint">{dictionary.runtime.pid}</dt>
             <dd className="font-mono text-ink">{health.process.pid}</dd>
@@ -48,7 +48,7 @@ export function RuntimeStatus({
           </div>
         </dl>
       ) : (
-        <p className="mt-2 text-[10px] leading-relaxed text-muted">
+        <p className="mt-2 text-[11px] leading-relaxed text-muted">
           {dictionary.runtime.unreachable}
         </p>
       )}

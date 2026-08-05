@@ -23,6 +23,10 @@ export async function generateMetadata({
       template: "%s · Symphoneer",
     },
     description: dictionary.metadata.description,
+    icons: {
+      icon: [{ url: "/brand/symphoneer-icon.png", type: "image/png" }],
+      apple: [{ url: "/brand/symphoneer-icon.png" }],
+    },
   };
 }
 

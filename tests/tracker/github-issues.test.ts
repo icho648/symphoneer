@@ -31,12 +31,12 @@ test("GitHub adapter preserves native identity and applies the exact dispatch ga
     }) as typeof fetch,
   });
 
-  const snapshot = await adapter.getIssue(14);
+  const snapshot = await adapter.getTask("14");
   assert.equal(snapshot.task.id, "github:icho648/symphoneer:2345678");
   assert.equal(snapshot.task.source.nativeId, "2345678");
   assert.equal(snapshot.task.source.url, issue.html_url);
   assert.equal(snapshot.task.dispatchable, true);
-  assert.equal(snapshot.etag, '"issue-v2"');
+  assert.equal(snapshot.versionToken, '"issue-v2"');
   assert.deepEqual(requests, [
     {
       url: "https://api.github.com/repos/icho648/symphoneer/issues/14",
@@ -54,7 +54,7 @@ test("GitHub adapter preserves native identity and applies the exact dispatch ga
       token: "token",
       fetch: (async () => response(payload)) as typeof fetch,
     });
-    assert.equal((await gated.getIssue(14)).task.dispatchable, false);
+    assert.equal((await gated.getTask("14")).task.dispatchable, false);
   }
 });
 
@@ -65,7 +65,7 @@ test("GitHub adapter makes conflicts and boundary failures explicit without resp
     fetch: (async () => response(issue)) as typeof fetch,
   });
   await assert.rejects(
-    changed.getIssue(14, { expectedUpdatedAt: "2026-08-02T12:00:00Z" }),
+    changed.getTask("14", { expectedUpdatedAt: "2026-08-02T12:00:00Z" }),
     (error) => error instanceof GitHubAdapterError && error.code === "tracker_conflict",
   );
 
@@ -75,7 +75,7 @@ test("GitHub adapter makes conflicts and boundary failures explicit without resp
     fetch: (async () => response({ secret: "must-not-leak" }, 403)) as typeof fetch,
   });
   await assert.rejects(
-    denied.getIssue(14),
+    denied.getTask("14"),
     (error) =>
       error instanceof GitHubAdapterError &&
       error.code === "not_authorized" &&
@@ -93,7 +93,7 @@ test("GitHub adapter makes conflicts and boundary failures explicit without resp
       fetch: (async () => response({}, status, headers)) as typeof fetch,
     });
     await assert.rejects(
-      rateLimited.getIssue(14),
+      rateLimited.getTask("14"),
       (error) =>
         error instanceof GitHubAdapterError && error.code === "rate_limited" && error.retryable,
     );
@@ -106,7 +106,7 @@ test("GitHub adapter makes conflicts and boundary failures explicit without resp
       response({ message: "You have exceeded a secondary rate limit." }, 403)) as typeof fetch,
   });
   await assert.rejects(
-    secondaryRateLimited.getIssue(14),
+    secondaryRateLimited.getTask("14"),
     (error) =>
       error instanceof GitHubAdapterError && error.code === "rate_limited" && error.retryable,
   );
@@ -121,7 +121,7 @@ test("GitHub adapter makes conflicts and boundary failures explicit without resp
       fetch: (async () => response(malformed)) as typeof fetch,
     });
     await assert.rejects(
-      invalid.getIssue(14),
+      invalid.getTask("14"),
       (error) => error instanceof GitHubAdapterError && error.code === "invalid_response",
     );
   }

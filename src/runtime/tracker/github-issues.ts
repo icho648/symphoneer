@@ -4,29 +4,17 @@ import {
   TaskSummarySchema,
 } from "@symphoneer/contracts";
 
-export class GitHubAdapterError extends Error {
-  readonly code:
-    | "invalid_response"
-    | "network_error"
-    | "not_authorized"
-    | "not_found"
-    | "rate_limited"
-    | "tracker_conflict"
-    | "unavailable";
-  readonly retryable: boolean;
+import { type TaskSnapshot, type Tracker, TrackerError } from "./tracker.ts";
 
-  constructor(code: GitHubAdapterError["code"], retryable: boolean, message: string) {
-    super(message);
+export class GitHubAdapterError extends TrackerError {
+  constructor(code: TrackerError["code"], retryable: boolean, message: string) {
+    super(code, retryable, message);
     this.name = "GitHubAdapterError";
-    this.code = code;
-    this.retryable = retryable;
   }
 }
 
-export interface GitHubIssueSnapshot {
-  task: TaskSummary;
-  etag: string | null;
-}
+/** @deprecated Prefer TaskSnapshot; kept as a GitHub-facing alias. */
+export type GitHubIssueSnapshot = TaskSnapshot;
 
 interface GitHubIssuePayload {
   id: number;
@@ -64,7 +52,7 @@ function parseIssuePayload(value: unknown): GitHubIssuePayload {
 const invalidResponse = () =>
   new GitHubAdapterError("invalid_response", false, "GitHub returned an invalid Issue payload");
 
-export class GitHubIssuesAdapter {
+export class GitHubIssuesAdapter implements Tracker {
   readonly #repository: string;
   readonly #token: string;
   readonly #fetch: typeof fetch;
@@ -85,11 +73,27 @@ export class GitHubIssuesAdapter {
     this.#fetch = options.fetch ?? fetch;
   }
 
+  async getTask(
+    nativeId: string,
+    options: { expectedUpdatedAt?: string; signal?: AbortSignal } = {},
+  ): Promise<TaskSnapshot> {
+    if (!/^[1-9]\d*$/.test(nativeId)) throw invalidResponse();
+    return this.#readIssue(Number(nativeId), options);
+  }
+
+  /** @deprecated Prefer getTask(String(issueNumber)). */
   async getIssue(
     issueNumber: number,
     options: { expectedUpdatedAt?: string; signal?: AbortSignal } = {},
-  ): Promise<GitHubIssueSnapshot> {
+  ): Promise<TaskSnapshot> {
     if (!Number.isInteger(issueNumber) || issueNumber <= 0) throw invalidResponse();
+    return this.#readIssue(issueNumber, options);
+  }
+
+  async #readIssue(
+    issueNumber: number,
+    options: { expectedUpdatedAt?: string; signal?: AbortSignal },
+  ): Promise<TaskSnapshot> {
     let response: Response;
     try {
       response = await this.#fetch(
@@ -158,7 +162,7 @@ export class GitHubIssuesAdapter {
     } catch {
       throw invalidResponse();
     }
-    return { task, etag: response.headers.get("etag") };
+    return { task, versionToken: response.headers.get("etag") };
   }
 
   async #httpError(response: Response): Promise<GitHubAdapterError> {

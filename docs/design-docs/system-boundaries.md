@@ -82,6 +82,19 @@ RunHandle
 - 不预建 Provider factory、通用事件全集或 capability 注册表。第二个生产 Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
 - 工具权限或白名单不能冒充文件系统、网络 sandbox 或宿主审批。每个生产 Adapter 未来必须通过共享契约测试和一条真实 Smoke；Fake 只验证本项目逻辑。
 
+## Tracker Seam
+
+Scheduler 与投影调用方只依赖一个小的 Tracker Interface；V1 的真实 Adapter 是 GitHub Issues，测试使用 Fake：
+
+```text
+getTask(nativeId, options?) → TaskSnapshot{ task, versionToken }
+```
+
+- `Task` 权威仍在 Tracker；Symphoneer 只按原生身份投影、筛选和对账，不创建第二套 Task 真相。
+- GitHub Adapter 把 Issue 收成 `TaskSummary`，并把 ETag 等并发标记收成不透明的 `versionToken`。
+- 不预建 Tracker factory 或通用字段全集。第二个生产 Tracker Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
+- Fake 只验证本项目对 Tracker 端口的依赖；真实 GitHub 兼容性仍由匹配 Smoke 证明。
+
 ## Workspace、Worktree 和 Thread
 
 - `Workspace` 是执行资源：至少包含实际路径、仓库、分支、宿主机和所有权。

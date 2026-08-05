@@ -28,6 +28,7 @@ src/
       index.ts               Executor 公开入口
       codex-app-server/      Codex v2 JSONL transport 与执行者实现
     tracker/                 Tracker 边界和具体 Tracker 实现
+      tracker.ts             Tracker Interface
       github-issues.ts       GitHub Issue 读取、原生身份和 dispatch gate
       index.ts               Tracker 公开入口
     workspace/                Workspace 引用、生命周期和 Git 实现

@@ -23,97 +23,116 @@ export function BoardChrome({
   locale: Locale;
   snapshot: RuntimeSnapshot | null;
 }) {
+  const online = connection === "online";
+
   return (
-    <>
-      <header className="sticky top-0 z-10 flex min-h-[74px] items-center justify-between border-b border-line bg-page/85 px-[34px] backdrop-blur-xl max-[700px]:px-[18px]">
-        <div className="flex items-center gap-3 tracking-[-0.02em]">
-          <span className="grid size-8 place-items-center bg-signal font-mono text-[15px] font-extrabold leading-none text-page">
-            S/
-          </span>
-          <span>
-            <strong className="block text-[15px]">{dictionary.brand.name}</strong>
-            <small className="mt-0.5 block font-mono text-[10px] uppercase leading-tight tracking-[0.12em] text-muted">
+    <div className="app-shell mx-auto flex min-h-[calc(100vh-28px)] w-[min(1280px,calc(100%-28px))] flex-col overflow-hidden border border-line-strong bg-window max-[700px]:mx-0 max-[700px]:min-h-screen max-[700px]:w-full max-[700px]:rounded-none max-[700px]:border-0">
+      <header className="flex min-h-[52px] shrink-0 items-center justify-between gap-3 border-b border-line bg-toolbar px-4 backdrop-blur-2xl max-[700px]:px-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <img
+            alt=""
+            aria-hidden="true"
+            className="size-7 rounded-[7px] shadow-[0_0_0_0.5px_var(--line)]"
+            height={28}
+            src="/brand/symphoneer-icon.png"
+            width={28}
+          />
+          <div className="min-w-0">
+            <strong className="block truncate text-[13px] font-semibold tracking-[-0.01em]">
+              {dictionary.brand.name}
+            </strong>
+            <small className="block truncate text-[11px] text-muted">
               {dictionary.brand.strapline}
             </small>
-          </span>
+          </div>
         </div>
-        <div className="flex items-center gap-[18px] max-[700px]:gap-2">
+
+        <div className="flex shrink-0 items-center gap-2">
           <LocaleSwitcher dictionary={dictionary} locale={locale} />
           <ThemeSwitcher labels={dictionary.controls} />
           <span
-            className={`flex items-center gap-2 font-mono text-xs uppercase tracking-[0.06em] max-[700px]:text-[0px] ${connection === "online" ? "text-signal" : "text-muted"}`}
+            className={`hidden items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-medium sm:inline-flex ${online ? "bg-success/15 text-success" : "bg-danger/15 text-danger"}`}
             role="status"
           >
             <span
-              className={`size-[7px] rounded-full shadow-[0_0_0_4px] ${connection === "online" ? "bg-signal shadow-signal/10" : "bg-danger shadow-danger/10"}`}
+              className={`size-1.5 rounded-full ${online ? "bg-success" : "bg-danger"}`}
               aria-hidden="true"
             />
             {dictionary.runtime.label}{" "}
-            {connection === "online" ? dictionary.runtime.online : dictionary.runtime.offline}
+            {online ? dictionary.runtime.online : dictionary.runtime.offline}
           </span>
-          <button
-            className="cursor-pointer border border-line bg-transparent px-3 py-2 text-xs text-muted transition hover:border-signal hover:bg-signal/10"
-            type="button"
-            onClick={() => window.location.reload()}
-          >
+          <button className="macos-btn" type="button" onClick={() => window.location.reload()}>
             {dictionary.runtime.reconnect}
           </button>
         </div>
       </header>
 
-      <div className="grid min-h-[calc(100vh-74px)] grid-cols-[206px_minmax(0,1fr)] max-[1100px]:grid-cols-[166px_minmax(0,1fr)] max-[700px]:block">
+      <div className="grid min-h-0 flex-1 grid-cols-[220px_minmax(0,1fr)] max-[1100px]:grid-cols-[188px_minmax(0,1fr)] max-[700px]:grid-cols-1">
         <aside
-          className="flex flex-col border-r border-line px-[18px] py-[34px] max-[700px]:flex-row max-[700px]:items-center max-[700px]:gap-3 max-[700px]:border-b max-[700px]:border-r-0 max-[700px]:px-[18px] max-[700px]:py-3"
+          className="flex flex-col border-r border-line bg-sidebar px-2.5 py-3 backdrop-blur-2xl max-[700px]:border-b max-[700px]:border-r-0"
           aria-label={dictionary.navigation.label}
         >
-          <div className="px-3 pb-3 font-mono text-[10px] uppercase tracking-[0.16em] text-faint max-[700px]:hidden">
+          <div className="px-2.5 pb-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-faint max-[700px]:hidden">
             {dictionary.navigation.localControlPlane}
           </div>
-          <nav className="grid gap-1 max-[700px]:flex max-[700px]:gap-1">
-            <a
-              className="flex w-full items-center gap-[11px] bg-panel px-3 py-3 text-[13px] text-ink shadow-[inset_2px_0_0_0_var(--signal)] max-[700px]:py-2.5"
-              href="#task-board"
-            >
-              <span className="w-3.5 text-center text-faint" aria-hidden="true">
-                ▦
-              </span>{" "}
-              {dictionary.navigation.tasks}
-              <span className="ml-auto font-mono text-[11px] text-faint">
+          <nav className="grid gap-0.5 max-[700px]:grid-flow-col max-[700px]:auto-cols-fr">
+            <a className="macos-nav-item" href="#task-board" aria-current="page">
+              <SidebarGlyph name="tasks" />
+              <span className="truncate">{dictionary.navigation.tasks}</span>
+              <span className="macos-nav-meta ml-auto font-mono text-[11px] text-faint">
                 {snapshot?.tasks.length ?? 0}
               </span>
             </a>
-            <a
-              className="flex w-full items-center gap-[11px] px-3 py-3 text-[13px] text-muted transition hover:bg-panel hover:text-ink max-[700px]:py-2.5"
-              href="#selected-task"
-            >
-              <span className="w-3.5 text-center text-faint" aria-hidden="true">
-                ◌
-              </span>{" "}
-              {dictionary.navigation.activity}
+            <a className="macos-nav-item" href="#selected-task">
+              <SidebarGlyph name="activity" />
+              <span className="truncate">{dictionary.navigation.activity}</span>
             </a>
-            <a
-              className="flex w-full items-center gap-[11px] px-3 py-3 text-[13px] text-muted transition hover:bg-panel hover:text-ink max-[700px]:py-2.5"
-              href="#verification"
-            >
-              <span className="w-3.5 text-center text-faint" aria-hidden="true">
-                ✓
-              </span>{" "}
-              {dictionary.navigation.evidence}
+            <a className="macos-nav-item" href="#verification">
+              <SidebarGlyph name="evidence" />
+              <span className="truncate">{dictionary.navigation.evidence}</span>
             </a>
           </nav>
+
           <RuntimeStatus dictionary={dictionary} health={health} locale={locale} />
-          <div className="mt-auto grid gap-[7px] px-3 py-3.5 text-[11px] text-muted max-[700px]:hidden">
-            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-faint">
+
+          <div className="mt-auto hidden gap-1 px-2.5 py-2 text-[11px] text-muted min-[701px]:grid">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.04em] text-faint">
               {dictionary.navigation.projection}
             </div>
-            <code className="text-signal">v{snapshot?.projectionVersion ?? 1}</code>
+            <code className="font-mono text-[11px] text-signal">
+              v{snapshot?.projectionVersion ?? 1}
+            </code>
             <span>
               {dictionary.navigation.events} {snapshot?.runtime.lastEventSequence ?? 0}
             </span>
           </div>
         </aside>
-        {children}
+
+        <div className="min-w-0 overflow-auto bg-window">{children}</div>
       </div>
-    </>
+    </div>
+  );
+}
+
+function SidebarGlyph({ name }: { name: "tasks" | "activity" | "evidence" }) {
+  const paths = {
+    tasks: "M4 6h16M4 12h16M4 18h10",
+    activity: "M12 5v14M5 12h14",
+    evidence: "M5 12.5l4 4 10-10",
+  } as const;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-3.5 shrink-0 opacity-80"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <path d={paths[name]} />
+    </svg>
   );
 }
