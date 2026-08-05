@@ -47,7 +47,8 @@
 
 ## Cursor Cloud specific instructions
 
-- 本仓库当前是纯库型 pnpm monorepo（`packages/*` + `tests/`），没有可运行的服务、CLI 或 Web 进程（见 `ARCHITECTURE.md`：无 `apps/runtime`、`apps/web`）。“端到端”验证等价于运行 `pnpm check`（Biome format+lint、`tsc --noEmit`、`scripts/check-project.mjs`、`node --test`）。命令定义见 `package.json` 的 `scripts`，不要在此重复。
-- 必须使用 Node >=24（`package.json` engines）。`node --test` 直接执行 `.ts` 测试文件，依赖 Node 24 的原生 TS type-stripping；用 Node 22 运行会以 `ERR_TEST_FAILURE` 失败。pnpm 通过 corepack 提供（`pnpm@11.15.1`）。
-- 本环境已把 Node 24 设为默认：`/usr/local/cargo/bin` 中放了指向 nvm v24 的 `node`/`npx` symlink（排在系统自带的 `/exec-daemon/node` v22 之前），并在 `~/.bashrc` 中把 nvm default 的 bin 前置。因此普通（非登录）shell 里 `node` 也应是 v24；若某个 shell 里 `node --version` 意外是 v22，先执行 `nvm use default` 或直接用 `/home/ubuntu/.nvm/versions/node/v24.19.0/bin/node`。
-- `scripts/check-project.mjs` 会强制：所有 `*.test.ts`/`*.spec.ts` 必须位于 `tests/` 下；Markdown 本地链接必须有效；`docs/**` 叶子文档必须被最近的 `AGENTS.md` 索引；`docs/plans/active/*.md` 必须包含固定 12 个 ExecPlan 小节。改动文档或计划后 `pnpm check` 可能因此失败，属预期约束而非环境问题。
+- 仓库为单一 pnpm 工作区，源码在 `src/*`（`link:` workspace：`contracts`、`runtime`、`runtime-client`、`cli`、`web`），测试在 `tests/`。可运行组件有两个：Runtime（`src/cli/runtime.ts`，HTTP 服务，默认 `127.0.0.1:4318`）与 Web（Next.js，`src/web`，默认 `127.0.0.1:3000`）。命令一律以 `package.json` 的 `scripts` 为准，不在此重复。
+- 本地起服务：`pnpm dev` 会同时拉起 Runtime（`runtime:serve`）与 Web（`web:dev`）；也可分别用 `pnpm runtime:serve`（需 `SYMPHONEER_DATA_DIR`，`pnpm dev` 会自动设为临时目录）和 `pnpm web:dev`。健康检查 `GET /healthz`（Runtime）与 `GET /api/runtime/health`（Web 代理）；CLI 查询 `pnpm runtime:cli snapshot|events|attempt <id>`。常用环境变量：`SYMPHONEER_RUNTIME_HOST/PORT`、`SYMPHONEER_WEB_HOST/PORT`、`SYMPHONEER_RUNTIME_URL`、`SYMPHONEER_DATA_DIR`。
+- Node 版本：`package.json` engines 为 `>=22.18.0`，`.nvmrc` 固定 `22.18`。`node --test` 直接执行 `.ts`、`import.meta.main`、`Promise.withResolvers` 均要求 Node ≥22.18；系统自带的 `/exec-daemon/node` 是 v22.14（过旧，测试会 `ERR_TEST_FAILURE`）。pnpm 由 corepack 提供（`pnpm@11.15.1`）。
+- 本环境已按 `.nvmrc` 把 Node 22.18 设为默认：`/usr/local/cargo/bin` 放了指向 nvm v22.18 的 `node`/`npx` symlink（排在 `/exec-daemon` 之前），并在 `~/.bashrc` 前置 nvm default 的 bin。因此普通（非登录）shell 里 `node --version` 也应是 v22.18；若意外是 v22.14，执行 `nvm use default` 或直接用 `$(nvm which default)`。
+- `pnpm check` 依次运行 Biome、`tsc --noEmit`、`scripts/check-project.mjs`、`node --test`、以及 `check:web`（`next build src/web`，较重、需下载/编译）。`check-project.mjs` 会强制：`*.test.ts`/`*.spec.ts` 必须位于 `tests/` 下；Markdown 本地链接有效；`docs/**` 叶子文档被最近的 `AGENTS.md` 索引；`docs/plans/active/*.md` 含固定 12 个 ExecPlan 小节。此类失败属预期约束，非环境问题。
