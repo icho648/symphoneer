@@ -80,6 +80,13 @@ for (const file of globSync("src/web/**/*.{ts,tsx}")) {
   }
 }
 
+for (const file of globSync("src/mcp/**/*.ts")) {
+  const source = readFileSync(file, "utf8");
+  if (/from ["']@symphoneer\/runtime["']/.test(source)) {
+    failures.push(`${file}: MCP must reach the Runtime through loopback HTTP`);
+  }
+}
+
 const architecture = readFileSync("ARCHITECTURE.md", "utf8");
 const codemapMatch = architecture.match(/## 当前结构\n\n```text\n([\s\S]*?)```/);
 if (!codemapMatch) {

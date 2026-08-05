@@ -14,6 +14,7 @@ Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作
 - Executor：[`src/runtime/executor/index.ts`](src/runtime/executor/index.ts)
 - Tracker：[`src/runtime/tracker/index.ts`](src/runtime/tracker/index.ts)
 - Verification：[`src/runtime/verification/index.ts`](src/runtime/verification/index.ts)
+- MCP（STDIO 查询与受控操作）：[`src/mcp/index.ts`](src/mcp/index.ts)（`pnpm mcp:serve`）
 - 确定性测试：[`tests/`](tests/)
 - 全量检查：`pnpm check`
 

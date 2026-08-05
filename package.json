@@ -16,13 +16,16 @@
     "dev": "node scripts/dev.ts",
     "runtime:cli": "node src/cli/runtime.ts",
     "runtime:serve": "node src/cli/runtime.ts serve",
+    "mcp:serve": "node src/cli/mcp.ts",
     "web:build": "next build src/web",
     "web:dev": "WATCHPACK_POLLING=true next dev src/web",
     "web:start": "next start src/web",
     "test": "node --test"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@symphoneer/contracts": "link:src/contracts",
+    "@symphoneer/mcp": "link:src/mcp",
     "@symphoneer/runtime": "link:src/runtime",
     "@symphoneer/runtime-client": "link:src/runtime-client",
     "liquidjs": "10.28.0",
