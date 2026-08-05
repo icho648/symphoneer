@@ -265,7 +265,11 @@ export class RuntimeService {
         ) {
           throw new RuntimeError("conflict", "Attempt changed before this command was read");
         }
-        if (attempt.finishedAt !== undefined && attempt.finishedAt !== null) {
+        if (
+          command.kind !== "retry_attempt" &&
+          attempt.finishedAt !== undefined &&
+          attempt.finishedAt !== null
+        ) {
           throw new RuntimeError("conflict", "Terminal Attempts cannot receive this command");
         }
         stored = await this.#commitEvent({

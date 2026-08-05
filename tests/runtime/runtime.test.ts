@@ -181,6 +181,42 @@ test("Runtime commands serialize optimistic concurrency for the same snapshot", 
   );
 });
 
+test("Runtime accepts retry on finished Attempts but rejects pause", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:retry-finished");
+  await service.start();
+  await service.recordTask(task);
+  const finishedAttempt: AttemptSnapshot = {
+    ...attempt,
+    status: "failed",
+    finishedAt: "2026-08-04T08:02:00.000Z",
+    updatedAt: "2026-08-04T08:02:00.000Z",
+  };
+  await service.recordAttempt(finishedAttempt, { workspace });
+  const expectedEventSequence = service.snapshot().runtime.lastEventSequence;
+
+  await assert.rejects(
+    service.execute({
+      kind: "pause_attempt",
+      idempotencyKey: "pause-finished",
+      expectedEventSequence,
+      expectedAttemptUpdatedAt: finishedAttempt.updatedAt,
+      attemptId: finishedAttempt.id,
+    }),
+    (error) => error instanceof RuntimeError && error.code === "conflict",
+  );
+
+  const retried = await service.execute({
+    kind: "retry_attempt",
+    idempotencyKey: "retry-finished",
+    expectedEventSequence,
+    expectedAttemptUpdatedAt: finishedAttempt.updatedAt,
+    attemptId: finishedAttempt.id,
+  });
+  assert.equal(retried.accepted, true);
+  assert.equal(retried.snapshot.runtime.lastEventSequence, expectedEventSequence + 1);
+});
+
 test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loopback", async (t) => {
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:http");
