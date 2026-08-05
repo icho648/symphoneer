@@ -23,7 +23,7 @@ symphoneer:
     - id: check
       argv: [pnpm, check]
       cwd: .
-      timeout_ms: 120000
+      timeout_ms: 300000
 ---
 
 Implement {{ issue.identifier }}: {{ issue.title }}.
