@@ -3,7 +3,7 @@ import { URL } from "node:url";
 
 import { ApiErrorSchema, CONTRACT_SCHEMA_VERSION } from "@symphoneer/contracts";
 import { RuntimeError } from "./errors.ts";
-import type { RuntimeService } from "./service.ts";
+import type { RuntimeService } from "./service/index.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
 

@@ -11,6 +11,9 @@
 AGENTS.md                    仓库级 Agent 导航和工作规则
 README.md                    人类入口与当前阶段
 ARCHITECTURE.md              当前物理结构和依赖
+.nvmrc                       本地与 CI 共用的 Node 版本下界
+.github/
+  workflows/check.yml        Pull Request / main 上的 `pnpm check` CI
 .symphoneer/
   WORKFLOW.md                进入 Git 的 repository-owned 配置与 Prompt
 package.json                 根依赖安装、共享工具和运行编排
@@ -43,7 +46,13 @@ src/
     workflow/                 WORKFLOW.md Schema、解析、路径和 Prompt
     storage.ts                append-only JSONL 与 immutable artifact store
     projection.ts             可重放的 Runtime 查询投影
-    service.ts                Runtime 写入、幂等控制和命令边界
+    service/                  Runtime 写入、幂等窗口、EventLog 与命令边界
+      index.ts                RuntimeService 公开入口
+      event-log.ts            append-only 重放、幂等与投影驱动
+      helpers.ts              Attempt / Workspace / command 纯辅助
+      recording.ts            Domain Event 记录 API
+      commands.ts             受控命令形状校验与并发前置条件
+      runtime-service.ts      RuntimeService 编排入口
     http.ts                   loopback HTTP / SSE API
     protocol.ts               Runtime API 形状（`@symphoneer/runtime/protocol`）
     index.ts                  Runtime 内部公开入口
@@ -59,22 +68,21 @@ src/
     components/               Web 语言与主题控件
     i18n/                     Web 内部 locale、字典和纯函数
     lib/                      loopback Runtime 与 Intl 格式化边界
-    globals.css               Tailwind CSS v4 语义主题 token 与可访问性基础样式
+    app/globals.css           Tailwind CSS v4 语义主题 token 与可访问性基础样式
 scripts/
-  check-project.mjs          链接、Agent 导航、Plan、测试位置和 Runtime / Web 边界检查
-  dev.mjs                    Runtime 与 Web 的前台 launcher（`pnpm dev`）
-  dev.d.mts                  launcher 的手写类型声明
+  check-project.mjs          链接、Agent 导航、Plan、测试位置、依赖与 Codemap 路径检查
+  dev.ts                     Runtime 与 Web 的产品级前台 launcher（`pnpm dev`，纳入 tsc）
 tests/
+  contracts/                 共享 Schema 与 Agent Runner / Tracker contract
+  scheduler/                 Scheduler 可观察行为（dispatch、eligibility、retry…）
+  workspace/                 Workspace 生命周期、引用、安全与 Git worktree
+  workflow/                  WORKFLOW.md 解析与 Prompt
   executor/                  Codex 执行者 contract / failure checks
   tracker/                   GitHub Tracker contract / failure checks
-  workspace/                 Git worktree contract / failure checks
   verification/              Verification contract / failure checks
-  contracts/                 共享 Schema 与 Agent Runner contract
-  core/                      scheduler、workflow、workspace 核心行为
-  integration/               Fake Runner 到 Core Attempt 的确定性流程
   runtime/                   JSONL 重放、artifact、Runtime 命令、HTTP / SSE
-  i18n/                      Web locale 与字典检查
-  web/                       Web 纯函数和开发启动检查
+  web/                       Web 纯函数、i18n 与 launcher 健康检查
+  integration/               Fake Runner 到 Core Attempt 的确定性跨边界流程
   fixtures/                  测试专用 Fake；不是 Provider 证据
 docs/
   AGENTS.md                  文档总路由和事实源归属
@@ -85,7 +93,7 @@ docs/
   plans/active/              当前 V1 执行计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web 各有进程边界 manifest，`src/contracts`、`src/runtime` 和 `src/runtime-client` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime` 和 `@symphoneer/runtime-client`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。没有数据库、队列、CI、部署配置或生成流水线。Runtime 持久化使用 Host 注入的数据目录，Web 通过 loopback HTTP / SSE 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web 各有进程边界 manifest，`src/contracts`、`src/runtime` 和 `src/runtime-client` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime` 和 `@symphoneer/runtime-client`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`（超时按完整 `pnpm check` ≈82s 量级设为 15 分钟）；没有数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟），相对实测完整检查约 82s 保留约 3.5× 余量，避免慢机器或冷缓存把超时误报为检查失败。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 Next.js / React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录，Web 通过 loopback HTTP / SSE 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
 
 ## 当前代码依赖
 

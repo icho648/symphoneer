@@ -24,7 +24,7 @@ CLI ─────────────────→ Runtime
 
 本文后续的 Runtime 指 Symphoneer Runtime 进程；`src/runtime` 是其中遵循固定 Symphony SPEC 的核心 Module。
 
-- Runtime 是由 launcher 持有生命周期的长期前台进程：输出 stdout / stderr，不自行 daemonize，不创建 PID 文件或后台 `start / stop / status` 系统。
+- Runtime 是由 launcher（`scripts/dev.ts` / `pnpm dev`）持有生命周期的长期前台进程：输出 stdout / stderr，不自行 daemonize，不创建 PID 文件或后台 `start / stop / status` 系统。launcher 是产品级 Host 入口，纳入根 TypeScript 检查，而不是未被类型覆盖的旁路脚本。
 - `pnpm dev` 发现目标地址已有健康 Runtime 时，将其视为外部管理进程并复用；launcher 退出时只停止自己启动的 Runtime 和 Web 子进程。显式设置 `SYMPHONEER_DATA_DIR` 时不复用未知数据目录的现有 Runtime。
 - Runtime 与 Next.js 分进程运行，不使用 [Next.js custom server](https://nextjs.org/docs/app/guides/custom-server)。关闭浏览器或重启 Web 不改变 Attempt；明确退出父 launcher 时才向两个子进程转发停止信号。
 - CLI 和 Web 都是 Runtime 的客户端，不复制 Scheduler 或业务状态机。loopback HTTP / SSE 的鉴权、端口发现和断线恢复仍待实现验证。

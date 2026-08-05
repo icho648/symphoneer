@@ -18,8 +18,8 @@ export type {
   RuntimeSnapshot,
 } from "./protocol.ts";
 export * from "./scheduler/index.ts";
-export type { RuntimeServiceOptions } from "./service.ts";
-export { RuntimeService } from "./service.ts";
+export type { RuntimeServiceOptions } from "./service/index.ts";
+export { RuntimeService } from "./service/index.ts";
 export { ImmutableArtifactStore, JsonlEventStore } from "./storage.ts";
 export * from "./tracker/index.ts";
 export * from "./verification/index.ts";

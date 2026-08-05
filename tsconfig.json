@@ -17,6 +17,7 @@
     "src/runtime/**/*.ts",
     "src/runtime-client/**/*.ts",
     "src/cli/**/*.ts",
+    "scripts/**/*.ts",
     "tests/**/*.ts"
   ]
 }

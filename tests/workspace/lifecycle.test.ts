@@ -8,7 +8,7 @@ import {
   type WorkspaceDriver,
   WorkspaceError,
   WorkspaceManager,
-} from "../../../src/runtime/workspace/index.ts";
+} from "../../src/runtime/workspace/index.ts";
 
 test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministically", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-"));

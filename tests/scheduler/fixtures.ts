@@ -3,8 +3,8 @@ import {
   type TaskSummary,
   type WorkspaceReference,
 } from "@symphoneer/contracts";
-import type { CoreScheduler } from "../../../src/runtime/scheduler/index.ts";
-import { createWorkspaceReference } from "../../../src/runtime/workspace/index.ts";
+import type { CoreScheduler } from "../../src/runtime/scheduler/index.ts";
+import { createWorkspaceReference } from "../../src/runtime/workspace/index.ts";
 
 export function task(id: string, state = "open"): TaskSummary {
   return {
