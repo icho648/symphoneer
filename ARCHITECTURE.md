@@ -86,7 +86,7 @@ src/
     app/globals.css           Tailwind CSS v4 语义主题 token 与可访问性基础样式
 scripts/
   check-project.mjs          链接、Agent 导航、Plan、测试位置、依赖与 Codemap 路径检查
-  dev.ts                     Runtime 与 Web 的产品级前台 launcher（`pnpm dev`，纳入 tsc）
+  dev.ts                     Runtime 与 Web 的产品级前台 launcher（`pnpm up` / `pnpm dev`，纳入 tsc）
 tests/
   contracts/                 共享 Schema 与 Agent Runner / Tracker contract
   scheduler/                 Scheduler 可观察行为（dispatch、eligibility、retry…）
