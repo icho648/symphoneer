@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
-import { evaluateEligibility } from "../../../src/runtime/scheduler/index.ts";
+import { evaluateEligibility } from "../../src/runtime/scheduler/index.ts";
 
 const baseTask: TaskSummary = {
   schemaVersion: CONTRACT_SCHEMA_VERSION,

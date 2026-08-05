@@ -63,7 +63,7 @@ class CompletingCodexTransport implements CodexTransport {
 }
 
 async function repositoryFixture(t: TestContext) {
-  const base = await mkdtemp(resolve(tmpdir(), "symphoneer-issue14-boundaries-"));
+  const base = await mkdtemp(resolve(tmpdir(), "symphoneer-github-worktree-codex-verification-"));
   const repository = resolve(base, "repository");
   execFileSync("git", ["init", "-b", "main", repository]);
   execFileSync("git", ["-C", repository, "config", "user.name", "Symphoneer Test"]);
