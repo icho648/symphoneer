@@ -1,4 +1,3 @@
-export { RuntimeClient, RuntimeClientError } from "@symphoneer/runtime-client";
 export { RuntimeError } from "./errors.ts";
 export {
   type DomainEventType,

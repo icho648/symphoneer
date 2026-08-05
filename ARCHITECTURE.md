@@ -44,6 +44,7 @@ src/
     projection.ts             可重放的 Runtime 查询投影
     service.ts                Runtime 写入、幂等控制和命令边界
     http.ts                   loopback HTTP / SSE API
+    protocol.ts               Runtime API 形状（`@symphoneer/runtime/protocol`）
     index.ts                  Runtime 内部公开入口
   cli/
     package.json              CLI 进程脚本边界
@@ -58,7 +59,10 @@ src/
     i18n/                     Web 内部 locale、字典和纯函数
     lib/                      loopback Runtime 与 Intl 格式化边界
     globals.css               Tailwind CSS v4 语义主题 token 与可访问性基础样式
-scripts/check-project.mjs    链接、Agent 导航、Plan、测试位置和 Runtime 边界检查
+scripts/
+  check-project.mjs          链接、Agent 导航、Plan、测试位置和 Runtime / Web 边界检查
+  dev.mjs                    Runtime 与 Web 的前台 launcher（`pnpm dev`）
+  dev.d.mts                  launcher 的手写类型声明
 tests/
   executor/                  Codex 执行者 contract / failure checks
   tracker/                   GitHub Tracker contract / failure checks
@@ -80,7 +84,7 @@ docs/
   plans/active/              当前 V1 执行计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web 各有进程边界 manifest，跨层契约通过根 `package.json` 的 `link:src/contracts` 暴露为 `@symphoneer/contracts`，依赖仍由根统一安装，因此只有根 `node_modules`。没有数据库、队列、CI、部署配置或生成流水线。Runtime 持久化使用 Host 注入的数据目录，Web 通过 loopback HTTP / SSE 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web 各有进程边界 manifest，`src/contracts`、`src/runtime` 和 `src/runtime-client` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime` 和 `@symphoneer/runtime-client`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。没有数据库、队列、CI、部署配置或生成流水线。Runtime 持久化使用 Host 注入的数据目录，Web 通过 loopback HTTP / SSE 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。
 
 ## 当前代码依赖
 
@@ -94,7 +98,7 @@ tests ────────> src/runtime + src/cli + src/web 的可测试 Mod
 ```
 
 - `@symphoneer/contracts` 是 `src/contracts` 的本地 link；它不依赖 Web、CLI、Runtime 或具体执行者，是跨进程边界的共享 Schema。
-- `src/runtime` 不依赖 Next.js、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块。
+- `src/runtime` 不依赖 Next.js、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块，也不依赖自己的 HTTP client；`src/web` 只经 `@symphoneer/runtime-client` 访问 Runtime。两条方向由 `scripts/check-project.mjs` 检查。
 - `src/runtime/executor` 使用 Codex stdio JSONL；`src/runtime/tracker` 使用 Node 原生 `fetch`；Workspace 和 Verification 使用 Git CLI 与子进程。
 - `src/runtime` 是历史投影、调度、执行边界和受控 Runtime API 的单一运行进程；CLI 和 Web 不复制 Scheduler 或业务状态机。
 - `src/web` 是独立 Next.js 进程；浏览器请求经过 Route Handler 转发到 loopback Runtime，Task Board 只展示 Runtime 投影，Workspace 只在 Attempt detail 中展开。

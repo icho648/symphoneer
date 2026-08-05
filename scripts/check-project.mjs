@@ -68,6 +68,16 @@ for (const file of globSync("src/runtime/**/*.ts")) {
   if (/from ["'](?:next|react)(?:\/|["'])/.test(source)) {
     failures.push(`${file}: Runtime must not depend on Web modules`);
   }
+  if (/from ["']@symphoneer\/runtime-client["']/.test(source)) {
+    failures.push(`${file}: Runtime must not depend on its own HTTP client`);
+  }
+}
+
+for (const file of globSync("src/web/**/*.{ts,tsx}")) {
+  const source = readFileSync(file, "utf8");
+  if (/from ["']@symphoneer\/runtime["']/.test(source)) {
+    failures.push(`${file}: Web must reach the Runtime through loopback HTTP`);
+  }
 }
 
 if (failures.length > 0) {
