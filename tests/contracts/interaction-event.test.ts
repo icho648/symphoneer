@@ -9,7 +9,7 @@ import {
   InterventionSchema,
   PROJECTION_SCHEMA_VERSION,
   ReviewDecisionSchema,
-} from "../../packages/contracts/src/index.ts";
+} from "@symphoneer/contracts";
 
 test("human decisions and interventions have explicit authority and resolution state", () => {
   const review = ReviewDecisionSchema.parse({

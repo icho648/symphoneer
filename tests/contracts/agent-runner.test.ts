@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "../../packages/contracts/src/index.ts";
-import type { AgentRunRequest } from "../../packages/symphony-core/src/agent-runner.ts";
-import { createWorkspaceReference } from "../../packages/symphony-core/src/workspace/index.ts";
+import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
+import type { AgentRunRequest } from "../../src/runtime/executor/agent-runner.ts";
+import { createWorkspaceReference } from "../../src/runtime/workspace/index.ts";
 import { FakeAgentRunner } from "../fixtures/fake-agent-runner.ts";
 
 const task: TaskSummary = {

@@ -4,18 +4,18 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
-
+import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
 import {
   CodexAppServerAdapter,
   type CodexServerMessage,
   type CodexTransport,
+  CoreScheduler,
   GitHubIssuesAdapter,
   GitWorktreeDriver,
   type JsonRpcId,
   VerificationRunner,
-} from "../../packages/adapters/src/index.ts";
-import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "../../packages/contracts/src/index.ts";
-import { CoreScheduler, WorkspaceManager } from "../../packages/symphony-core/src/index.ts";
+  WorkspaceManager,
+} from "@symphoneer/runtime";
 
 class CompletingCodexTransport implements CodexTransport {
   readonly toolVersion = "codex-cli integration-test";
@@ -94,7 +94,7 @@ test("Issue, worktree, Codex, and independent Verification form one minimal clos
         }),
       )) as typeof fetch,
   });
-  const task = (await tracker.getIssue(14)).task;
+  const task = (await tracker.getTask("14")).task;
   const manager = new WorkspaceManager({
     root: resolve(fixture.base, "workspaces"),
     driver: new GitWorktreeDriver({

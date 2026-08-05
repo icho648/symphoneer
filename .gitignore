@@ -1,3 +1,7 @@
 node_modules/
 .pnpm-store/
 coverage/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo

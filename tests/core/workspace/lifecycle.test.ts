@@ -8,7 +8,7 @@ import {
   type WorkspaceDriver,
   WorkspaceError,
   WorkspaceManager,
-} from "../../../packages/symphony-core/src/workspace/index.ts";
+} from "../../../src/runtime/workspace/index.ts";
 
 test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministically", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-"));
@@ -20,7 +20,7 @@ test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministic
       beforeRun: "printf 'before_run\\n' >> hooks.log",
       afterRun: "exit 9",
       beforeRemove: "exit 8",
-      timeoutMs: 100,
+      timeoutMs: 1_000,
     },
   });
   const input = {

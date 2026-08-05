@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CoreError, CoreScheduler } from "../../../packages/symphony-core/src/scheduler/index.ts";
+import { CoreError, CoreScheduler } from "../../../src/runtime/scheduler/index.ts";
 import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
 
 test("pause retains the Provider session and Workspace without scheduling a retry", () => {

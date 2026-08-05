@@ -6,7 +6,7 @@ import {
   CONTRACT_SCHEMA_VERSION,
   TaskSummarySchema,
   WorkspaceReferenceSchema,
-} from "../../packages/contracts/src/index.ts";
+} from "@symphoneer/contracts";
 
 test("a Task boundary accepts the current schema version and rejects another version", () => {
   const task = {

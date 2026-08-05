@@ -63,12 +63,20 @@ for (const testFile of globSync("**/*.{test,spec}.ts", { exclude: ["node_modules
   if (!testFile.startsWith("tests/")) failures.push(`${testFile}: tests must live under tests/`);
 }
 
-const coreDependencies = Object.keys(
-  JSON.parse(readFileSync("packages/symphony-core/package.json", "utf8")).dependencies,
-);
-for (const forbidden of ["next", "@octokit/rest", "@openai/codex-sdk"]) {
-  if (coreDependencies.includes(forbidden)) {
-    failures.push(`packages/symphony-core: forbidden dependency ${forbidden}`);
+for (const file of globSync("src/runtime/**/*.ts")) {
+  const source = readFileSync(file, "utf8");
+  if (/from ["'](?:next|react)(?:\/|["'])/.test(source)) {
+    failures.push(`${file}: Runtime must not depend on Web modules`);
+  }
+  if (/from ["']@symphoneer\/runtime-client["']/.test(source)) {
+    failures.push(`${file}: Runtime must not depend on its own HTTP client`);
+  }
+}
+
+for (const file of globSync("src/web/**/*.{ts,tsx}")) {
+  const source = readFileSync(file, "utf8");
+  if (/from ["']@symphoneer\/runtime["']/.test(source)) {
+    failures.push(`${file}: Web must reach the Runtime through loopback HTTP`);
   }
 }
 

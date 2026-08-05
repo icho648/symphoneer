@@ -11,6 +11,7 @@
 | [OpenAI Symphony 的运行时边界](2026-07-30-symphony-runtime-boundaries.md) | Scheduler、Workspace、重试和非目标输入 | 支持 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md)；实现仍未验证 |
 | [Codex 编排控制面与 Symphoneer 映射](2026-08-01-Codex编排控制面与Symphoneer映射.md) | Codex 入口、会话与控制原语分析 | 原始文章不是官方规范；具体行为回到官方 Schema 和 Smoke |
 | [Anthropic 长时运行 Agent Harness](2026-08-02-anthropic-long-running-agent-harness.md) | 渐进上下文、增量任务、交接与恢复 | 支持项目 Harness；Planner、Evaluator 与多 Agent 不进入产品范围 |
+| [多语言与主题适配结构](2026-08-04-i18n-theme-structure.md) | Web 内部的 locale/message、路由和明暗主题 | 实现已落在 `src/web/i18n` 与 `src/web`；更多语言、ICU 复数和翻译流程仍未验证 |
 
 ## 局部规则
 

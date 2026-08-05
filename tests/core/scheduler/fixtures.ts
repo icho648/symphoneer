@@ -2,9 +2,9 @@ import {
   CONTRACT_SCHEMA_VERSION,
   type TaskSummary,
   type WorkspaceReference,
-} from "../../../packages/contracts/src/index.ts";
-import type { CoreScheduler } from "../../../packages/symphony-core/src/scheduler/index.ts";
-import { createWorkspaceReference } from "../../../packages/symphony-core/src/workspace/index.ts";
+} from "@symphoneer/contracts";
+import type { CoreScheduler } from "../../../src/runtime/scheduler/index.ts";
+import { createWorkspaceReference } from "../../../src/runtime/workspace/index.ts";
 
 export function task(id: string, state = "open"): TaskSummary {
   return {

@@ -5,7 +5,7 @@ import type {
   AgentRunRequest,
   InterventionResponse,
   RunHandle,
-} from "../../packages/symphony-core/src/agent-runner.ts";
+} from "../../src/runtime/executor/agent-runner.ts";
 
 export class FakeAgentRunner implements AgentRunner {
   readonly requests: AgentRunRequest[] = [];

@@ -22,9 +22,10 @@ Browser → Next.js BFF → Runtime
 CLI ─────────────────→ Runtime
 ```
 
-本文后续的 Runtime 指 Symphoneer Runtime 进程；`packages/symphony-core` 是其中遵循固定 Symphony SPEC 的核心 Module。
+本文后续的 Runtime 指 Symphoneer Runtime 进程；`src/runtime` 是其中遵循固定 Symphony SPEC 的核心 Module。
 
 - Runtime 是由 launcher 持有生命周期的长期前台进程：输出 stdout / stderr，不自行 daemonize，不创建 PID 文件或后台 `start / stop / status` 系统。
+- `pnpm dev` 发现目标地址已有健康 Runtime 时，将其视为外部管理进程并复用；launcher 退出时只停止自己启动的 Runtime 和 Web 子进程。显式设置 `SYMPHONEER_DATA_DIR` 时不复用未知数据目录的现有 Runtime。
 - Runtime 与 Next.js 分进程运行，不使用 [Next.js custom server](https://nextjs.org/docs/app/guides/custom-server)。关闭浏览器或重启 Web 不改变 Attempt；明确退出父 launcher 时才向两个子进程转发停止信号。
 - CLI 和 Web 都是 Runtime 的客户端，不复制 Scheduler 或业务状态机。loopback HTTP / SSE 的鉴权、端口发现和断线恢复仍待实现验证。
 - Electron 不是 V1 前提；未来如采用，按其[进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)由 Main 启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口通信。
@@ -80,6 +81,19 @@ RunHandle
 - `completion` 落定表示该 Turn 的 Provider 进程已经停止；超时和中断也必须等到停止后才落定，否则 Verification、保留和重试会与仍在写入的 Agent 争用同一 checkout。
 - 不预建 Provider factory、通用事件全集或 capability 注册表。第二个生产 Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
 - 工具权限或白名单不能冒充文件系统、网络 sandbox 或宿主审批。每个生产 Adapter 未来必须通过共享契约测试和一条真实 Smoke；Fake 只验证本项目逻辑。
+
+## Tracker Seam
+
+Scheduler 与投影调用方只依赖一个小的 Tracker Interface；V1 的真实 Adapter 是 GitHub Issues，测试使用 Fake：
+
+```text
+getTask(nativeId, options?) → TaskSnapshot{ task, versionToken }
+```
+
+- `Task` 权威仍在 Tracker；Symphoneer 只按原生身份投影、筛选和对账，不创建第二套 Task 真相。
+- GitHub Adapter 把 Issue 收成 `TaskSummary`，并把 ETag 等并发标记收成不透明的 `versionToken`。
+- 不预建 Tracker factory 或通用字段全集。第二个生产 Tracker Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
+- Fake 只验证本项目对 Tracker 端口的依赖；真实 GitHub 兼容性仍由匹配 Smoke 证明。
 
 ## Workspace、Worktree 和 Thread
 

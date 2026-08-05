@@ -1,0 +1,222 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --page: #d8d8dc;
+  --window: #f5f5f7;
+  --ink: #1d1d1f;
+  --muted: #6e6e73;
+  --faint: #8e8e93;
+  --panel: #ffffff;
+  --panel-raised: #f2f2f7;
+  --sidebar: rgb(236 236 240 / 82%);
+  --toolbar: rgb(246 246 248 / 78%);
+  --line: rgb(60 60 67 / 12%);
+  --line-strong: rgb(60 60 67 / 22%);
+  --signal: #007aff;
+  --signal-soft: rgb(0 122 255 / 12%);
+  --signal-fill: #007aff;
+  --amber: #ff9f0a;
+  --danger: #ff3b30;
+  --success: #34c759;
+  --selection: #0a84ff;
+  --selection-text: #ffffff;
+  --shadow-window: 0 18px 48px rgb(0 0 0 / 16%), 0 0 0 0.5px rgb(0 0 0 / 8%);
+  --radius-window: 12px;
+  --radius-control: 7px;
+  --radius-row: 8px;
+}
+
+.dark {
+  color-scheme: dark;
+  --page: #000000;
+  --window: #1c1c1e;
+  --ink: #f5f5f7;
+  --muted: #98989d;
+  --faint: #636366;
+  --panel: #2c2c2e;
+  --panel-raised: #3a3a3c;
+  --sidebar: rgb(44 44 46 / 78%);
+  --toolbar: rgb(44 44 46 / 72%);
+  --line: rgb(84 84 88 / 55%);
+  --line-strong: rgb(99 99 102 / 70%);
+  --signal: #0a84ff;
+  --signal-soft: rgb(10 132 255 / 18%);
+  --signal-fill: #0a84ff;
+  --amber: #ff9f0a;
+  --danger: #ff453a;
+  --success: #30d158;
+  --selection: #0a84ff;
+  --selection-text: #ffffff;
+  --shadow-window: 0 22px 60px rgb(0 0 0 / 55%), 0 0 0 0.5px rgb(255 255 255 / 8%);
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-window: var(--window);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-panel: var(--panel);
+  --color-panel-raised: var(--panel-raised);
+  --color-sidebar: var(--sidebar);
+  --color-toolbar: var(--toolbar);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+  --color-signal-fill: var(--signal-fill);
+  --color-amber: var(--amber);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-selection: var(--selection);
+  --color-selection-text: var(--selection-text);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica,
+    Arial, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  html {
+    @apply h-full scroll-smooth bg-page;
+  }
+
+  body {
+    @apply min-h-full min-w-[320px] bg-page font-sans text-ink antialiased;
+  }
+
+  button,
+  a,
+  select,
+  summary {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  summary:focus-visible,
+  select:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--signal) 45%, transparent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--signal) 28%, transparent);
+  }
+}
+
+@layer components {
+  .app-shell {
+    box-shadow: var(--shadow-window);
+    border-radius: var(--radius-window);
+  }
+
+  .macos-btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[7px] border border-line-strong bg-panel px-2.5 py-1.5 text-[12px] font-medium text-ink transition;
+    box-shadow:
+      0 0.5px 0 rgb(255 255 255 / 40%) inset,
+      0 1px 1px rgb(0 0 0 / 4%);
+  }
+
+  .macos-btn:hover {
+    @apply bg-panel-raised;
+  }
+
+  .macos-btn:active {
+    @apply bg-line;
+  }
+
+  .macos-btn-primary {
+    @apply border-transparent bg-signal-fill text-white;
+    box-shadow:
+      0 0.5px 0 rgb(255 255 255 / 25%) inset,
+      0 1px 1px rgb(0 0 0 / 12%);
+  }
+
+  .macos-btn-primary:hover {
+    filter: brightness(1.06);
+    background: var(--signal-fill);
+  }
+
+  .macos-btn-primary:active {
+    filter: brightness(0.94);
+  }
+
+  .macos-pill {
+    @apply inline-flex items-center rounded-full px-1.5 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.02em];
+  }
+
+  .macos-segment {
+    @apply flex items-center rounded-[7px] border border-line-strong bg-panel-raised/80 p-0.5;
+  }
+
+  .macos-segment-item {
+    @apply grid size-7 cursor-pointer place-items-center rounded-[5.5px] text-[12px] text-muted transition;
+  }
+
+  .macos-segment-item[aria-pressed="true"] {
+    @apply bg-panel text-ink;
+    box-shadow:
+      0 0.5px 0.5px rgb(0 0 0 / 12%),
+      0 0 0 0.5px rgb(0 0 0 / 4%);
+  }
+
+  .macos-nav-item {
+    @apply flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-[7px] text-[13px] font-medium text-ink transition;
+  }
+
+  .macos-nav-item:hover {
+    @apply bg-black/5;
+  }
+
+  .dark .macos-nav-item:hover {
+    @apply bg-white/8;
+  }
+
+  .macos-nav-item[aria-current="page"] {
+    @apply bg-selection text-selection-text;
+  }
+
+  .macos-nav-item[aria-current="page"] .macos-nav-meta {
+    @apply text-white/75;
+  }
+
+  .macos-task-row {
+    @apply grid w-full cursor-pointer gap-1 rounded-[8px] px-2.5 py-2 text-left transition;
+  }
+
+  .macos-task-row:hover {
+    @apply bg-black/[0.04];
+  }
+
+  .dark .macos-task-row:hover {
+    @apply bg-white/[0.06];
+  }
+
+  .macos-task-row[aria-pressed="true"] {
+    @apply bg-selection text-selection-text;
+  }
+
+  .macos-task-row[aria-pressed="true"] .macos-task-meta {
+    @apply text-white/75;
+  }
+
+  .macos-task-row[aria-pressed="true"] .macos-task-id {
+    @apply text-white;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    @apply scroll-auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+  }
+}
