@@ -31,6 +31,7 @@ export class EventLog {
   readonly #idempotency = new Map<string, RuntimeEvent>();
   #storedEvents: RuntimeEvent[] = [];
   #started = false;
+  #mutationTail: Promise<void> = Promise.resolve();
 
   constructor(options: EventLogOptions) {
     this.events = options.eventStore ?? new JsonlEventStore(options.dataDir);
@@ -91,7 +92,29 @@ export class EventLog {
     return () => this.#listeners.delete(listener);
   }
 
-  async append(input: {
+  withMutation<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.#mutationTail.then(fn, fn);
+    this.#mutationTail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
+  append(input: {
+    type: DomainEventType;
+    source: EventSource;
+    aggregate: DomainEventEnvelope["aggregate"];
+    taskId?: string;
+    attemptId?: string;
+    idempotencyKey?: string;
+    payload: unknown;
+  }): Promise<RuntimeEvent> {
+    return this.withMutation(() => this.commit(input));
+  }
+
+  /** Commit under an existing `withMutation` critical section (no nested lock). */
+  async commit(input: {
     type: DomainEventType;
     source: EventSource;
     aggregate: DomainEventEnvelope["aggregate"];

@@ -24,25 +24,27 @@ export async function executeCommand(
     throw new RuntimeError("invalid_request", "Runtime command has an invalid shape");
   }
   const command = parsed.data;
-  const previous = log.idempotent(command.idempotencyKey);
-  if (previous) {
-    if (!isCommandEvent(previous, command.kind)) {
-      throw new RuntimeError("conflict", "Idempotency key belongs to another operation");
+  return log.withMutation(async () => {
+    const previous = log.idempotent(command.idempotencyKey);
+    if (previous) {
+      if (!isCommandEvent(previous, command.kind)) {
+        throw new RuntimeError("conflict", "Idempotency key belongs to another operation");
+      }
+      return commandResult(previous.sequence, commandMessage(command), snapshot());
     }
-    return commandResult(previous.sequence, commandMessage(command), snapshot());
-  }
-  if (
-    command.expectedEventSequence !== undefined &&
-    command.expectedEventSequence !== log.lastSequence
-  ) {
-    throw new RuntimeError("conflict", "Runtime projection changed before this command was read");
-  }
+    if (
+      command.expectedEventSequence !== undefined &&
+      command.expectedEventSequence !== log.lastSequence
+    ) {
+      throw new RuntimeError("conflict", "Runtime projection changed before this command was read");
+    }
 
-  const stored =
-    command.kind === "respond_intervention"
-      ? await respondToIntervention(log, command, now)
-      : await requestAttemptCommand(log, command);
-  return commandResult(stored.sequence, commandMessage(command), snapshot());
+    const stored =
+      command.kind === "respond_intervention"
+        ? await respondToIntervention(log, command, now)
+        : await requestAttemptCommand(log, command);
+    return commandResult(stored.sequence, commandMessage(command), snapshot());
+  });
 }
 
 async function requestAttemptCommand(
@@ -54,10 +56,14 @@ async function requestAttemptCommand(
   if (command.expectedAttemptUpdatedAt && attempt.updatedAt !== command.expectedAttemptUpdatedAt) {
     throw new RuntimeError("conflict", "Attempt changed before this command was read");
   }
-  if (attempt.finishedAt !== undefined && attempt.finishedAt !== null) {
+  if (
+    command.kind !== "retry_attempt" &&
+    attempt.finishedAt !== undefined &&
+    attempt.finishedAt !== null
+  ) {
     throw new RuntimeError("conflict", "Terminal Attempts cannot receive this command");
   }
-  return log.append({
+  return log.commit({
     type: "runtime.command.requested",
     source: "human",
     aggregate: { kind: "attempt", id: attempt.id },
@@ -96,7 +102,7 @@ async function respondToIntervention(
             decision: command.decision,
           },
         });
-  return log.append({
+  return log.commit({
     type: "intervention.resolved",
     source: "human",
     aggregate: { kind: "intervention", id: intervention.id },
