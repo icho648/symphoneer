@@ -59,17 +59,11 @@ src/
     index.ts                  Runtime 内部公开入口
   mcp/                       Host 拉起的 STDIO MCP 适配层（薄封装 RuntimeClient）
     package.json              私有 link package identity（@symphoneer/mcp）
-    index.ts                  MCP 公开入口
-    create-server.ts          McpServer 组装与 STDIO 启动
+    index.ts                  组装 Server、loopback URL、公开导出
     stdio.ts                  MCP STDIO 进程入口（`pnpm mcp:serve`）
-    tools.ts                  查询 / 受控变更工具注册
-    query-tools.ts            只读查询工具
-    mutation-tools.ts         pause / retry / respond_intervention
-    schemas.ts                工具入参 Zod 片段
+    tools.ts                  查询 / 受控变更工具与能力审计常量
+    results.ts                Runtime 错误到 MCP 可区分结果
     resources.ts              可选 MCP Apps ui:// resources
-    loopback.ts               Runtime URL loopback 约束
-    errors.ts                 Runtime 错误到 MCP 可区分结果
-    tool-names.ts             工具名与能力审计常量
   cli/
     AGENTS.md                 人用 CLI / TUI 局部规则（非 Runtime/MCP 进程入口）
     package.json              人用 CLI / TUI 进程边界（当前仅查询命令）

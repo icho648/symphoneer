@@ -16,15 +16,10 @@ export type McpToolFailure = {
   retryable: boolean;
 };
 
-export type McpToolSuccess<T> = {
-  ok: true;
-  data: T;
-};
-
 export function toolSuccess<T>(data: T, summary: string): CallToolResult {
   return {
     content: [{ type: "text", text: summary }],
-    structuredContent: { ok: true, data } satisfies McpToolSuccess<T> as Record<string, unknown>,
+    structuredContent: { ok: true, data } as Record<string, unknown>,
   };
 }
 
