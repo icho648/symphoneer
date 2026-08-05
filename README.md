@@ -14,9 +14,18 @@ Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作
 - Executor：[`src/runtime/executor/index.ts`](src/runtime/executor/index.ts)
 - Tracker：[`src/runtime/tracker/index.ts`](src/runtime/tracker/index.ts)
 - Verification：[`src/runtime/verification/index.ts`](src/runtime/verification/index.ts)
-- MCP（STDIO 查询与受控操作）：[`src/mcp/index.ts`](src/mcp/index.ts)（`pnpm mcp:serve`）
+- MCP（STDIO 查询与受控操作）：[`src/mcp/index.ts`](src/mcp/index.ts)（`pnpm mcp:serve`；需先有 loopback Runtime，默认 `SYMPHONEER_RUNTIME_URL=http://127.0.0.1:4318`）
 - 确定性测试：[`tests/`](tests/)
 - 全量检查：`pnpm check`
+
+Codex 等 MCP Host 可通过 STDIO 接入（示例）：
+
+```toml
+[mcp_servers.symphoneer]
+command = "pnpm"
+args = ["mcp:serve"]
+cwd = "/absolute/path/to/symphoneer"
+```
 
 ## 项目文档
 
