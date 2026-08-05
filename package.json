@@ -19,7 +19,7 @@
     "web:build": "next build src/web",
     "web:dev": "WATCHPACK_POLLING=true next dev src/web",
     "web:start": "next start src/web",
-    "test": "node --test \"tests/**/*.test.ts\""
+    "test": "node --test"
   },
   "dependencies": {
     "@symphoneer/contracts": "link:src/contracts",
