@@ -49,12 +49,15 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 - #14 只实现其 Issue 明确授权的 Adapter、Workspace、Codex 和 Verification 边界；不提前实现 Runtime/Web/MCP/fixture/Phoenix。
 - #15 之后 #16 / #17 / #18 实现可并行：#17 硬依赖 Runtime/Web 与已关闭的 Core/Execution，不依赖 MCP；#18 可提前埋点，但最终 Smoke 与关 Issue 仍依赖 #17 核心闭环证据。
 - Planner、Evaluator 和多 Agent Harness 是开发方法，不是 Symphoneer 产品对象、状态或 V1 功能。
+- #29：超过 120 行软阈值的手写源码文件保留而不拆分，因为当前边界已按稳定职责聚类；再拆只会制造浅层转发、暴露内部写入状态或破坏局部性。优先文件保留理由：`service.ts`（事件追加 / 幂等 / 投影 / 命令边界同属 Runtime 写入权威）、`workspace/manager.ts`（driver seam 与 lifecycle 共有所有权不变量）、`git-worktree/index.ts`（创建 / 恢复 / 脏检测 / 释放共享 Git 不变量）、`scheduler/attempt/index.ts`（Attempt 与活跃 Turn 生命周期一体）、`transport.ts`（Codex JSONL 会话状态机）、`http.ts`（loopback HTTP / SSE 入口）、`task-board/index.tsx`（Board 编排入口）。其余超阈值文件同理按局部性保留；不引入行数 CI 门禁。
+- #29：Web `tsconfig` 对齐根严格基线（`exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`）；保留 `skipLibCheck: true` 作为 Next / DOM lib 的有意放宽。根 `tsc` 排除 `tests/web` 与 `tests/i18n`，避免 `src/web` 被两套 moduleResolution 配置重复检查；Web 由 `tsc -p src/web` 与 `next build` 检查。
+- #29：`scripts/dev.ts` 是产品级 launcher，与 `system-boundaries.md` 一致，纳入根类型检查。
 
 ## Outcomes & Retrospective
 
 已完成的结果是：规范性产品与架构文档已固化，Issue #13 的 TypeScript workspace、版本化共享 Schema、Workflow loader、确定性 Symphony Core、本地目录 Workspace 生命周期和 Agent Runner Fake 已通过本地检查。
 
-这些结果不证明真实 GitHub、Codex、Git worktree、Verification 执行、Runtime、Web、MCP、fixture、Phoenix、CI 或部署。V1 只有在 #17 的真实闭环、#18 的非阻塞观测以及 #12 的人工验收完成后才能结束。
+这些结果不证明真实 GitHub、Codex、Git worktree、Verification 执行、Runtime、Web、MCP、fixture、Phoenix 或部署。V1 只有在 #17 的真实闭环、#18 的非阻塞观测以及 #12 的人工验收完成后才能结束。
 
 ## Context and Orientation
 
@@ -62,7 +65,7 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 
 - [src/contracts/](../../../src/contracts/)：跨边界 Schema。
 - [src/runtime/](../../../src/runtime/)：Workflow、Eligibility、Scheduler、Workspace、Executor 和 Runtime API。
-- [tests/](../../../tests/)：根目录下的 contract、core 和 integration 测试。
+- [tests/](../../../tests/)：按可观察 Module 分类的测试（contracts / runtime / executor / tracker / workspace / verification / web / i18n / fixtures）。
 - [docs/design-docs/](../../design-docs/)：确认后的产品与系统边界。
 - [docs/references/](../../references/)：GitHub Issues、Symphony 和 Codex App Server 外部契约。
 

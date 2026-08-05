@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -11,11 +11,11 @@ const runtimeUrl = process.env.SYMPHONEER_RUNTIME_URL ?? `http://${runtimeHost}:
 const dataDir = process.env.SYMPHONEER_DATA_DIR ?? path.join(os.tmpdir(), "symphoneer-runtime");
 const canReuseRuntime = process.env.SYMPHONEER_DATA_DIR === undefined;
 
-const children = new Map();
+const children = new Map<string, ChildProcess>();
 let shuttingDown = false;
 let exitCode = 0;
 
-function start(name, args, env) {
+function start(name: string, args: string[], env: NodeJS.ProcessEnv): void {
   const child = spawn(pnpm, args, {
     detached: process.platform !== "win32",
     env: { ...process.env, ...env },
@@ -39,7 +39,7 @@ function start(name, args, env) {
   });
 }
 
-function shutdown(code) {
+function shutdown(code: number): void {
   if (shuttingDown) {
     exitCode = Math.max(exitCode, code);
     return;
@@ -53,7 +53,7 @@ function shutdown(code) {
   forceStop.unref();
 }
 
-function signalChild(child, signal) {
+function signalChild(child: ChildProcess, signal: NodeJS.Signals): void {
   if (!child.pid) return;
   if (process.platform === "win32") {
     child.kill(signal);
@@ -62,17 +62,25 @@ function signalChild(child, signal) {
   try {
     process.kill(-child.pid, signal);
   } catch (error) {
-    if (error?.code !== "ESRCH") child.kill(signal);
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") child.kill(signal);
   }
 }
 
-export async function runtimeIsHealthy(url, fetcher = fetch) {
+export async function runtimeIsHealthy(
+  url: string | URL,
+  fetcher: typeof fetch = fetch,
+): Promise<boolean> {
   try {
     const response = await fetcher(new URL("/healthz", url), {
       signal: AbortSignal.timeout(750),
     });
     if (!response.ok) return false;
-    const body = await response.json();
+    const body = (await response.json()) as {
+      schemaVersion?: unknown;
+      status?: unknown;
+      runtime?: { status?: unknown };
+      process?: { status?: unknown };
+    };
     return (
       body?.schemaVersion === 2 &&
       body?.status === "ok" &&
@@ -84,7 +92,7 @@ export async function runtimeIsHealthy(url, fetcher = fetch) {
   }
 }
 
-export async function main() {
+export async function main(): Promise<void> {
   process.once("SIGINT", () => shutdown(0));
   process.once("SIGTERM", () => shutdown(0));
 

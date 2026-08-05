@@ -13,10 +13,12 @@
     "verbatimModuleSyntax": true
   },
   "include": [
+    "scripts/dev.ts",
     "src/contracts/**/*.ts",
     "src/runtime/**/*.ts",
     "src/runtime-client/**/*.ts",
     "src/cli/**/*.ts",
     "tests/**/*.ts"
-  ]
+  ],
+  "exclude": ["tests/web/**/*.ts", "tests/i18n/**/*.ts"]
 }

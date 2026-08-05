@@ -80,9 +80,33 @@ for (const file of globSync("src/web/**/*.{ts,tsx}")) {
   }
 }
 
+const architecture = readFileSync("ARCHITECTURE.md", "utf8");
+const codemapMatch = architecture.match(/## 当前结构\n\n```text\n([\s\S]*?)\n```/);
+if (!codemapMatch) {
+  failures.push("ARCHITECTURE.md: missing Codemap fenced block under ## 当前结构");
+} else {
+  const stack = [{ indent: -1, path: "" }];
+  for (const line of codemapMatch[1].split("\n")) {
+    if (!line.trim()) continue;
+    const indent = line.match(/^ */)?.[0].length ?? 0;
+    const token = line.trim().split(/\s+/, 1)[0];
+    if (!token || !/^[A-Za-z0-9_./@[\]-]+$/.test(token)) continue;
+    if (!token.includes("/") && !token.includes(".")) continue;
+    while (stack.length > 1 && indent <= stack.at(-1).indent) stack.pop();
+    const parent = stack.at(-1).path;
+    const candidate = (parent ? `${parent}/${token}` : token).replace(/\/$/, "");
+    stack.push({ indent, path: candidate });
+    if (!existsSync(candidate)) {
+      failures.push(`ARCHITECTURE.md Codemap: missing path ${candidate}`);
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(failures.join("\n"));
   process.exitCode = 1;
 } else {
-  console.log("project checks: links, Agent navigation, Plan, test placement, dependencies");
+  console.log(
+    "project checks: links, Agent navigation, Plan, test placement, dependencies, Codemap paths",
+  );
 }
