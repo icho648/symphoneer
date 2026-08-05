@@ -58,6 +58,7 @@ export class RuntimeService {
   #storedEvents: RuntimeEvent[] = [];
   #endpoint: string;
   #started = false;
+  #mutationTail: Promise<void> = Promise.resolve();
 
   constructor(options: RuntimeServiceOptions) {
     this.#events = options.eventStore ?? new JsonlEventStore(options.dataDir);
@@ -233,52 +234,56 @@ export class RuntimeService {
       throw new RuntimeError("invalid_request", "Runtime command has an invalid shape");
     }
     const command = parsed.data;
-    const previous = this.#idempotency.get(command.idempotencyKey);
-    if (previous) {
-      if (!isCommandEvent(previous, command.kind)) {
-        throw new RuntimeError("conflict", "Idempotency key belongs to another operation");
+    return this.#withMutation(async () => {
+      const previous = this.#idempotency.get(command.idempotencyKey);
+      if (previous) {
+        if (!isCommandEvent(previous, command.kind)) {
+          throw new RuntimeError("conflict", "Idempotency key belongs to another operation");
+        }
+        return this.#commandResult(previous.sequence, commandMessage(command), this.snapshot());
       }
-      return this.#commandResult(previous.sequence, commandMessage(command), this.snapshot());
-    }
-    const currentSequence = this.#storedEvents.length;
-    if (
-      command.expectedEventSequence !== undefined &&
-      command.expectedEventSequence !== currentSequence
-    ) {
-      throw new RuntimeError("conflict", "Runtime projection changed before this command was read");
-    }
-
-    let stored: RuntimeEvent;
-    if (command.kind === "respond_intervention") {
-      stored = await this.#respondToIntervention(command);
-    } else {
-      const attempt = this.#projection.getAttempt(command.attemptId);
-      if (!attempt)
-        throw new RuntimeError("not_found", `Attempt ${command.attemptId} was not found`);
       if (
-        command.expectedAttemptUpdatedAt &&
-        attempt.updatedAt !== command.expectedAttemptUpdatedAt
+        command.expectedEventSequence !== undefined &&
+        command.expectedEventSequence !== this.#storedEvents.length
       ) {
-        throw new RuntimeError("conflict", "Attempt changed before this command was read");
+        throw new RuntimeError(
+          "conflict",
+          "Runtime projection changed before this command was read",
+        );
       }
-      if (attempt.finishedAt !== undefined && attempt.finishedAt !== null) {
-        throw new RuntimeError("conflict", "Terminal Attempts cannot receive this command");
-      }
-      stored = await this.#append({
-        type: "runtime.command.requested",
-        source: "human",
-        aggregate: { kind: "attempt", id: attempt.id },
-        taskId: attempt.taskId,
-        attemptId: attempt.id,
-        idempotencyKey: command.idempotencyKey,
-        payload: {
-          commandKind: command.kind,
-          attemptId: attempt.id,
+
+      let stored: RuntimeEvent;
+      if (command.kind === "respond_intervention") {
+        stored = await this.#respondToIntervention(command);
+      } else {
+        const attempt = this.#projection.getAttempt(command.attemptId);
+        if (!attempt)
+          throw new RuntimeError("not_found", `Attempt ${command.attemptId} was not found`);
+        if (
+          command.expectedAttemptUpdatedAt &&
+          attempt.updatedAt !== command.expectedAttemptUpdatedAt
+        ) {
+          throw new RuntimeError("conflict", "Attempt changed before this command was read");
+        }
+        if (attempt.finishedAt !== undefined && attempt.finishedAt !== null) {
+          throw new RuntimeError("conflict", "Terminal Attempts cannot receive this command");
+        }
+        stored = await this.#commitEvent({
+          type: "runtime.command.requested",
+          source: "human",
+          aggregate: { kind: "attempt", id: attempt.id },
           taskId: attempt.taskId,
-        },
-      });
-    }
-    return this.#commandResult(stored.sequence, commandMessage(command), this.snapshot());
+          attemptId: attempt.id,
+          idempotencyKey: command.idempotencyKey,
+          payload: {
+            commandKind: command.kind,
+            attemptId: attempt.id,
+            taskId: attempt.taskId,
+          },
+        });
+      }
+      return this.#commandResult(stored.sequence, commandMessage(command), this.snapshot());
+    });
   }
 
   async #respondToIntervention(
@@ -303,7 +308,7 @@ export class RuntimeService {
               decision: command.decision,
             },
           });
-    return this.#append({
+    return this.#commitEvent({
       type: "intervention.resolved",
       source: "human",
       aggregate: { kind: "intervention", id: intervention.id },
@@ -317,6 +322,18 @@ export class RuntimeService {
   }
 
   async #append(input: {
+    type: DomainEventType;
+    source: EventSource;
+    aggregate: DomainEventEnvelope["aggregate"];
+    taskId?: string;
+    attemptId?: string;
+    idempotencyKey?: string;
+    payload: unknown;
+  }): Promise<RuntimeEvent> {
+    return this.#withMutation(() => this.#commitEvent(input));
+  }
+
+  async #commitEvent(input: {
     type: DomainEventType;
     source: EventSource;
     aggregate: DomainEventEnvelope["aggregate"];
@@ -350,6 +367,15 @@ export class RuntimeService {
     if (event.idempotencyKey) this.#idempotency.set(event.idempotencyKey, stored);
     for (const listener of this.#listeners) listener(stored);
     return stored;
+  }
+
+  #withMutation<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.#mutationTail.then(fn, fn);
+    this.#mutationTail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
   }
 
   #connection(status: RuntimeConnection["status"]): RuntimeConnection {
