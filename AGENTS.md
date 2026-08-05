@@ -10,6 +10,7 @@
 | 产品定位与非目标 | `docs/design-docs/product-boundary.md` | `docs/design-docs/system-boundaries.md` |
 | 当前阶段、当前增量与验收 | 关联 GitHub Issue | `docs/plans/AGENTS.md`；仅在存在 active plan 时读取对应计划 |
 | 当前物理结构与依赖 | `ARCHITECTURE.md` | 当前 Module 源码与测试 |
+| 人用 CLI / TUI | `src/cli/AGENTS.md` | `ARCHITECTURE.md`、`docs/design-docs/product-boundary.md` |
 | 产品、架构、规格或外部契约 | `docs/AGENTS.md` | 表中对应叶子文档 |
 | 调研输入与历史方案 | `docs/research/AGENTS.md` | 对应日期快照 |
 | 复杂任务与执行计划 | `docs/plans/AGENTS.md` | 仅在任务需要本地恢复上下文时读取 `docs/plans/active/` |

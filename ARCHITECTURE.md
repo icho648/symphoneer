@@ -71,6 +71,7 @@ src/
     errors.ts                 Runtime 错误到 MCP 可区分结果
     tool-names.ts             工具名与能力审计常量
   cli/
+    AGENTS.md                 人用 CLI / TUI 局部规则（非 Runtime/MCP 进程入口）
     package.json              人用 CLI / TUI 进程边界（当前仅查询命令）
     runtime.ts                人用 Runtime 查询 CLI（snapshot / events / attempt）
   web/
