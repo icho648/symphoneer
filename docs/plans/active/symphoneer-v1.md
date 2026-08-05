@@ -47,6 +47,7 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 - active plan 只保留 V1 总览、依赖、Review Gate、本地恢复信息和证据索引。
 - Review 按共享验收边界合并：Gate A = #13 + #14 Core/Execution；Gate B = #15 + #16 Runtime/Product Surface；Gate C = #17 真实 E2E 与 Human Review；Gate D = #18 Phoenix；最后由 #12 做 V1 整体验收。
 - #14 只实现其 Issue 明确授权的 Adapter、Workspace、Codex 和 Verification 边界；不提前实现 Runtime/Web/MCP/fixture/Phoenix。
+- #15 之后 #16 / #17 / #18 实现可并行：#17 硬依赖 Runtime/Web 与已关闭的 Core/Execution，不依赖 MCP；#18 可提前埋点，但最终 Smoke 与关 Issue 仍依赖 #17 核心闭环证据。
 - Planner、Evaluator 和多 Agent Harness 是开发方法，不是 Symphoneer 产品对象、状态或 V1 功能。
 
 ## Outcomes & Retrospective
@@ -69,14 +70,13 @@ Issue 实现的入口是实时 GitHub Issue/PR/依赖状态、本地 Git 状态�
 
 ## Plan of Work
 
-按 GitHub 原生依赖形状推进：
+按 GitHub 原生依赖形状推进（硬依赖串行，产品表面可并行）：
 
 1. #13 建立共享契约和 Core 基线。
 2. #14 建立 GitHub、Git Workspace、Codex App Server 和独立 Verification 边界。
 3. #15 在 #14 之后建立 JSONL、Runtime API 和 Web Task Board。
-4. #16 在 #15 之后暴露受控 MCP。
-5. #17 在 #13–#16 的本地检查稳定后执行真实 fixture Smoke。
-6. #18 只在 #17 核心闭环后接入 Phoenix 诊断。
+4. #15 稳定后可并行：#16 暴露受控 MCP；#17 执行真实 fixture Smoke（不依赖 MCP）；#18 可开始 Phoenix 埋点实现。
+5. #18 的最终非阻塞 Smoke 与关 Issue，仍在 #17 核心闭环证据之后。
 
 哪个 Issue 正在推进、已经完成到哪一步以及是否被阻塞，都在开始或恢复时从 GitHub 和本地 Git 实时读取。具体实现步骤、文件范围和完成判定写在对应 Issue 与 PR 中，不在这里再建一套 checklist。
 
@@ -112,16 +112,17 @@ Issue-driven 增量的具体命令、工作目录、预期结果和失败标准�
 
 ## Interfaces and Dependencies
 
-预期依赖形状：
+预期依赖形状（实现并行，验收门禁仍串行）：
 
 ```text
 #12 V1 acceptance
 ├─ #13 Core / Contracts
 │  └─ #14 GitHub / Workspace / Codex / Verification
 │     └─ #15 Runtime / Web
-│        └─ #16 MCP
-│           └─ #17 fixture / Human Review
-│              └─ #18 Phoenix
+│        ├─ #16 MCP                 (Gate B；与 #17 并行)
+│        ├─ #17 fixture / Human Review  (Gate C；硬依赖 #15，不依赖 #16)
+│        └─ #18 Phoenix 实现        (可与 #16/#17 并行埋点)
+│              └─ #18 验收 / 关 Issue   (Gate D；依赖 #17 核心闭环证据)
 ```
 
 该图是预期依赖形状，不是当前状态快照，也不创建新的产品状态或调度语义。当前阻塞关系必须从 GitHub 原生依赖接口读取。对象权威、存储、Agent Runner 和人工控制边界分别以 [system-boundaries.md](../../design-docs/system-boundaries.md)、[github-issues.md](../../references/github-issues.md)、[codex-app-server.md](../../references/codex-app-server.md) 和 [manual-delivery-flow.md](../../product-specs/manual-delivery-flow.md) 为准。
