@@ -24,18 +24,6 @@ src/
   runtime-client/            CLI / Web / MCP 共用的 Runtime HTTP client
     package.json              私有 link package identity（@symphoneer/runtime-client）
     index.ts                  Runtime HTTP client
-  mcp/                       Host 拉起的 STDIO MCP 适配层（薄封装 RuntimeClient）
-    package.json              私有 link package identity（@symphoneer/mcp）
-    index.ts                  MCP 公开入口
-    create-server.ts          McpServer 组装与 STDIO 启动
-    tools.ts                  查询 / 受控变更工具注册
-    query-tools.ts            只读查询工具
-    mutation-tools.ts         pause / retry / respond_intervention
-    schemas.ts                工具入参 Zod 片段
-    resources.ts              可选 MCP Apps ui:// resources
-    loopback.ts               Runtime URL loopback 约束
-    errors.ts                 Runtime 错误到 MCP 可区分结果
-    tool-names.ts             工具名与能力审计常量
   runtime/                   唯一核心长期运行进程的内部 Module
     package.json              Runtime 进程脚本边界
     executor/                执行者边界和生产执行者实现
@@ -67,11 +55,24 @@ src/
       runtime-service.ts      RuntimeService 编排入口
     http.ts                   loopback HTTP / SSE API
     protocol.ts               Runtime API 形状（`@symphoneer/runtime/protocol`）
+    serve.ts                  Runtime HTTP 进程入口（`pnpm runtime:serve`）
     index.ts                  Runtime 内部公开入口
+  mcp/                       Host 拉起的 STDIO MCP 适配层（薄封装 RuntimeClient）
+    package.json              私有 link package identity（@symphoneer/mcp）
+    index.ts                  MCP 公开入口
+    create-server.ts          McpServer 组装与 STDIO 启动
+    stdio.ts                  MCP STDIO 进程入口（`pnpm mcp:serve`）
+    tools.ts                  查询 / 受控变更工具注册
+    query-tools.ts            只读查询工具
+    mutation-tools.ts         pause / retry / respond_intervention
+    schemas.ts                工具入参 Zod 片段
+    resources.ts              可选 MCP Apps ui:// resources
+    loopback.ts               Runtime URL loopback 约束
+    errors.ts                 Runtime 错误到 MCP 可区分结果
+    tool-names.ts             工具名与能力审计常量
   cli/
-    package.json              CLI 进程脚本边界
-    runtime.ts                Runtime 服务启动和查询 CLI
-    mcp.ts                    MCP STDIO server 进程入口
+    package.json              人用 CLI / TUI 进程边界（当前仅查询命令）
+    runtime.ts                人用 Runtime 查询 CLI（snapshot / events / attempt）
   web/
     package.json              Web 进程脚本边界
     middleware.ts             locale 路由检测与重定向
@@ -116,15 +117,16 @@ src/contracts ──> Zod
 src/runtime ───> src/contracts + Node stdlib + Zod + YAML + LiquidJS
 src/runtime-client ──> src/contracts + Node stdlib
 src/mcp ────────────> src/contracts + src/runtime-client + MCP SDK
-src/cli ────────────> src/runtime + src/runtime-client + src/mcp + Node stdlib
+src/cli ────────────> src/runtime-client + Node stdlib
 src/web ────────────> src/contracts + src/runtime-client + Web i18n + Next.js / React
 tests ────────> src/runtime + src/cli + src/web + src/mcp 的可测试 Module + tests/fixtures/FakeAgentRunner
 ```
 
 - `@symphoneer/contracts` 是 `src/contracts` 的本地 link；它不依赖 Web、CLI、Runtime、MCP 或具体执行者，是跨进程边界的共享 Schema。
-- `src/runtime` 不依赖 Next.js、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块，也不依赖自己的 HTTP client；`src/web` 与 `src/mcp` 只经 `@symphoneer/runtime-client` 访问 Runtime。Web / MCP 方向由 `scripts/check-project.mjs` 检查。
+- `src/runtime` 不依赖 Next.js、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块，也不依赖自己的 HTTP client；`src/web`、`src/mcp` 与 `src/cli` 只经 `@symphoneer/runtime-client` 访问 Runtime。Web / MCP 方向由 `scripts/check-project.mjs` 检查。
 - `src/runtime/executor` 使用 Codex stdio JSONL；`src/runtime/tracker` 使用 Node 原生 `fetch`；Workspace 和 Verification 使用 Git CLI 与子进程。
-- `src/runtime` 是历史投影、调度、执行边界和受控 Runtime API 的单一运行进程；CLI、Web 和 MCP 不复制 Scheduler 或业务状态机。
+- `src/runtime` 是历史投影、调度、执行边界和受控 Runtime API 的单一运行进程；其 HTTP 入口为 `serve.ts`。CLI、Web 和 MCP 不复制 Scheduler 或业务状态机。
+- `src/cli` 是人用 CLI / TUI 访问面（当前仅 Runtime 查询命令），不是 Runtime / MCP 的进程入口。
 - `src/mcp` 是 Host 拉起的独立 STDIO 适配进程；只暴露查询与三种受控 Runtime 命令，不提供 Commit / Merge / dispatch，也不远程公开 loopback Runtime。
 - `src/web` 是独立 Next.js 进程；浏览器请求经过 Route Handler 转发到 loopback Runtime，Task Board 只展示 Runtime 投影，Workspace 只在 Attempt detail 中展开。
 - `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一内存写入权威；幂等重放窗口有界。

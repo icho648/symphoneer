@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { serveSymphoneerMcp } from "@symphoneer/mcp";
+import { serveSymphoneerMcp } from "./create-server.ts";
 
+/** STDIO process entry for MCP Hosts (Codex, etc.). */
 export async function runMcp(): Promise<void> {
   await serveSymphoneerMcp();
 }
