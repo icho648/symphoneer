@@ -106,6 +106,7 @@ export function TaskBoard({
       return;
     }
     let disposed = false;
+    setDetail(null);
     void fetch(`/api/runtime/attempts/${encodeURIComponent(latestAttempt.id)}`, {
       cache: "no-store",
     })
@@ -131,7 +132,8 @@ export function TaskBoard({
   };
 
   const sendCommand = async (kind: AttemptCommand) => {
-    if (!snapshot || !detail) return;
+    if (!snapshot || !detail || !latestAttempt) return;
+    if (detail.attempt.id !== latestAttempt.id) return;
     try {
       const response = await fetch("/api/runtime/commands", {
         method: "POST",

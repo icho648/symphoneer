@@ -152,6 +152,71 @@ test("Runtime commands are durable, idempotent, and do not fake Provider state",
   assert.equal(accepted.snapshot.runtime.lastEventSequence, expectedEventSequence + 1);
 });
 
+test("Runtime commands serialize optimistic concurrency for the same snapshot", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:command-race");
+  await service.start();
+  await service.recordTask(task);
+  await service.recordAttempt(attempt, { workspace });
+  const expectedEventSequence = service.snapshot().runtime.lastEventSequence;
+  const base = {
+    kind: "pause_attempt" as const,
+    expectedEventSequence,
+    expectedAttemptUpdatedAt: attempt.updatedAt,
+    attemptId: attempt.id,
+  };
+
+  const results = await Promise.allSettled([
+    service.execute({ ...base, idempotencyKey: "pause-race-a" }),
+    service.execute({ ...base, idempotencyKey: "pause-race-b" }),
+  ]);
+  const fulfilled = results.filter((result) => result.status === "fulfilled");
+  const rejected = results.filter((result) => result.status === "rejected");
+  assert.equal(fulfilled.length, 1);
+  assert.equal(rejected.length, 1);
+  assert.equal(service.snapshot().runtime.lastEventSequence, expectedEventSequence + 1);
+  assert.match(
+    String(rejected[0]?.status === "rejected" ? rejected[0].reason : ""),
+    /projection changed/i,
+  );
+});
+
+test("Runtime accepts retry on finished Attempts but rejects pause", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:retry-finished");
+  await service.start();
+  await service.recordTask(task);
+  const finishedAttempt: AttemptSnapshot = {
+    ...attempt,
+    status: "failed",
+    finishedAt: "2026-08-04T08:02:00.000Z",
+    updatedAt: "2026-08-04T08:02:00.000Z",
+  };
+  await service.recordAttempt(finishedAttempt, { workspace });
+  const expectedEventSequence = service.snapshot().runtime.lastEventSequence;
+
+  await assert.rejects(
+    service.execute({
+      kind: "pause_attempt",
+      idempotencyKey: "pause-finished",
+      expectedEventSequence,
+      expectedAttemptUpdatedAt: finishedAttempt.updatedAt,
+      attemptId: finishedAttempt.id,
+    }),
+    (error) => error instanceof RuntimeError && error.code === "conflict",
+  );
+
+  const retried = await service.execute({
+    kind: "retry_attempt",
+    idempotencyKey: "retry-finished",
+    expectedEventSequence,
+    expectedAttemptUpdatedAt: finishedAttempt.updatedAt,
+    attemptId: finishedAttempt.id,
+  });
+  assert.equal(retried.accepted, true);
+  assert.equal(retried.snapshot.runtime.lastEventSequence, expectedEventSequence + 1);
+});
+
 test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loopback", async (t) => {
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:http");
