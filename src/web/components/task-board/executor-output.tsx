@@ -112,11 +112,13 @@ function OutputEvent({
       <div className="executor-event-marker" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="executor-event-role">
-            {dictionary.workflow.roles[event.role] ?? event.role}
-          </span>
-          <span className="executor-event-type">
-            {dictionary.workflow.eventTypes[event.type] ?? event.type.replaceAll("_", " ")}
+          <span className="executor-event-meta">
+            <span className="executor-event-role">
+              {dictionary.workflow.roles[event.role] ?? event.role}
+            </span>
+            <span className="executor-event-type">
+              {dictionary.workflow.eventTypes[event.type] ?? event.type.replaceAll("_", " ")}
+            </span>
           </span>
           <time className="executor-event-time" dateTime={event.occurredAt}>
             {formatDateTime(event.occurredAt, locale)}

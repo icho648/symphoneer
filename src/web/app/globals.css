@@ -827,6 +827,14 @@
     @apply text-[10px] font-semibold uppercase tracking-[0.08em] text-signal;
   }
 
+  .executor-event-meta {
+    @apply flex min-w-0 items-center gap-2;
+  }
+
+  .executor-event-type {
+    @apply truncate text-[10px] text-faint;
+  }
+
   .executor-event-time {
     @apply shrink-0 text-[10px] text-faint;
   }
