@@ -5,7 +5,9 @@ export {
   KNOWN_DOMAIN_EVENT_TYPES,
 } from "./events.ts";
 export * from "./executor/index.ts";
+export * from "./host/index.ts";
 export { RuntimeHttpServer, type RuntimeHttpServerOptions } from "./http.ts";
+export * from "./orchestration/index.ts";
 export { RuntimeProjection } from "./projection.ts";
 export type {
   RuntimeAttemptDetail,

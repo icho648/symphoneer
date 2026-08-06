@@ -1,0 +1,27 @@
+{
+  "id": "plan-implement-review",
+  "version": 1,
+  "label": "Plan → Implement → Review",
+  "nodes": [
+    { "id": "plan", "kind": "agent", "role": "planner" },
+    { "id": "plan_gate", "kind": "human_gate", "gate": "plan_approval" },
+    { "id": "implement", "kind": "agent", "role": "implementer" },
+    { "id": "review", "kind": "agent", "role": "reviewer" },
+    { "id": "review_gate", "kind": "human_gate", "gate": "review_input" },
+    { "id": "verify", "kind": "verification" },
+    { "id": "final_gate", "kind": "human_gate", "gate": "final_decision" }
+  ],
+  "edges": [
+    { "from": "START", "to": "plan" },
+    { "from": "plan", "to": "plan_gate" },
+    { "from": "plan_gate", "to": "implement", "when": "approve" },
+    { "from": "plan_gate", "to": "END", "when": "reject" },
+    { "from": "implement", "to": "review" },
+    { "from": "review", "to": "review_gate" },
+    { "from": "review_gate", "to": "verify", "when": "approve" },
+    { "from": "review_gate", "to": "implement", "when": "request_changes" },
+    { "from": "review_gate", "to": "END", "when": "stop" },
+    { "from": "verify", "to": "final_gate" },
+    { "from": "final_gate", "to": "END" }
+  ]
+}

@@ -18,6 +18,7 @@ import {
   type WorkspaceReference,
 } from "@symphoneer/contracts";
 import type { ImmutableArtifactStore, JsonlEventStore } from "../storage.ts";
+import { loadOrchestrationDefinitionSync } from "../orchestration/index.ts";
 import {
   LangGraphWorkflowOrchestrator,
   VerificationRunnerAdapter,
@@ -76,6 +77,7 @@ export class RuntimeService {
           artifactRoot: resolve(options.dataDir, "artifacts"),
         }),
         checkpointPath: resolve(options.dataDir, "orchestration", "checkpoints.sqlite"),
+        orchestration: loadOrchestrationDefinitionSync().binding,
       });
     this.#workflowCoordinator = new WorkflowRuntimeCoordinator({ idFactory, now: this.#now });
   }

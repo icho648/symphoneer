@@ -1,22 +1,38 @@
 #!/usr/bin/env node
-import { RuntimeHttpServer, type RuntimeHttpServerOptions, RuntimeService } from "./index.ts";
+import {
+  resolveRuntimeHostConfig,
+  RuntimeHttpServer,
+  RuntimeService,
+} from "./index.ts";
 
 export async function runServer(
   options: {
     dataDir?: string;
-    host?: RuntimeHttpServerOptions["host"];
+    host?: "127.0.0.1" | "localhost" | "::1";
     port?: number;
+    uiDistDir?: string;
+    sessionToken?: string;
     stdout?: NodeJS.WritableStream;
   } = {},
 ): Promise<void> {
-  const dataDir = options.dataDir ?? process.env.SYMPHONEER_DATA_DIR;
-  if (!dataDir) throw new Error("SYMPHONEER_DATA_DIR is required to start Runtime");
   const stdout = options.stdout ?? process.stdout;
+  const hostConfig = await resolveRuntimeHostConfig({
+    ...(options.dataDir ? { dataDir: options.dataDir } : {}),
+    ...(options.host ? { host: options.host } : {}),
+    ...(options.port !== undefined ? { port: options.port } : {}),
+    ...(options.uiDistDir ? { uiDistDir: options.uiDistDir } : {}),
+    ...(options.sessionToken ? { sessionToken: options.sessionToken } : {}),
+  });
   const runtimeId = process.env.SYMPHONEER_RUNTIME_ID;
-  const service = new RuntimeService({ dataDir, ...(runtimeId ? { runtimeId } : {}) });
+  const service = new RuntimeService({
+    dataDir: hostConfig.dataDir,
+    ...(runtimeId ? { runtimeId } : {}),
+  });
   const server = new RuntimeHttpServer(service, {
-    host: options.host ?? parseHost(process.env.SYMPHONEER_RUNTIME_HOST),
-    port: options.port ?? parsePort(process.env.SYMPHONEER_RUNTIME_PORT),
+    host: hostConfig.transport.host,
+    port: hostConfig.transport.port,
+    sessionToken: hostConfig.credentials.sessionToken,
+    ...(hostConfig.uiDistDir ? { uiDistDir: hostConfig.uiDistDir } : {}),
   });
   const stopped = Promise.withResolvers<void>();
   let stopping = false;
@@ -35,21 +51,6 @@ export async function runServer(
     process.off("SIGINT", stop);
     process.off("SIGTERM", stop);
   }
-}
-
-function parseHost(value: string | undefined): NonNullable<RuntimeHttpServerOptions["host"]> {
-  if (!value || value === "127.0.0.1") return "127.0.0.1";
-  if (value === "localhost" || value === "::1") return value;
-  throw new Error("SYMPHONEER_RUNTIME_HOST must be 127.0.0.1, localhost, or ::1");
-}
-
-function parsePort(value: string | undefined): number {
-  if (!value) return 4318;
-  const port = Number(value);
-  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
-    throw new Error("SYMPHONEER_RUNTIME_PORT must be an integer from 0 to 65535");
-  }
-  return port;
 }
 
 if (import.meta.main) {

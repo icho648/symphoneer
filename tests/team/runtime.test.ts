@@ -49,6 +49,9 @@ test("Runtime persists LangGraph workflow checkpoints and resumes from the proje
   });
   const waiting = started.snapshot.teamRuns[0];
   assert.equal(waiting?.workflow, "plan-implement-review");
+  assert.equal(waiting?.definitionId, "plan-implement-review");
+  assert.equal(waiting?.definitionVersion, 1);
+  assert.match(waiting?.definitionHash ?? "", /^[a-f0-9]{64}$/);
   assert.equal(waiting?.status, "awaiting_plan_approval");
   assert.equal(started.snapshot.attempts.length, 1);
 

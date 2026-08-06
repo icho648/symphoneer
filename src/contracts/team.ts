@@ -89,7 +89,11 @@ export const TeamRunSnapshotSchema = z.object({
   schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
   id: NonEmptyString,
   attemptId: NonEmptyString,
+  /** Display / legacy alias for the bound orchestration definition id. */
   workflow: NonEmptyString,
+  definitionId: NonEmptyString,
+  definitionVersion: z.number().int().positive(),
+  definitionHash: z.string().regex(/^[a-f0-9]{64}$/),
   provider: TeamProviderSchema,
   status: TeamRunStatusSchema,
   currentNode: NonEmptyString,

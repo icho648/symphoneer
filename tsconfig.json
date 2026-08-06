@@ -17,6 +17,7 @@
     "src/contracts/**/*.ts",
     "src/runtime/**/*.ts",
     "src/runtime-client/**/*.ts",
+    "src/runtime-tools/**/*.ts",
     "src/mcp/**/*.ts",
     "src/cli/**/*.ts",
     "scripts/**/*.ts",

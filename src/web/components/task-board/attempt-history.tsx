@@ -4,7 +4,7 @@ import type {
   RuntimeAttemptDetail,
   TeamRunSnapshot,
 } from "@symphoneer/contracts";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "../../lib/format.ts";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
 
 export function AttemptHistory({

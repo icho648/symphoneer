@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
@@ -9,6 +10,7 @@ const webHost = process.env.SYMPHONEER_WEB_HOST ?? "127.0.0.1";
 const webPort = process.env.SYMPHONEER_WEB_PORT ?? "3000";
 const runtimeUrl = process.env.SYMPHONEER_RUNTIME_URL ?? `http://${runtimeHost}:${runtimePort}`;
 const dataDir = process.env.SYMPHONEER_DATA_DIR ?? path.join(os.tmpdir(), "symphoneer-runtime");
+const sessionToken = process.env.SYMPHONEER_RUNTIME_TOKEN ?? randomBytes(24).toString("base64url");
 const canReuseRuntime = process.env.SYMPHONEER_DATA_DIR === undefined;
 
 const children = new Map<string, ChildProcess>();
@@ -106,18 +108,22 @@ export async function main(): Promise<void> {
       "",
     ].join("\n"),
   );
+  const sharedEnv = {
+    SYMPHONEER_DATA_DIR: dataDir,
+    SYMPHONEER_RUNTIME_HOST: runtimeHost,
+    SYMPHONEER_RUNTIME_PORT: runtimePort,
+    SYMPHONEER_RUNTIME_URL: runtimeUrl,
+    SYMPHONEER_RUNTIME_TOKEN: sessionToken,
+    VITE_RUNTIME_TOKEN: sessionToken,
+    SYMPHONEER_WEB_HOST: webHost,
+    SYMPHONEER_WEB_PORT: webPort,
+  };
   if (canReuseRuntime && (await runtimeIsHealthy(runtimeUrl))) {
     process.stdout.write(`Runtime already healthy; reusing ${runtimeUrl}\n`);
   } else {
-    start("Runtime", ["runtime:serve"], {
-      SYMPHONEER_DATA_DIR: dataDir,
-      SYMPHONEER_RUNTIME_HOST: runtimeHost,
-      SYMPHONEER_RUNTIME_PORT: runtimePort,
-    });
+    start("Runtime", ["runtime:serve"], sharedEnv);
   }
-  start("Web", ["run", "web:dev", "--", "--hostname", webHost, "--port", webPort], {
-    SYMPHONEER_RUNTIME_URL: runtimeUrl,
-  });
+  start("Web", ["run", "web:dev"], sharedEnv);
 }
 
 if (import.meta.main) {

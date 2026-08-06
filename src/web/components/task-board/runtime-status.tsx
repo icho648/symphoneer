@@ -1,5 +1,5 @@
 import type { RuntimeHealth } from "@symphoneer/contracts";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime } from "../../lib/format.ts";
 import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
 
 export function RuntimeStatus({

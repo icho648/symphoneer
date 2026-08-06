@@ -10,7 +10,7 @@ import { resolveWorkspaceRoot } from "./workspace-root.ts";
 
 const normalize = (values: string[]) => values.map((value) => value.trim().toLowerCase());
 
-export async function loadWorkflow(
+export async function loadProjectProfile(
   options: {
     path?: string;
     cwd?: string;
@@ -111,4 +111,9 @@ export async function loadWorkflow(
   };
 }
 
-export type Workflow = Awaited<ReturnType<typeof loadWorkflow>>;
+/** @deprecated Prefer loadProjectProfile */
+export const loadWorkflow = loadProjectProfile;
+
+export type ProjectProfile = Awaited<ReturnType<typeof loadProjectProfile>>;
+/** @deprecated Prefer ProjectProfile */
+export type Workflow = ProjectProfile;
