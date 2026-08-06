@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CoreScheduler } from "../../src/runtime/scheduler/index.ts";
-import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
+import { CoreScheduler } from "../../../src/runtime/scheduler/index.ts";
+import { policy, queueFailedAttempt, retained, task, workspace } from "../../fixtures/scheduler.ts";
 
 test("reconciliation stops terminal, unroutable, and missing Tasks without duplicate cleanup", () => {
   const scheduler = new CoreScheduler({

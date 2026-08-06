@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
-import { VerificationError, VerificationRunner } from "../../src/runtime/verification/index.ts";
+import { VerificationError, VerificationRunner } from "../../../src/runtime/verification/index.ts";
 
 async function repositoryFixture(t: TestContext) {
   const base = await mkdtemp(resolve(tmpdir(), "symphoneer-verification-"));

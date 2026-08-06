@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { createWorkspaceReference, workspaceKey } from "../../src/runtime/workspace/index.ts";
+import { createWorkspaceReference, workspaceKey } from "../../../src/runtime/workspace/index.ts";
 
 test("workspace keys are deterministic, collision-resistant, and contained by their root", () => {
   assert.equal(workspaceKey("ISSUE-13"), "ISSUE-13");

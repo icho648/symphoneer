@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { RuntimeClientError } from "../../src/runtime-client/index.ts";
-import { runtimeUrl } from "../../src/web/lib/runtime.ts";
+import { RuntimeClientError } from "../../../src/runtime-client/index.ts";
+import { runtimeUrl } from "../../../src/web/lib/runtime.ts";
 
 test("runtimeUrl accepts IPv4, localhost, and bracketed IPv6 loopback", (t) => {
   const previous = process.env.SYMPHONEER_RUNTIME_URL;

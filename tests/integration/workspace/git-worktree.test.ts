@@ -8,7 +8,7 @@ import {
   GitWorktreeDriver,
   WorkspaceError,
   WorkspaceManager,
-} from "../../src/runtime/workspace/index.ts";
+} from "../../../src/runtime/workspace/index.ts";
 
 async function repositoryFixture(t: TestContext) {
   const base = await mkdtemp(resolve(tmpdir(), "symphoneer-git-worktree-"));

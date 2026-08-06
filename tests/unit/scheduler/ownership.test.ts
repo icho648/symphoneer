@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CoreError, CoreScheduler } from "../../src/runtime/scheduler/index.ts";
-import { workspaceKey } from "../../src/runtime/workspace/index.ts";
-import { policy, retained, task, workspace } from "./fixtures.ts";
+import { CoreError, CoreScheduler } from "../../../src/runtime/scheduler/index.ts";
+import { workspaceKey } from "../../../src/runtime/workspace/index.ts";
+import { policy, retained, task, workspace } from "../../fixtures/scheduler.ts";
 
 test("workspace and active Turn ownership are unique and idempotent", () => {
   const scheduler = new CoreScheduler({

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CoreScheduler, sortTasksForDispatch } from "../../src/runtime/scheduler/index.ts";
-import { policy, task, workspace } from "./fixtures.ts";
+import { CoreScheduler, sortTasksForDispatch } from "../../../src/runtime/scheduler/index.ts";
+import { policy, task, workspace } from "../../fixtures/scheduler.ts";
 
 test("dispatch order is priority, oldest creation time, then identifier", () => {
   const tasks = [

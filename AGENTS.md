@@ -15,6 +15,8 @@
 | 调研输入与历史方案 | `docs/research/AGENTS.md` | 对应日期快照 |
 | 复杂任务与执行计划 | `docs/plans/AGENTS.md` | 仅在任务需要本地恢复上下文时读取 `docs/plans/active/` |
 | 实现结构、测试与工程约束 | 关联 GitHub Issue；若存在则读取 active plan | `ARCHITECTURE.md`、`docs/design-docs/core-beliefs.md`、`docs/design-docs/system-boundaries.md` |
+| 自动化测试类型与验证 | `tests/AGENTS.md` | `ARCHITECTURE.md`、`package.json` |
+| 人工验收流程 | `acceptance/AGENTS.md` | 具体验收流程文件、`docs/product-specs/` |
 
 ## 工作规则（执行主线）
 
