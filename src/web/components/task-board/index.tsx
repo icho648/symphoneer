@@ -27,6 +27,7 @@ export function TaskBoard({
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [health, setHealth] = useState(initialHealth);
   const [selectedTaskId, setSelectedTaskId] = useState(initialSnapshot?.tasks[0]?.id ?? null);
+  const [activeAttemptId, setActiveAttemptId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RuntimeAttemptDetail | null>(null);
   const [connection, setConnection] = useState(
     initialHealth?.runtime.status ?? initialSnapshot?.runtime.status ?? "offline",
@@ -92,8 +93,10 @@ export function TaskBoard({
 
   useEffect(() => {
     const syncTaskFromUrl = () => {
-      const taskId = new URLSearchParams(window.location.search).get("task");
+      const params = new URLSearchParams(window.location.search);
+      const taskId = params.get("task");
       if (taskId) setSelectedTaskId(taskId);
+      setActiveAttemptId(params.get("attempt"));
     };
     syncTaskFromUrl();
     window.addEventListener("popstate", syncTaskFromUrl);
@@ -108,16 +111,17 @@ export function TaskBoard({
         .sort((a, b) => b.sequence - a.sequence) ?? [],
     [selectedTaskId, snapshot],
   );
-  const latestAttempt = selectedAttempts[0] ?? null;
+  const selectedAttempt =
+    selectedAttempts.find((attempt) => attempt.id === activeAttemptId) ?? null;
 
   useEffect(() => {
-    if (!latestAttempt) {
+    if (!selectedAttempt) {
       setDetail(null);
       return;
     }
     let disposed = false;
     setDetail(null);
-    void fetch(`/api/runtime/attempts/${encodeURIComponent(latestAttempt.id)}`, {
+    void fetch(`/api/runtime/attempts/${encodeURIComponent(selectedAttempt.id)}`, {
       cache: "no-store",
     })
       .then(async (response) => {
@@ -134,18 +138,27 @@ export function TaskBoard({
     return () => {
       disposed = true;
     };
-  }, [dictionary.board, latestAttempt]);
+  }, [dictionary.board, selectedAttempt]);
 
-  const selectTask = (task: TaskSummary) => {
+  const openTask = (task: TaskSummary, attempt: (typeof selectedAttempts)[number] | null) => {
     setSelectedTaskId(task.id);
-    window.history.replaceState(null, "", `?task=${encodeURIComponent(task.id)}`);
+    setActiveAttemptId(attempt?.id ?? null);
+    window.history.replaceState(
+      null,
+      "",
+      `?task=${encodeURIComponent(task.id)}${attempt ? `&attempt=${encodeURIComponent(attempt.id)}` : ""}`,
+    );
     setNotice(interpolate(dictionary.board.selectedTask, { identifier: task.identifier }));
+  };
+
+  const startWorkflow = (task: TaskSummary) => {
+    void sendCommand({ kind: "start_team_run", task });
   };
 
   const sendCommand = async (intent: CommandIntent) => {
     if (!snapshot) return;
-    if (intent.kind !== "start_team_run" && (!detail || !latestAttempt)) return;
-    if (intent.kind !== "start_team_run" && detail?.attempt.id !== latestAttempt?.id) return;
+    if (intent.kind !== "start_team_run" && (!detail || !selectedAttempt)) return;
+    if (intent.kind !== "start_team_run" && detail?.attempt.id !== selectedAttempt?.id) return;
     try {
       const command = {
         ...intent,
@@ -169,6 +182,8 @@ export function TaskBoard({
       if (intent.kind === "start_team_run") {
         const attempt = body.snapshot?.attempts.find((item) => item.taskId === intent.task.id);
         if (attempt) {
+          setSelectedTaskId(intent.task.id);
+          setActiveAttemptId(attempt.id);
           window.history.replaceState(
             null,
             "",
@@ -191,41 +206,49 @@ export function TaskBoard({
       snapshot={snapshot}
     >
       <section
-        className="min-w-0 px-4 pb-8 pt-4 max-[700px]:px-3 max-[700px]:pb-6"
+        className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-4 pt-4 max-[700px]:px-3 max-[700px]:pb-3"
         id="task-board"
         aria-labelledby="board-title"
       >
-        <div className="mb-3 flex items-end justify-between gap-4 max-[700px]:flex-col max-[700px]:items-start">
-          <div>
-            <p className="mb-0.5 text-[11px] font-medium text-faint">{dictionary.board.eyebrow}</p>
-            <h1 className="mb-0 text-[22px] font-semibold tracking-[-0.03em]" id="board-title">
-              {dictionary.board.title}
-            </h1>
+        {selectedTask && selectedAttempt ? (
+          <div className="view-stage flex min-h-0 flex-1" key={selectedAttempt.id}>
+            <TaskDetail
+              detail={detail}
+              latestAttempt={selectedAttempt}
+              onBack={() => openTask(selectedTask, null)}
+              onCommand={sendCommand}
+              selectedTask={selectedTask}
+              snapshot={snapshot}
+              dictionary={dictionary}
+              locale={locale}
+            />
           </div>
-          <span
-            className="max-w-72 truncate rounded-full bg-panel px-2.5 py-1 text-[11px] text-muted shadow-[0_0_0_0.5px_var(--line)] max-[700px]:max-w-none"
-            aria-live="polite"
-          >
-            {notice}
-          </span>
-        </div>
-
-        <TaskColumns
-          onSelectTask={selectTask}
-          selectedTaskId={selectedTaskId}
-          snapshot={snapshot}
-          dictionary={dictionary}
-        />
-        <TaskDetail
-          detail={detail}
-          latestAttempt={latestAttempt}
-          onCommand={sendCommand}
-          selectedAttempts={selectedAttempts}
-          selectedTask={selectedTask}
-          snapshot={snapshot}
-          dictionary={dictionary}
-          locale={locale}
-        />
+        ) : (
+          <div className="view-stage flex min-h-0 flex-1 flex-col" key="task-lists">
+            <div className="mb-3 flex items-end justify-between gap-4 max-[700px]:flex-col max-[700px]:items-start">
+              <div>
+                <p className="eyebrow-label">{dictionary.board.eyebrow}</p>
+                <h1 className="mb-0 text-[22px] font-semibold tracking-[-0.03em]" id="board-title">
+                  {dictionary.board.title}
+                </h1>
+                <p className="mb-0 mt-1 text-[12px] text-muted">{dictionary.board.levelOneHint}</p>
+              </div>
+              <span
+                className="max-w-72 truncate rounded-full bg-panel px-2.5 py-1 text-[11px] text-muted shadow-[0_0_0_0.5px_var(--line)] max-[700px]:max-w-none"
+                aria-live="polite"
+              >
+                {notice}
+              </span>
+            </div>
+            <TaskColumns
+              onOpenTask={openTask}
+              onStartWorkflow={startWorkflow}
+              selectedTaskId={selectedTaskId}
+              snapshot={snapshot}
+              dictionary={dictionary}
+            />
+          </div>
+        )}
       </section>
     </BoardChrome>
   );

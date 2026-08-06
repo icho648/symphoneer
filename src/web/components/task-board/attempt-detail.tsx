@@ -1,35 +1,8 @@
-import type { AttemptSnapshot, RuntimeAttemptDetail, TeamRunSnapshot } from "@symphoneer/contracts";
+import type { RuntimeAttemptDetail, TeamRunSnapshot } from "@symphoneer/contracts";
 import { formatDateTime } from "@/lib/format";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
 import type { CommandIntent } from "./task-detail";
-
-export function AttemptRow({
-  attempt,
-  active,
-  dictionary,
-}: {
-  attempt: AttemptSnapshot;
-  active: boolean;
-  dictionary: Dictionary;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-between gap-3 border-b border-line px-3 py-2.5 text-[12px] last:border-b-0 ${active ? "bg-signal-soft" : ""}`}
-    >
-      <div className="grid min-w-0 gap-0.5">
-        <strong className="truncate font-semibold">
-          {dictionary.attempt.label} {String(attempt.sequence).padStart(2, "0")}
-        </strong>
-        <span className="truncate text-[11px] text-muted">
-          {dictionary.startReasons[attempt.startReason] ?? attempt.startReason}
-        </span>
-      </div>
-      <span className={`macos-pill shrink-0 ${attemptStatusClass(attempt.status)}`}>
-        {dictionary.statuses[attempt.status] ?? attempt.status}
-      </span>
-    </div>
-  );
-}
+import { WorkflowMap } from "./workflow-map";
 
 export function AttemptDetail({
   detail,
@@ -43,10 +16,7 @@ export function AttemptDetail({
   onCommand: (command: CommandIntent) => void;
 }) {
   return (
-    <section
-      className="border-t border-line bg-panel-raised/50 px-4 py-3.5"
-      aria-labelledby="attempt-detail-title"
-    >
+    <section className="attempt-detail-panel" aria-labelledby="attempt-detail-title">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-[13px] font-semibold" id="attempt-detail-title">
           {dictionary.attempt.detail}
@@ -184,6 +154,7 @@ function WorkflowPanel({
             : dictionary.workflow.codexExecutor}
         </span>
       </div>
+      <WorkflowMap dictionary={dictionary} workflow={workflow} />
       <div className="grid grid-cols-2 gap-2 min-[701px]:grid-cols-4">
         <WorkflowValue
           label={dictionary.workflow.status}
@@ -329,13 +300,4 @@ function latestWorkflow(runs: TeamRunSnapshot[]): TeamRunSnapshot | null {
 
 function isTerminal(status: TeamRunSnapshot["status"]): boolean {
   return status === "completed" || status === "stopped" || status === "failed";
-}
-
-function attemptStatusClass(status: AttemptSnapshot["status"]): string {
-  if (status === "succeeded") return "bg-success/15 text-success";
-  if (status === "failed" || status === "timed_out" || status === "stalled") {
-    return "bg-danger/15 text-danger";
-  }
-  if (status === "paused") return "bg-amber/15 text-amber";
-  return "bg-panel-raised text-muted";
 }

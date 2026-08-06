@@ -108,7 +108,7 @@ export function BoardChrome({
           </div>
         </aside>
 
-        <div className="min-w-0 overflow-auto bg-window">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-col overflow-auto bg-window">{children}</div>
       </div>
     </div>
   );

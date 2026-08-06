@@ -107,6 +107,273 @@
 }
 
 @layer components {
+  .eyebrow-label {
+    @apply mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-faint;
+  }
+
+  .view-stage {
+    animation: view-stage-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .task-card-wrap {
+    @apply grid gap-1 rounded-[9px] p-0.5 transition;
+  }
+
+  .task-card-wrap.is-selected {
+    @apply bg-signal-soft;
+  }
+
+  .task-card {
+    @apply grid w-full cursor-pointer gap-2 rounded-[8px] border border-transparent bg-panel-raised/45 p-3 text-left transition;
+  }
+
+  .task-card:hover {
+    @apply border-line-strong bg-panel-raised;
+    transform: translateY(-1px);
+  }
+
+  .task-card[aria-pressed="true"] {
+    @apply border-transparent bg-selection text-selection-text;
+    box-shadow: 0 6px 18px rgb(0 122 255 / 22%);
+  }
+
+  .task-card-heading {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .task-card-id {
+    @apply font-mono text-[11px] font-semibold text-signal;
+  }
+
+  .task-card-state {
+    @apply truncate text-[10px] text-muted;
+  }
+
+  .task-card-title {
+    @apply line-clamp-2 text-[13px] font-semibold leading-[1.35] tracking-[-0.01em];
+  }
+
+  .task-card-labels {
+    @apply truncate text-[11px] text-muted;
+  }
+
+  .task-card-meta-grid {
+    @apply grid grid-cols-3 gap-1 border-t border-line pt-2;
+  }
+
+  .task-card-meta-grid > span {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .task-card-meta-grid small {
+    @apply truncate text-[9px] uppercase tracking-[0.08em] text-faint;
+  }
+
+  .task-card-meta-grid strong {
+    @apply truncate text-[10px] font-medium text-ink;
+  }
+
+  .task-card[aria-pressed="true"] .task-card-id,
+  .task-card[aria-pressed="true"] .task-card-state,
+  .task-card[aria-pressed="true"] .task-card-labels,
+  .task-card[aria-pressed="true"] .task-card-meta-grid,
+  .task-card[aria-pressed="true"] .task-card-meta-grid strong,
+  .task-card[aria-pressed="true"] .task-card-meta-grid small {
+    @apply border-white/20 text-white/80;
+  }
+
+  .task-card-start {
+    @apply justify-self-start rounded-[6px] px-2 py-1 text-[10px] font-medium text-signal transition;
+  }
+
+  .task-card-start:hover {
+    @apply bg-signal-soft;
+  }
+
+  .workflow-map {
+    @apply flex items-start gap-0;
+  }
+
+  .workflow-map-node {
+    @apply relative flex min-w-0 flex-1 flex-col items-center gap-1 text-center text-[10px] text-faint;
+  }
+
+  .workflow-map-dot {
+    @apply relative z-[1] grid size-6 place-items-center rounded-full border border-line-strong bg-panel-raised font-mono text-[10px] text-muted transition;
+  }
+
+  .workflow-map-label {
+    @apply max-w-full truncate;
+  }
+
+  .workflow-map-line {
+    @apply absolute left-1/2 top-3 h-px w-full bg-line-strong;
+  }
+
+  .workflow-map-node.is-current .workflow-map-dot {
+    @apply border-signal bg-signal text-white;
+    box-shadow: 0 0 0 4px var(--signal-soft);
+  }
+
+  .workflow-map-node.is-current .workflow-map-label {
+    @apply font-semibold text-signal;
+  }
+
+  .workflow-map-node.is-finished .workflow-map-dot {
+    @apply border-success bg-success text-white;
+  }
+
+  .workflow-map-node.is-finished .workflow-map-label {
+    @apply text-success;
+  }
+
+  .workflow-map-compact {
+    @apply pt-1;
+  }
+
+  .workflow-map-compact .workflow-map-dot {
+    @apply size-5 text-[9px];
+  }
+
+  .workflow-map-compact .workflow-map-line {
+    @apply top-2.5;
+  }
+
+  .attempt-view {
+    @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-line bg-panel;
+  }
+
+  .attempt-view-header {
+    @apply flex shrink-0 items-center justify-between gap-4 border-b border-line bg-panel-raised/40 px-4 py-3;
+  }
+
+  .back-button {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-[6px] px-1.5 py-1 text-[11px] font-medium text-signal transition;
+  }
+
+  .back-button:hover {
+    @apply bg-signal-soft;
+  }
+
+  .attempt-view-divider {
+    @apply h-6 w-px bg-line-strong;
+  }
+
+  .attempt-view-grid {
+    @apply grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px];
+  }
+
+  .attempt-main {
+    @apply min-h-0 min-w-0 overflow-auto p-4;
+  }
+
+  .attempt-facts {
+    @apply mb-3 grid grid-cols-2 gap-2 min-[1101px]:grid-cols-4;
+  }
+
+  .attempt-fact {
+    @apply grid min-w-0 gap-1 rounded-[8px] border border-line bg-panel-raised/50 px-3 py-2.5;
+  }
+
+  .attempt-fact small {
+    @apply truncate text-[10px] uppercase tracking-[0.08em] text-faint;
+  }
+
+  .attempt-fact strong {
+    @apply text-[12px] font-semibold;
+  }
+
+  .verification-strip {
+    @apply mb-3 flex items-center justify-between gap-3 rounded-[8px] border border-line bg-panel-raised/50 px-3 py-2.5;
+  }
+
+  .attempt-detail-panel {
+    @apply grid gap-3;
+  }
+
+  .attempt-loading {
+    @apply grid min-h-40 place-items-center gap-2 rounded-[8px] border border-dashed border-line-strong text-[12px] text-muted;
+  }
+
+  .executor-output {
+    @apply flex min-h-0 min-w-0 flex-col border-l border-line bg-sidebar/55;
+  }
+
+  .executor-output-header {
+    @apply flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3;
+  }
+
+  .executor-live-dot {
+    @apply mt-1.5 size-2 rounded-full bg-faint/50;
+  }
+
+  .executor-live-dot.is-live {
+    @apply bg-success;
+    box-shadow: 0 0 0 4px rgb(52 199 89 / 12%);
+  }
+
+  .executor-context {
+    @apply grid gap-2 border-b border-line px-4 py-3;
+  }
+
+  .executor-context > div {
+    @apply flex items-center justify-between gap-3 text-[11px];
+  }
+
+  .executor-context-label {
+    @apply block text-[10px] uppercase tracking-[0.08em] text-faint;
+  }
+
+  .executor-current {
+    @apply flex items-center justify-between gap-3 border-b border-line px-4 py-3;
+  }
+
+  .executor-role-dot {
+    @apply size-2 rounded-full bg-signal;
+    box-shadow: 0 0 0 4px var(--signal-soft);
+  }
+
+  .executor-stream {
+    @apply min-h-0 flex-1 overflow-auto px-4 py-3;
+  }
+
+  .executor-event {
+    @apply relative flex gap-2.5 pb-4 last:pb-0;
+  }
+
+  .executor-event-marker {
+    @apply mt-1.5 size-1.5 shrink-0 rounded-full bg-signal;
+  }
+
+  .executor-event:not(:last-child)::before {
+    content: "";
+    @apply absolute left-[3px] top-3 h-[calc(100%-8px)] w-px bg-line-strong;
+  }
+
+  .executor-event-role {
+    @apply text-[10px] font-semibold uppercase tracking-[0.08em] text-signal;
+  }
+
+  .executor-event-time {
+    @apply shrink-0 text-[10px] text-faint;
+  }
+
+  .executor-event-message {
+    @apply mb-0 mt-1 text-[11px] leading-relaxed text-muted;
+  }
+
+  .executor-event-detail {
+    @apply mt-1 block truncate rounded-[5px] bg-panel-raised px-1.5 py-1 font-mono text-[10px] text-faint;
+  }
+
+  .executor-empty {
+    @apply grid flex-1 place-items-center content-center gap-2 px-6 text-center text-[12px] text-faint;
+  }
+
+  .executor-empty-mark {
+    @apply text-[22px] text-signal;
+  }
+
   .macos-btn {
     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[7px] border border-line-strong bg-panel px-2.5 py-1.5 text-[12px] font-medium text-ink transition;
     box-shadow:
@@ -199,6 +466,52 @@
 
   .macos-task-row[aria-pressed="true"] .macos-task-id {
     @apply text-white;
+  }
+}
+
+@keyframes view-stage-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 1050px) {
+  .attempt-view-grid {
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+
+@media (max-width: 760px) {
+  .attempt-view-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .attempt-view-divider {
+    display: none;
+  }
+
+  .attempt-view-grid {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .attempt-main {
+    overflow: visible;
+    padding: 12px;
+  }
+
+  .executor-output {
+    min-height: 320px;
+    border-left: 0;
+    border-top: 1px solid var(--line);
   }
 }
 

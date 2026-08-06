@@ -1,16 +1,24 @@
-import type { RuntimeSnapshot, TaskSummary } from "@symphoneer/contracts";
+import type {
+  AttemptSnapshot,
+  RuntimeSnapshot,
+  TaskSummary,
+  TeamRunSnapshot,
+} from "@symphoneer/contracts";
 import type { Dictionary } from "../../i18n/index.ts";
 
 import { type BoardColumn, taskColumn } from "../../lib/task-column";
+import { WorkflowMap } from "./workflow-map";
 
 export function TaskColumns({
   dictionary,
-  onSelectTask,
+  onOpenTask,
+  onStartWorkflow,
   selectedTaskId,
   snapshot,
 }: {
   dictionary: Dictionary;
-  onSelectTask: (task: TaskSummary) => void;
+  onOpenTask: (task: TaskSummary, attempt: AttemptSnapshot | null) => void;
+  onStartWorkflow: (task: TaskSummary) => void;
   selectedTaskId: string | null;
   snapshot: RuntimeSnapshot | null;
 }) {
@@ -22,14 +30,14 @@ export function TaskColumns({
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-3 min-[701px]:grid-cols-2 min-[1101px]:grid-cols-4">
+    <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 min-[701px]:grid-cols-2 min-[1101px]:grid-cols-4">
       {columns.map((column) => {
         const tasks = (snapshot?.tasks ?? []).filter(
           (task) => taskColumn(task, snapshot?.attempts ?? []) === column.id,
         );
         return (
           <section
-            className="min-h-[200px] overflow-hidden rounded-[10px] border border-line bg-panel"
+            className="flex min-h-[200px] min-w-0 flex-col overflow-hidden rounded-[10px] border border-line bg-panel min-[701px]:min-h-0"
             key={column.id}
             aria-labelledby={`column-${column.id}`}
           >
@@ -47,25 +55,18 @@ export function TaskColumns({
                 {tasks.length}
               </span>
             </div>
-            <div className="grid gap-0.5 p-1.5">
+            <div className="grid min-h-0 content-start gap-1 overflow-auto p-1.5">
               {tasks.map((task) => (
-                <button
-                  className="macos-task-row"
+                <TaskCard
+                  attempt={latestAttempt(task, snapshot?.attempts ?? [])}
+                  dictionary={dictionary}
                   key={task.id}
-                  type="button"
-                  aria-pressed={selectedTaskId === task.id}
-                  onClick={() => onSelectTask(task)}
-                >
-                  <span className="macos-task-id font-mono text-[11px] font-medium text-signal">
-                    {task.identifier}
-                  </span>
-                  <strong className="text-[12px] font-semibold leading-[1.35]">{task.title}</strong>
-                  <span className="macos-task-meta overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted">
-                    {dictionary.statuses[task.state as keyof typeof dictionary.statuses] ??
-                      task.state}{" "}
-                    · {task.labels.length ? task.labels.join(", ") : dictionary.columns.noLabels}
-                  </span>
-                </button>
+                  onOpen={() => onOpenTask(task, latestAttempt(task, snapshot?.attempts ?? []))}
+                  onStart={() => onStartWorkflow(task)}
+                  selected={selectedTaskId === task.id}
+                  snapshot={snapshot}
+                  task={task}
+                />
               ))}
               {tasks.length === 0 && (
                 <p className="px-2.5 py-6 text-center text-[11px] leading-relaxed text-faint">
@@ -78,4 +79,91 @@ export function TaskColumns({
       })}
     </div>
   );
+}
+
+function TaskCard({
+  attempt,
+  dictionary,
+  onOpen,
+  onStart,
+  selected,
+  snapshot,
+  task,
+}: {
+  attempt: AttemptSnapshot | null;
+  dictionary: Dictionary;
+  onOpen: () => void;
+  onStart: () => void;
+  selected: boolean;
+  snapshot: RuntimeSnapshot | null;
+  task: TaskSummary;
+}) {
+  const workflow = attempt
+    ? latestWorkflow(snapshot?.teamRuns.filter((run) => run.attemptId === attempt.id) ?? [])
+    : null;
+  return (
+    <div className={`task-card-wrap ${selected ? "is-selected" : ""}`}>
+      <button className="task-card" type="button" aria-pressed={selected} onClick={onOpen}>
+        <span className="task-card-heading">
+          <span className="task-card-id">{task.identifier}</span>
+          <span className="task-card-state">
+            {dictionary.statuses[task.state as keyof typeof dictionary.statuses] ?? task.state}
+          </span>
+        </span>
+        <strong className="task-card-title">{task.title}</strong>
+        <span className="task-card-labels">
+          {task.labels.length ? task.labels.join(" · ") : dictionary.columns.noLabels}
+        </span>
+        <span className="task-card-meta-grid">
+          <span>
+            <small>{dictionary.detail.tracker}</small>
+            <strong>{formatTracker(task.source.kind)}</strong>
+          </span>
+          <span>
+            <small>{dictionary.detail.executor}</small>
+            <strong>
+              {workflow?.provider === "codex-app-server"
+                ? dictionary.workflow.codexShort
+                : workflow
+                  ? dictionary.workflow.fakeShort
+                  : "—"}
+            </strong>
+          </span>
+          <span>
+            <small>{dictionary.detail.workflow}</small>
+            <strong>{workflow?.workflow ?? "—"}</strong>
+          </span>
+        </span>
+        {workflow && <WorkflowMap compact dictionary={dictionary} workflow={workflow} />}
+      </button>
+      {!attempt && (
+        <button className="task-card-start" type="button" onClick={onStart}>
+          {dictionary.workflow.start}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function latestAttempt(
+  task: TaskSummary,
+  attempts: readonly AttemptSnapshot[],
+): AttemptSnapshot | null {
+  return (
+    attempts
+      .filter((attempt) => attempt.taskId === task.id)
+      .sort((a, b) => b.sequence - a.sequence)[0] ?? null
+  );
+}
+
+function latestWorkflow(runs: TeamRunSnapshot[]): TeamRunSnapshot | null {
+  return runs.reduce<TeamRunSnapshot | null>(
+    (latest, run) => (!latest || run.updatedAt > latest.updatedAt ? run : latest),
+    null,
+  );
+}
+
+function formatTracker(kind: string): string {
+  if (kind === "github") return "GitHub";
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
