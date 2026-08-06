@@ -107,11 +107,6 @@
 }
 
 @layer components {
-  .app-shell {
-    box-shadow: var(--shadow-window);
-    border-radius: var(--radius-window);
-  }
-
   .macos-btn {
     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-[7px] border border-line-strong bg-panel px-2.5 py-1.5 text-[12px] font-medium text-ink transition;
     box-shadow:

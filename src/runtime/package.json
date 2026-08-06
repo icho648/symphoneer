@@ -8,6 +8,6 @@
     "./protocol": "./protocol.ts"
   },
   "scripts": {
-    "serve": "node ../cli/runtime.ts serve"
+    "serve": "node ./serve.ts"
   }
 }

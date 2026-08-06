@@ -14,8 +14,26 @@ Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作
 - Executor：[`src/runtime/executor/index.ts`](src/runtime/executor/index.ts)
 - Tracker：[`src/runtime/tracker/index.ts`](src/runtime/tracker/index.ts)
 - Verification：[`src/runtime/verification/index.ts`](src/runtime/verification/index.ts)
+- MCP（STDIO 查询与受控操作）：[`src/mcp/index.ts`](src/mcp/index.ts)（Host 拉起 `pnpm mcp:serve`；需先有 loopback Runtime）
 - 确定性测试：[`tests/`](tests/)
 - 全量检查：`pnpm check`
+
+本地一键启动 Runtime + Web（自动临时数据目录）：
+
+```bash
+pnpm up
+```
+
+MCP 由 Codex 等 Host 按需 STDIO 拉起，不要和 `pnpm up` 抢同一个进程。Codex 配置示例：
+
+```toml
+[mcp_servers.symphoneer]
+command = "pnpm"
+args = ["--silent", "mcp:serve"]
+cwd = "/absolute/path/to/symphoneer"
+```
+
+`pnpm` 不加 `--silent` 时会把生命周期日志写到 stdout，污染 STDIO JSON-RPC；也可用 `command = "node"`、`args = ["src/mcp/stdio.ts"]`。
 
 ## 项目文档
 

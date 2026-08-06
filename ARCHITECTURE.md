@@ -18,10 +18,10 @@ ARCHITECTURE.md              当前物理结构和依赖
   WORKFLOW.md                进入 Git 的 repository-owned 配置与 Prompt
 package.json                 根依赖安装、共享工具和运行编排
 src/
-  contracts/                 Runtime / CLI / Web 共用的版本化边界 Schema
+  contracts/                 Runtime / CLI / Web / MCP 共用的版本化边界 Schema
     package.json              私有 link package identity（@symphoneer/contracts）
     index.ts                 共享契约入口
-  runtime-client/            CLI / Web 共用的 Runtime HTTP client
+  runtime-client/            CLI / Web / MCP 共用的 Runtime HTTP client
     package.json              私有 link package identity（@symphoneer/runtime-client）
     index.ts                  Runtime HTTP client
   runtime/                   唯一核心长期运行进程的内部 Module
@@ -55,10 +55,19 @@ src/
       runtime-service.ts      RuntimeService 编排入口
     http.ts                   loopback HTTP / SSE API
     protocol.ts               Runtime API 形状（`@symphoneer/runtime/protocol`）
+    serve.ts                  Runtime HTTP 进程入口（`pnpm runtime:serve`）
     index.ts                  Runtime 内部公开入口
+  mcp/                       Host 拉起的 STDIO MCP 适配层（薄封装 RuntimeClient）
+    package.json              私有 link package identity（@symphoneer/mcp）
+    index.ts                  组装 Server、loopback URL、公开导出
+    stdio.ts                  MCP STDIO 进程入口（`pnpm mcp:serve`）
+    tools.ts                  查询 / 受控变更工具与能力审计常量
+    results.ts                Runtime 错误到 MCP 可区分结果
+    resources.ts              可选 MCP Apps ui:// resources
   cli/
-    package.json              CLI 进程脚本边界
-    runtime.ts                Runtime 服务启动和查询 CLI
+    AGENTS.md                 人用 CLI / TUI 局部规则（非 Runtime/MCP 进程入口）
+    package.json              人用 CLI / TUI 进程边界（当前仅查询命令）
+    runtime.ts                人用 Runtime 查询 CLI（snapshot / events / attempt）
   web/
     package.json              Web 进程脚本边界
     middleware.ts             locale 路由检测与重定向
@@ -71,7 +80,7 @@ src/
     app/globals.css           Tailwind CSS v4 语义主题 token 与可访问性基础样式
 scripts/
   check-project.mjs          链接、Agent 导航、Plan、测试位置、依赖与 Codemap 路径检查
-  dev.ts                     Runtime 与 Web 的产品级前台 launcher（`pnpm dev`，纳入 tsc）
+  dev.ts                     Runtime 与 Web 的产品级前台 launcher（`pnpm up` / `pnpm dev`，纳入 tsc）
 tests/
   contracts/                 共享 Schema 与 Agent Runner / Tracker contract
   scheduler/                 Scheduler 可观察行为（dispatch、eligibility、retry…）
@@ -81,6 +90,7 @@ tests/
   tracker/                   GitHub Tracker contract / failure checks
   verification/              Verification contract / failure checks
   runtime/                   JSONL 重放、artifact、Runtime 命令、HTTP / SSE
+  mcp/                       MCP 工具契约、Runtime 映射、Apps resource 与错误语义
   web/                       Web 纯函数、i18n 与 launcher 健康检查
   integration/               Fake Runner 到 Core Attempt 的确定性跨边界流程
   fixtures/                  测试专用 Fake；不是 Provider 证据
@@ -93,7 +103,7 @@ docs/
   plans/active/              当前 V1 执行计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web 各有进程边界 manifest，`src/contracts`、`src/runtime` 和 `src/runtime-client` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime` 和 `@symphoneer/runtime-client`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`（超时按完整 `pnpm check` ≈82s 量级设为 15 分钟）；没有数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟），相对实测完整检查约 82s 保留约 3.5× 余量，避免慢机器或冷缓存把超时误报为检查失败。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 Next.js / React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录，Web 通过 loopback HTTP / SSE 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime`、`@symphoneer/runtime-client` 和 `@symphoneer/mcp`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`（超时按完整 `pnpm check` ≈82s 量级设为 15 分钟）；没有数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟），相对实测完整检查约 82s 保留约 3.5× 余量，避免慢机器或冷缓存把超时误报为检查失败。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 Next.js / React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录，Web 与 MCP 通过 loopback HTTP 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实 Codex MCP Host、MCP Apps Host、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
 
 ## 当前代码依赖
 
@@ -101,15 +111,18 @@ docs/
 src/contracts ──> Zod
 src/runtime ───> src/contracts + Node stdlib + Zod + YAML + LiquidJS
 src/runtime-client ──> src/contracts + Node stdlib
-src/cli ────────────> src/runtime + src/runtime-client + Node stdlib
+src/mcp ────────────> src/contracts + src/runtime-client + MCP SDK
+src/cli ────────────> src/runtime-client + Node stdlib
 src/web ────────────> src/contracts + src/runtime-client + Web i18n + Next.js / React
-tests ────────> src/runtime + src/cli + src/web 的可测试 Module + tests/fixtures/FakeAgentRunner
+tests ────────> src/runtime + src/cli + src/web + src/mcp 的可测试 Module + tests/fixtures/FakeAgentRunner
 ```
 
-- `@symphoneer/contracts` 是 `src/contracts` 的本地 link；它不依赖 Web、CLI、Runtime 或具体执行者，是跨进程边界的共享 Schema。
-- `src/runtime` 不依赖 Next.js、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块，也不依赖自己的 HTTP client；`src/web` 只经 `@symphoneer/runtime-client` 访问 Runtime。两条方向由 `scripts/check-project.mjs` 检查。
+- `@symphoneer/contracts` 是 `src/contracts` 的本地 link；它不依赖 Web、CLI、Runtime、MCP 或具体执行者，是跨进程边界的共享 Schema。
+- `src/runtime` 不依赖 Next.js、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块，也不依赖自己的 HTTP client；`src/web`、`src/mcp` 与 `src/cli` 只经 `@symphoneer/runtime-client` 访问 Runtime。Web / MCP 方向由 `scripts/check-project.mjs` 检查。
 - `src/runtime/executor` 使用 Codex stdio JSONL；`src/runtime/tracker` 使用 Node 原生 `fetch`；Workspace 和 Verification 使用 Git CLI 与子进程。
-- `src/runtime` 是历史投影、调度、执行边界和受控 Runtime API 的单一运行进程；CLI 和 Web 不复制 Scheduler 或业务状态机。
+- `src/runtime` 是历史投影、调度、执行边界和受控 Runtime API 的单一运行进程；其 HTTP 入口为 `serve.ts`。CLI、Web 和 MCP 不复制 Scheduler 或业务状态机。
+- `src/cli` 是人用 CLI / TUI 访问面（当前仅 Runtime 查询命令），不是 Runtime / MCP 的进程入口。
+- `src/mcp` 是 Host 拉起的独立 STDIO 适配进程；只暴露查询与三种受控 Runtime 命令，不提供 Commit / Merge / dispatch，也不远程公开 loopback Runtime。
 - `src/web` 是独立 Next.js 进程；浏览器请求经过 Route Handler 转发到 loopback Runtime，Task Board 只展示 Runtime 投影，Workspace 只在 Attempt detail 中展开。
 - `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一内存写入权威；幂等重放窗口有界。
 - `WorkspaceManager` 通过小型 driver seam 管理身份、所有权和 lifecycle hook；默认目录 driver 保留 #13 的准备行为，但只能非递归删除空目录且不支持重启恢复；Git driver 使用无 `--force` 的原生 worktree 操作。
