@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
 
 import {
   type AttemptSnapshot,
@@ -17,6 +18,12 @@ import {
   type WorkspaceReference,
 } from "@symphoneer/contracts";
 import type { ImmutableArtifactStore, JsonlEventStore } from "../storage.ts";
+import {
+  LangGraphWorkflowOrchestrator,
+  VerificationRunnerAdapter,
+  type WorkflowOrchestrator,
+  WorkflowRuntimeCoordinator,
+} from "../team/index.ts";
 import { executeCommand } from "./commands.ts";
 import { EventLog } from "./event-log.ts";
 import {
@@ -36,6 +43,7 @@ export interface RuntimeServiceOptions {
   idFactory?: () => string;
   eventStore?: JsonlEventStore;
   artifactStore?: ImmutableArtifactStore;
+  workflowOrchestrator?: WorkflowOrchestrator;
 }
 
 export class RuntimeService {
@@ -44,6 +52,8 @@ export class RuntimeService {
   readonly #runtimeId: string;
   readonly #startedAt: string;
   #endpoint: string;
+  readonly #workflowOrchestrator: WorkflowOrchestrator;
+  readonly #workflowCoordinator: WorkflowRuntimeCoordinator;
 
   constructor(options: RuntimeServiceOptions) {
     this.#now = options.now ?? (() => new Date());
@@ -58,6 +68,16 @@ export class RuntimeService {
     this.#runtimeId = options.runtimeId?.trim() || `runtime:${idFactory()}`;
     this.#startedAt = this.#now().toISOString();
     this.#endpoint = options.endpoint ?? "http://127.0.0.1:0";
+    this.#workflowOrchestrator =
+      options.workflowOrchestrator ??
+      new LangGraphWorkflowOrchestrator({
+        now: this.#now,
+        verification: new VerificationRunnerAdapter({
+          artifactRoot: resolve(options.dataDir, "artifacts"),
+        }),
+        checkpointPath: resolve(options.dataDir, "orchestration", "checkpoints.sqlite"),
+      });
+    this.#workflowCoordinator = new WorkflowRuntimeCoordinator({ idFactory, now: this.#now });
   }
 
   async start(): Promise<void> {
@@ -143,7 +163,10 @@ export class RuntimeService {
   }
 
   execute(commandInput: unknown): Promise<RuntimeCommandResult> {
-    return executeCommand(this.#log, commandInput, () => this.snapshot(), this.#now);
+    return executeCommand(this.#log, commandInput, () => this.snapshot(), this.#now, {
+      orchestrator: this.#workflowOrchestrator,
+      handle: this.#workflowCoordinator.handle,
+    });
   }
 
   #connection(status: RuntimeConnection["status"]): RuntimeConnection {

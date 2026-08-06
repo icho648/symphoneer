@@ -39,6 +39,7 @@ Tracker Task / GitHub Issue
       ├── Codex Thread / Turn / Item：Agent 运行上下文与事件
       ├── Verification：项目原生检查结果
       └── ReviewDecision：人工决定
+      └── Workflow Run：LangGraph 编排状态与人工门控
 ```
 
 | 对象 | 权威来源 | Symphoneer 责任 |
@@ -49,6 +50,7 @@ Tracker Task / GitHub Issue
 | Thread / Turn / Item | Codex App Server | 保存原生 ID 和必要事件，不把 Turn 完成当成验收 |
 | Diff / Commit / Branch | Git | 保存版本引用，不伪造变更真相 |
 | Verification | 项目原生检查及其 artifact | 独立运行、记录命令、退出状态、版本和输出引用 |
+| Workflow Run / checkpoint | Runtime 应用数据目录中的 LangGraph SQLite checkpoint | 保存可恢复的编排状态；对外查询仍以 Domain Event 投影为准 |
 | ReviewDecision | 人 | 记录决定、依据、责任人和下一动作 |
 | PR / Checks / Review / Merge state | GitHub 原生对象；Merge / Close 的最终决定由人持有 | 重新读取原生状态，保存关联和冲突，不从历史投影重建 |
 | Trace / Evaluation | Phoenix 等诊断系统 | 只保存关联 ID；不可用时不阻塞核心流程 |
@@ -56,7 +58,7 @@ Tracker Task / GitHub Issue
 
 ## 当前 V1 的执行粒度
 
-- V1 默认是 `Task → Attempt → 一个活跃 Agent Session`；Session 由 Codex `threadId` / `turnId` 表示。
+- V1 默认是 `Task → Attempt → 一个活跃 Workflow Run`；当前垂直切片的 Workflow 是 `plan-implement-review`，Session 仍由 Codex `threadId` / `turnId` 表示。
 - 同一 Task 可以有多个 Attempt，用于首次执行、重试、继续或人工交还；Attempt 不是普通 Session 的归档状态。
 - 多个独立 Task 可以并行；同一 Task 的并行 Attempt、Workspace 或活跃 Turn 必须有明确所有权，当前不允许未定义的并发写入。
 - 同一 Task 多 Thread 的 `AgentRun` 聚合是未来扩展，不是固定 Symphony SPEC 的 V1 对象。只有需要独立写入、验证和合并时才引入它。

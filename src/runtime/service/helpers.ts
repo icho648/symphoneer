@@ -33,6 +33,15 @@ export function commandMessage(command: RuntimeCommand): string {
   if (command.kind === "retry_attempt") {
     return "Retry requested; the Runtime coordinator will decide the next Attempt from current state.";
   }
+  if (command.kind === "start_team_run") return "Workflow started.";
+  if (command.kind === "approve_plan") return "Workflow plan approved.";
+  if (command.kind === "reject_plan") return "Workflow plan rejected.";
+  if (command.kind === "revise_plan") return "Workflow plan revision requested.";
+  if (command.kind === "final_decision") return "Workflow final decision recorded.";
+  if (command.kind === "reset_team_run") return "Workflow reset.";
+  if (command.kind === "stop_team_session") return "Workflow stop requested.";
+  if (command.kind === "resume_team_session") return "Workflow resume requested.";
+  if (command.kind === "answer_team_input") return "Workflow human input recorded.";
   return "Intervention decision recorded without persisting the response text.";
 }
 

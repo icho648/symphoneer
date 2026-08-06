@@ -10,6 +10,12 @@ import {
   Timestamp,
 } from "./shared.ts";
 import { TaskSummarySchema } from "./task.ts";
+import {
+  AgentRunSnapshotSchema,
+  FakeTeamScenarioSchema,
+  TeamProcessEventSchema,
+  TeamRunSnapshotSchema,
+} from "./team.ts";
 import { VerificationResultSchema } from "./verification.ts";
 
 export const RuntimeConnectionSchema = z.object({
@@ -51,6 +57,9 @@ export const RuntimeSnapshotSchema = z.object({
   verifications: z.array(VerificationResultSchema),
   reviews: z.array(ReviewDecisionSchema),
   interventions: z.array(InterventionSchema),
+  teamRuns: z.array(TeamRunSnapshotSchema),
+  agentRuns: z.array(AgentRunSnapshotSchema),
+  teamEvents: z.array(TeamProcessEventSchema),
 });
 
 export type RuntimeSnapshot = z.infer<typeof RuntimeSnapshotSchema>;
@@ -62,6 +71,9 @@ export const RuntimeAttemptDetailSchema = z.object({
   verifications: z.array(VerificationResultSchema),
   reviews: z.array(ReviewDecisionSchema),
   interventions: z.array(InterventionSchema),
+  teamRuns: z.array(TeamRunSnapshotSchema),
+  agentRuns: z.array(AgentRunSnapshotSchema),
+  teamEvents: z.array(TeamProcessEventSchema),
 });
 
 export type RuntimeAttemptDetail = z.infer<typeof RuntimeAttemptDetailSchema>;
@@ -95,6 +107,56 @@ export const RuntimeCommandSchema = z.discriminatedUnion("kind", [
     decidedBy: NonEmptyString,
     decision: z.enum(["approved", "rejected", "answered", "canceled"]),
     response: z.string().optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("start_team_run"),
+    task: TaskSummarySchema,
+    workspace: WorkspaceReferenceSchema.optional(),
+    attemptId: NonEmptyString.optional(),
+    teamRunId: NonEmptyString.optional(),
+    scenario: FakeTeamScenarioSchema.optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("approve_plan"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("reject_plan"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("revise_plan"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("stop_team_session"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("resume_team_session"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("answer_team_input"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
+    response: z.enum(["approve", "revise", "reject", "request_changes", "accept", "stop"]),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("final_decision"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
+    decision: z.enum(["accept", "stop"]),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("reset_team_run"),
+    teamRunId: NonEmptyString,
+    expectedTeamRevision: z.int().positive().optional(),
   }),
 ]);
 

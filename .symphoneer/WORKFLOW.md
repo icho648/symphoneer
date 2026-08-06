@@ -2,7 +2,7 @@
 tracker:
   kind: github
   provider:
-    repo: icho648/symphoneer-fixture
+    repo: icho648/symphoneer-fixtures
     token: $GITHUB_TOKEN
   active_states: [open]
   terminal_states: [closed]

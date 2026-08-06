@@ -38,6 +38,13 @@ src/
       git-worktree/           Git worktree 创建、恢复、脏目录保护和安全释放
       fingerprint/            Git Worktree 与 Verification 共享的状态不变量
     verification/             独立检查进程与 immutable artifact
+    team/                      LangGraph workflow 编排、人工门控与执行器适配
+      workflow.ts              plan-implement-review StateGraph 实现
+      orchestrator.ts          可持久化 checkpoint 的 Workflow seam
+      agent-runner-adapter.ts  现有 AgentRunner 到 workflow executor 的适配
+      fake-agent-runner.ts     垂直切片用 deterministic Fake executor
+      fake-verification.ts     测试用 Verification adapter
+      runtime.ts               Runtime commands、事件与投影协调
     scheduler/                Attempt、Turn、retry、reconciliation 与所有权状态机
       dispatch/               排序、资格、并发与 Workspace reservation
       attempt/                Attempt 与活跃 Turn 生命周期
@@ -103,13 +110,13 @@ docs/
   plans/active/              当前 V1 执行计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime`、`@symphoneer/runtime-client` 和 `@symphoneer/mcp`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`（超时按完整 `pnpm check` ≈82s 量级设为 15 分钟）；没有数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟），相对实测完整检查约 82s 保留约 3.5× 余量，避免慢机器或冷缓存把超时误报为检查失败。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 Next.js / React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录，Web 与 MCP 通过 loopback HTTP 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实 Codex MCP Host、MCP Apps Host、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime`、`@symphoneer/runtime-client` 和 `@symphoneer/mcp`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；本地 Workflow checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 Next.js / React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录，Web 与 MCP 通过 loopback HTTP 访问 Runtime，`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实 Codex MCP Host、MCP Apps Host、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
 
 ## 当前代码依赖
 
 ```text
 src/contracts ──> Zod
-src/runtime ───> src/contracts + Node stdlib + Zod + YAML + LiquidJS
+src/runtime ───> src/contracts + Node stdlib + Zod + YAML + LiquidJS + LangGraph + SQLite checkpoint
 src/runtime-client ──> src/contracts + Node stdlib
 src/mcp ────────────> src/contracts + src/runtime-client + MCP SDK
 src/cli ────────────> src/runtime-client + Node stdlib

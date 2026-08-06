@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+import test, { type TestContext } from "node:test";
+
+import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
+import { RuntimeService } from "@symphoneer/runtime";
+
+const task: TaskSummary = {
+  schemaVersion: CONTRACT_SCHEMA_VERSION,
+  id: "github:icho648/symphoneer:40",
+  identifier: "#40",
+  source: {
+    kind: "github",
+    nativeId: "40",
+    url: "https://github.com/icho648/symphoneer/issues/40",
+  },
+  title: "LangGraph workflow vertical slice",
+  state: "open",
+  labels: [],
+  dispatchable: true,
+};
+
+async function root(t: TestContext): Promise<string> {
+  const value = await mkdtemp(resolve(tmpdir(), "symphoneer-workflow-"));
+  t.after(() => rm(value, { recursive: true, force: true }));
+  return value;
+}
+
+function service(dataDir: string, prefix: string): RuntimeService {
+  let id = 0;
+  return new RuntimeService({
+    dataDir,
+    runtimeId: `runtime:${prefix}`,
+    idFactory: () => `${prefix}-${++id}`,
+    now: () => new Date("2026-08-06T08:00:00.000Z"),
+  });
+}
+
+test("Runtime persists LangGraph workflow checkpoints and resumes from the projection", async (t) => {
+  const dataDir = await root(t);
+  const first = service(dataDir, "first");
+  await first.start();
+  const started = await first.execute({
+    kind: "start_team_run",
+    idempotencyKey: "web:start-workflow-40",
+    task,
+  });
+  const waiting = started.snapshot.teamRuns[0];
+  assert.equal(waiting?.workflow, "plan-implement-review");
+  assert.equal(waiting?.status, "awaiting_plan_approval");
+  assert.equal(started.snapshot.attempts.length, 1);
+
+  const restarted = service(dataDir, "restarted");
+  await restarted.start();
+  const resumed = await restarted.execute({
+    kind: "approve_plan",
+    idempotencyKey: "web:approve-workflow-40",
+    teamRunId: waiting?.id,
+    expectedTeamRevision: waiting?.revision,
+    expectedEventSequence: started.snapshot.runtime.lastEventSequence,
+  });
+  const awaitingDecision = resumed.snapshot.teamRuns[0];
+  assert.equal(awaitingDecision?.status, "awaiting_human_decision");
+  assert.equal(awaitingDecision?.verificationStatus, "failed");
+  assert.equal(resumed.snapshot.verifications.length, 1);
+
+  const completed = await restarted.execute({
+    kind: "final_decision",
+    idempotencyKey: "web:accept-workflow-40",
+    teamRunId: awaitingDecision?.id,
+    expectedTeamRevision: awaitingDecision?.revision,
+    expectedEventSequence: resumed.snapshot.runtime.lastEventSequence,
+    decision: "accept",
+  });
+  assert.equal(completed.snapshot.teamRuns[0]?.status, "completed");
+  assert.equal(completed.snapshot.attempts[0]?.status, "succeeded");
+});

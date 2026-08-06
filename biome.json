@@ -13,7 +13,7 @@
     }
   },
   "files": {
-    "includes": ["**", "!!**/.next"]
+    "includes": ["**", "!!**/.next", "!!.claude/worktrees"]
   },
   "formatter": {
     "enabled": true,

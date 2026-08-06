@@ -8,7 +8,26 @@ import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
 
 import { AttemptDetail, AttemptRow } from "./attempt-detail";
 
-export type AttemptCommand = "pause_attempt" | "retry_attempt";
+export type CommandIntent =
+  | { kind: "pause_attempt" }
+  | { kind: "retry_attempt" }
+  | { kind: "start_team_run"; task: TaskSummary }
+  | { kind: "approve_plan"; teamRunId: string; expectedTeamRevision: number }
+  | { kind: "revise_plan"; teamRunId: string; expectedTeamRevision: number }
+  | { kind: "reject_plan"; teamRunId: string; expectedTeamRevision: number }
+  | {
+      kind: "answer_team_input";
+      teamRunId: string;
+      expectedTeamRevision: number;
+      response: "approve" | "request_changes" | "stop";
+    }
+  | {
+      kind: "final_decision";
+      teamRunId: string;
+      expectedTeamRevision: number;
+      decision: "accept" | "stop";
+    }
+  | { kind: "stop_team_session"; teamRunId: string; expectedTeamRevision: number };
 
 export function TaskDetail({
   dictionary,
@@ -23,7 +42,7 @@ export function TaskDetail({
   dictionary: Dictionary;
   detail: RuntimeAttemptDetail | null;
   latestAttempt: AttemptSnapshot | null;
-  onCommand: (kind: AttemptCommand) => void;
+  onCommand: (command: CommandIntent) => void;
   selectedAttempts: AttemptSnapshot[];
   selectedTask: TaskSummary | null;
   snapshot: RuntimeSnapshot | null;
@@ -69,9 +88,18 @@ export function TaskDetail({
                 <span className="font-mono text-[11px] text-faint">{selectedAttempts.length}</span>
               </div>
               {selectedAttempts.length === 0 ? (
-                <p className="text-[12px] leading-relaxed text-faint">
-                  {dictionary.detail.noAttempt}
-                </p>
+                <div className="grid gap-3">
+                  <p className="mb-0 text-[12px] leading-relaxed text-faint">
+                    {dictionary.detail.noAttempt}
+                  </p>
+                  <button
+                    className="macos-btn macos-btn-primary justify-self-start"
+                    type="button"
+                    onClick={() => onCommand({ kind: "start_team_run", task: selectedTask })}
+                  >
+                    {dictionary.workflow.start}
+                  </button>
+                </div>
               ) : (
                 <div className="overflow-hidden rounded-[8px] border border-line">
                   {selectedAttempts.map((attempt) => (
@@ -89,14 +117,14 @@ export function TaskDetail({
                   <button
                     className="macos-btn"
                     type="button"
-                    onClick={() => onCommand("pause_attempt")}
+                    onClick={() => onCommand({ kind: "pause_attempt" })}
                   >
                     {dictionary.detail.requestPause}
                   </button>
                   <button
                     className="macos-btn"
                     type="button"
-                    onClick={() => onCommand("retry_attempt")}
+                    onClick={() => onCommand({ kind: "retry_attempt" })}
                   >
                     {dictionary.detail.requestRetry}
                   </button>
@@ -110,7 +138,14 @@ export function TaskDetail({
               snapshot={snapshot}
             />
           </div>
-          {detail && <AttemptDetail detail={detail} dictionary={dictionary} locale={locale} />}
+          {detail && (
+            <AttemptDetail
+              detail={detail}
+              dictionary={dictionary}
+              locale={locale}
+              onCommand={onCommand}
+            />
+          )}
         </>
       ) : (
         <div className="px-6 py-16 text-center">

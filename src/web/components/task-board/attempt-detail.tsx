@@ -1,6 +1,7 @@
-import type { AttemptSnapshot, RuntimeAttemptDetail } from "@symphoneer/contracts";
+import type { AttemptSnapshot, RuntimeAttemptDetail, TeamRunSnapshot } from "@symphoneer/contracts";
 import { formatDateTime } from "@/lib/format";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
+import type { CommandIntent } from "./task-detail";
 
 export function AttemptRow({
   attempt,
@@ -34,10 +35,12 @@ export function AttemptDetail({
   detail,
   dictionary,
   locale,
+  onCommand,
 }: {
   detail: RuntimeAttemptDetail;
   dictionary: Dictionary;
   locale: Locale;
+  onCommand: (command: CommandIntent) => void;
 }) {
   return (
     <section
@@ -70,6 +73,7 @@ export function AttemptDetail({
           <strong className="text-[12px] font-semibold">{detail.reviews.length}</strong>
         </span>
       </div>
+      <WorkflowPanel detail={detail} dictionary={dictionary} onCommand={onCommand} />
       <details className="mt-3 overflow-hidden rounded-[8px] border border-line bg-panel">
         <summary className="cursor-pointer px-3 py-2.5 text-[12px] font-medium text-signal">
           {dictionary.attempt.workspace}
@@ -134,6 +138,197 @@ export function AttemptDetail({
       </div>
     </section>
   );
+}
+
+function WorkflowPanel({
+  detail,
+  dictionary,
+  onCommand,
+}: {
+  detail: RuntimeAttemptDetail;
+  dictionary: Dictionary;
+  onCommand: (command: CommandIntent) => void;
+}) {
+  const workflow = latestWorkflow(detail.teamRuns);
+  if (!workflow) {
+    return (
+      <section
+        className="mt-3 rounded-[8px] border border-line bg-panel px-3 py-3"
+        aria-live="polite"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h4 className="text-[13px] font-semibold">{dictionary.workflow.label}</h4>
+          <span className="text-[11px] text-faint">{dictionary.workflow.noRun}</span>
+        </div>
+      </section>
+    );
+  }
+  const agents = detail.agentRuns.filter((agent) => agent.teamRunId === workflow.id);
+  const workflowEvents = detail.teamEvents.filter((event) => event.teamRunId === workflow.id);
+  const events = workflowEvents.slice(-5).reverse();
+  return (
+    <section
+      className="mt-3 rounded-[8px] border border-line bg-panel px-3 py-3"
+      aria-labelledby="workflow-title"
+    >
+      <div className="mb-2.5 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="text-[13px] font-semibold" id="workflow-title">
+            {dictionary.workflow.label}
+          </h4>
+          <p className="mb-0 truncate text-[11px] text-faint">{workflow.workflow}</p>
+        </div>
+        <span className="macos-pill shrink-0 bg-signal-soft text-signal">
+          {workflow.provider === "fake"
+            ? dictionary.workflow.fakeExecutor
+            : dictionary.workflow.codexExecutor}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 min-[701px]:grid-cols-4">
+        <WorkflowValue
+          label={dictionary.workflow.status}
+          value={dictionary.workflow.statuses[workflow.status] ?? workflow.status}
+        />
+        <WorkflowValue label={dictionary.workflow.node} value={workflow.currentNode} />
+        <WorkflowValue label={dictionary.workflow.revision} value={String(workflow.revision)} />
+        <WorkflowValue label={dictionary.workflow.agents} value={String(agents.length)} />
+      </div>
+      {workflow.pendingHumanInput && (
+        <div
+          className="mt-3 rounded-[8px] border border-signal/30 bg-signal-soft px-3 py-2.5"
+          aria-live="polite"
+        >
+          <p className="mb-2 text-[12px] font-medium text-signal">
+            {workflow.pendingHumanInput.prompt}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {workflow.pendingHumanInput.options.map((option) => (
+              <WorkflowAction
+                key={option}
+                option={option}
+                workflow={workflow}
+                onCommand={onCommand}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      {events.length > 0 && (
+        <details className="mt-3 overflow-hidden rounded-[8px] border border-line">
+          <summary className="cursor-pointer px-3 py-2 text-[12px] font-medium text-signal">
+            {dictionary.workflow.events} ({workflowEvents.length})
+          </summary>
+          <ul className="grid gap-1 border-t border-line px-3 py-2 text-[11px] text-muted">
+            {events.map((event) => (
+              <li className="flex gap-2" key={event.id}>
+                <span className="shrink-0 font-mono text-faint">{event.type}</span>
+                <span className="truncate">{event.message}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {!isTerminal(workflow.status) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            className="macos-btn"
+            type="button"
+            onClick={() =>
+              onCommand({
+                kind: "stop_team_session",
+                teamRunId: workflow.id,
+                expectedTeamRevision: workflow.revision,
+              })
+            }
+          >
+            {dictionary.workflow.stop}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function WorkflowValue({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="grid gap-1 rounded-[6px] bg-panel-raised px-2 py-2">
+      <small className="text-[10px] text-faint">{label}</small>
+      <strong className="truncate text-[11px] font-semibold">{value}</strong>
+    </span>
+  );
+}
+
+function WorkflowAction({
+  option,
+  workflow,
+  onCommand,
+}: {
+  option: string;
+  workflow: TeamRunSnapshot;
+  onCommand: (command: CommandIntent) => void;
+}) {
+  const pending = workflow.pendingHumanInput;
+  if (!pending) return null;
+  if (pending.kind === "plan_approval") {
+    const kind =
+      option === "approve" ? "approve_plan" : option === "revise" ? "revise_plan" : "reject_plan";
+    return (
+      <button
+        className="macos-btn macos-btn-primary"
+        type="button"
+        onClick={() =>
+          onCommand({ kind, teamRunId: workflow.id, expectedTeamRevision: workflow.revision })
+        }
+      >
+        {option}
+      </button>
+    );
+  }
+  if (pending.kind === "review_input") {
+    return (
+      <button
+        className="macos-btn macos-btn-primary"
+        type="button"
+        onClick={() =>
+          onCommand({
+            kind: "answer_team_input",
+            teamRunId: workflow.id,
+            expectedTeamRevision: workflow.revision,
+            response: option as "approve" | "request_changes" | "stop",
+          })
+        }
+      >
+        {option}
+      </button>
+    );
+  }
+  return (
+    <button
+      className="macos-btn macos-btn-primary"
+      type="button"
+      onClick={() =>
+        onCommand({
+          kind: "final_decision",
+          teamRunId: workflow.id,
+          expectedTeamRevision: workflow.revision,
+          decision: option as "accept" | "stop",
+        })
+      }
+    >
+      {option}
+    </button>
+  );
+}
+
+function latestWorkflow(runs: TeamRunSnapshot[]): TeamRunSnapshot | null {
+  return runs.reduce<TeamRunSnapshot | null>(
+    (latest, run) => (!latest || run.updatedAt > latest.updatedAt ? run : latest),
+    null,
+  );
+}
+
+function isTerminal(status: TeamRunSnapshot["status"]): boolean {
+  return status === "completed" || status === "stopped" || status === "failed";
 }
 
 function attemptStatusClass(status: AttemptSnapshot["status"]): string {

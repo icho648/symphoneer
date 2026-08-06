@@ -11,7 +11,7 @@ import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
 
 import { BoardChrome } from "./board-chrome";
 import { TaskColumns } from "./task-columns";
-import { type AttemptCommand, TaskDetail } from "./task-detail";
+import { type CommandIntent, TaskDetail } from "./task-detail";
 
 export function TaskBoard({
   dictionary,
@@ -90,6 +90,16 @@ export function TaskBoard({
     };
   }, [dictionary.board, initialSnapshot?.runtime.lastEventSequence]);
 
+  useEffect(() => {
+    const syncTaskFromUrl = () => {
+      const taskId = new URLSearchParams(window.location.search).get("task");
+      if (taskId) setSelectedTaskId(taskId);
+    };
+    syncTaskFromUrl();
+    window.addEventListener("popstate", syncTaskFromUrl);
+    return () => window.removeEventListener("popstate", syncTaskFromUrl);
+  }, []);
+
   const selectedTask = snapshot?.tasks.find((task) => task.id === selectedTaskId) ?? null;
   const selectedAttempts = useMemo(
     () =>
@@ -128,27 +138,44 @@ export function TaskBoard({
 
   const selectTask = (task: TaskSummary) => {
     setSelectedTaskId(task.id);
+    window.history.replaceState(null, "", `?task=${encodeURIComponent(task.id)}`);
     setNotice(interpolate(dictionary.board.selectedTask, { identifier: task.identifier }));
   };
 
-  const sendCommand = async (kind: AttemptCommand) => {
-    if (!snapshot || !detail || !latestAttempt) return;
-    if (detail.attempt.id !== latestAttempt.id) return;
+  const sendCommand = async (intent: CommandIntent) => {
+    if (!snapshot) return;
+    if (intent.kind !== "start_team_run" && (!detail || !latestAttempt)) return;
+    if (intent.kind !== "start_team_run" && detail?.attempt.id !== latestAttempt?.id) return;
     try {
+      const command = {
+        ...intent,
+        ...(intent.kind === "pause_attempt" || intent.kind === "retry_attempt"
+          ? {
+              attemptId: detail?.attempt.id,
+              expectedAttemptUpdatedAt: detail?.attempt.updatedAt,
+            }
+          : {}),
+        expectedEventSequence: snapshot.runtime.lastEventSequence,
+        idempotencyKey: `web:${intent.kind}:${crypto.randomUUID()}`,
+      };
       const response = await fetch("/api/runtime/commands", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind,
-          attemptId: detail.attempt.id,
-          expectedAttemptUpdatedAt: detail.attempt.updatedAt,
-          expectedEventSequence: snapshot.runtime.lastEventSequence,
-          idempotencyKey: `web:${kind}:${crypto.randomUUID()}`,
-        }),
+        body: JSON.stringify(command),
       });
       const body = (await response.json()) as { message?: string; snapshot?: RuntimeSnapshot };
       if (!response.ok) throw new Error(dictionary.board.commandRejected);
       if (body.snapshot) setSnapshot(body.snapshot);
+      if (intent.kind === "start_team_run") {
+        const attempt = body.snapshot?.attempts.find((item) => item.taskId === intent.task.id);
+        if (attempt) {
+          window.history.replaceState(
+            null,
+            "",
+            `?task=${encodeURIComponent(intent.task.id)}&attempt=${encodeURIComponent(attempt.id)}`,
+          );
+        }
+      }
       setNotice(dictionary.board.commandAccepted);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : dictionary.board.commandFailed);
