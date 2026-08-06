@@ -1,12 +1,16 @@
 import type {
+  AgentRunSnapshot,
   AttemptSnapshot,
   RuntimeAttemptDetail,
   RuntimeSnapshot,
   TaskSummary,
+  TeamRunSnapshot,
 } from "@symphoneer/contracts";
+import { useState } from "react";
 import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
 
 import { AttemptDetail } from "./attempt-detail";
+import { AttemptHistory } from "./attempt-history";
 import { ExecutorOutput } from "./executor-output";
 
 export type CommandIntent =
@@ -33,22 +37,43 @@ export type CommandIntent =
 export function TaskDetail({
   dictionary,
   detail,
+  activeAgentId,
+  activeRunId,
+  activeSessionId,
+  attempts,
   latestAttempt,
   locale,
   onBack,
   onCommand,
+  onSelectAgent,
+  onSelectAttempt,
+  onSelectRun,
+  onSelectSession,
   selectedTask,
   snapshot,
 }: {
+  activeAgentId: string | null;
+  activeRunId: string | null;
+  activeSessionId: string | null;
+  attempts: readonly AttemptSnapshot[];
   dictionary: Dictionary;
   detail: RuntimeAttemptDetail | null;
   latestAttempt: AttemptSnapshot;
   locale: Locale;
   onBack: () => void;
   onCommand: (command: CommandIntent) => void;
+  onSelectAgent: (agent: AgentRunSnapshot) => void;
+  onSelectAttempt: (attempt: AttemptSnapshot) => void;
+  onSelectRun: (run: TeamRunSnapshot) => void;
+  onSelectSession: (threadId: string) => void;
   selectedTask: TaskSummary;
   snapshot: RuntimeSnapshot | null;
 }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const selectedRun =
+    detail?.teamRuns.find((run) => run.id === activeRunId) ??
+    latestWorkflow(detail?.teamRuns ?? []);
+
   return (
     <section className="attempt-view" id="attempt-view" aria-labelledby="attempt-view-title">
       <header className="attempt-view-header">
@@ -59,14 +84,42 @@ export function TaskDetail({
           </button>
           <span className="attempt-view-divider" aria-hidden="true" />
           <div className="min-w-0">
-            <p className="eyebrow-label">
-              {interpolate(dictionary.detail.selectedTask, { identifier: selectedTask.identifier })}
-            </p>
+            <nav className="attempt-breadcrumb" aria-label={dictionary.detail.breadcrumbTasks}>
+              <button type="button" onClick={onBack}>
+                {dictionary.detail.breadcrumbTasks}
+              </button>
+              <span aria-hidden="true">/</span>
+              <span>{selectedTask.identifier}</span>
+              <span aria-hidden="true">/</span>
+              <strong>
+                {dictionary.detail.breadcrumbAttempt}{" "}
+                {String(latestAttempt.sequence).padStart(2, "0")}
+              </strong>
+              {selectedRun && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span>{dictionary.detail.breadcrumbRun}</span>
+                </>
+              )}
+              {activeAgentId && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span>{dictionary.detail.breadcrumbAgent}</span>
+                </>
+              )}
+              {activeSessionId && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span>{dictionary.detail.breadcrumbSession}</span>
+                </>
+              )}
+            </nav>
             <h1
               className="truncate text-[20px] font-semibold tracking-[-0.03em]"
               id="attempt-view-title"
             >
-              {selectedTask.title}
+              {interpolate(dictionary.detail.selectedTask, { identifier: selectedTask.identifier })}{" "}
+              · {selectedTask.title}
             </h1>
           </div>
         </div>
@@ -85,7 +138,22 @@ export function TaskDetail({
         </div>
       </header>
 
-      <div className="attempt-view-grid">
+      <div className={`attempt-view-grid ${historyOpen ? "history-is-open" : ""}`}>
+        <AttemptHistory
+          activeAgentId={activeAgentId}
+          activeRunId={activeRunId}
+          attempts={attempts}
+          currentAttemptId={latestAttempt.id}
+          detail={detail}
+          dictionary={dictionary}
+          locale={locale}
+          onSelectAgent={onSelectAgent}
+          onSelectAttempt={onSelectAttempt}
+          onSelectRun={onSelectRun}
+          onSelectSession={onSelectSession}
+          onToggle={() => setHistoryOpen((value) => !value)}
+          open={historyOpen}
+        />
         <main className="attempt-main">
           <div className="attempt-facts">
             <Fact
@@ -100,7 +168,7 @@ export function TaskDetail({
               label={dictionary.detail.executor}
               value={detail ? executorLabel(detail, dictionary) : "—"}
             />
-            <Fact label={dictionary.detail.workflow} value={detail?.teamRuns[0]?.workflow ?? "—"} />
+            <Fact label={dictionary.detail.workflow} value={selectedRun?.workflow ?? "—"} />
           </div>
           <VerificationPanel
             dictionary={dictionary}
@@ -127,6 +195,8 @@ export function TaskDetail({
           )}
           {detail ? (
             <AttemptDetail
+              activeAgentId={activeAgentId}
+              activeRunId={activeRunId}
               detail={detail}
               dictionary={dictionary}
               locale={locale}
@@ -141,7 +211,15 @@ export function TaskDetail({
             </div>
           )}
         </main>
-        {detail && <ExecutorOutput detail={detail} dictionary={dictionary} locale={locale} />}
+        {detail && (
+          <ExecutorOutput
+            activeAgentId={activeAgentId}
+            activeRunId={activeRunId}
+            detail={detail}
+            dictionary={dictionary}
+            locale={locale}
+          />
+        )}
       </div>
     </section>
   );
@@ -153,6 +231,13 @@ function Fact({ label, value }: { label: string; value: string }) {
       <small>{label}</small>
       <strong className="truncate">{value}</strong>
     </span>
+  );
+}
+
+function latestWorkflow(runs: readonly TeamRunSnapshot[]): TeamRunSnapshot | null {
+  return runs.reduce<TeamRunSnapshot | null>(
+    (latest, run) => (!latest || run.updatedAt > latest.updatedAt ? run : latest),
+    null,
   );
 }
 

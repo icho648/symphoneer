@@ -1,16 +1,18 @@
 "use client";
 
 import type {
+  AgentRunSnapshot,
   RuntimeAttemptDetail,
   RuntimeHealth,
   RuntimeSnapshot,
   TaskSummary,
+  TeamRunSnapshot,
 } from "@symphoneer/contracts";
 import { useEffect, useMemo, useState } from "react";
 import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
 
 import { BoardChrome } from "./board-chrome";
-import { TaskColumns } from "./task-columns";
+import { TaskColumns, type TaskStatusFilter } from "./task-columns";
 import { type CommandIntent, TaskDetail } from "./task-detail";
 
 export function TaskBoard({
@@ -25,9 +27,12 @@ export function TaskBoard({
   locale: Locale;
 }) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [health, setHealth] = useState(initialHealth);
   const [selectedTaskId, setSelectedTaskId] = useState(initialSnapshot?.tasks[0]?.id ?? null);
+  const [taskFilter, setTaskFilter] = useState<TaskStatusFilter>("ALL");
   const [activeAttemptId, setActiveAttemptId] = useState<string | null>(null);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RuntimeAttemptDetail | null>(null);
   const [connection, setConnection] = useState(
     initialHealth?.runtime.status ?? initialSnapshot?.runtime.status ?? "offline",
@@ -44,14 +49,12 @@ export function TaskBoard({
     };
     const refreshHealth = async () => {
       try {
-        const body = await fetchRuntimeJson<RuntimeHealth>("/api/runtime/health");
+        await fetchRuntimeJson<RuntimeHealth>("/api/runtime/health");
         if (!disposed) {
-          setHealth(body);
           setConnection("online");
         }
       } catch (error) {
         if (!disposed) {
-          setHealth(null);
           setConnection("offline");
           setNotice(error instanceof Error ? error.message : dictionary.board.runtimeUnavailable);
         }
@@ -81,7 +84,6 @@ export function TaskBoard({
     stream.addEventListener("domain", refresh);
     stream.onerror = () => {
       if (!disposed) {
-        setHealth(null);
         setConnection("offline");
       }
     };
@@ -97,6 +99,9 @@ export function TaskBoard({
       const taskId = params.get("task");
       if (taskId) setSelectedTaskId(taskId);
       setActiveAttemptId(params.get("attempt"));
+      setActiveRunId(params.get("run"));
+      setActiveAgentId(params.get("agent"));
+      setActiveSessionId(params.get("session"));
     };
     syncTaskFromUrl();
     window.addEventListener("popstate", syncTaskFromUrl);
@@ -143,11 +148,21 @@ export function TaskBoard({
   const openTask = (task: TaskSummary, attempt: (typeof selectedAttempts)[number] | null) => {
     setSelectedTaskId(task.id);
     setActiveAttemptId(attempt?.id ?? null);
+    setActiveRunId(null);
+    setActiveAgentId(null);
+    setActiveSessionId(null);
     window.history.replaceState(
       null,
       "",
       `?task=${encodeURIComponent(task.id)}${attempt ? `&attempt=${encodeURIComponent(attempt.id)}` : ""}`,
     );
+    replaceUrl({
+      task: task.id,
+      attempt: attempt?.id ?? null,
+      run: null,
+      agent: null,
+      session: null,
+    });
     setNotice(interpolate(dictionary.board.selectedTask, { identifier: task.identifier }));
   };
 
@@ -184,6 +199,9 @@ export function TaskBoard({
         if (attempt) {
           setSelectedTaskId(intent.task.id);
           setActiveAttemptId(attempt.id);
+          setActiveRunId(null);
+          setActiveAgentId(null);
+          setActiveSessionId(null);
           window.history.replaceState(
             null,
             "",
@@ -197,11 +215,71 @@ export function TaskBoard({
     }
   };
 
+  const replaceUrl = (
+    values: Record<"task" | "attempt" | "run" | "agent" | "session", string | null>,
+  ) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(values)) {
+      if (value) params.set(key, value);
+    }
+    const query = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+  };
+
+  const selectAttempt = (attempt: (typeof selectedAttempts)[number]) => {
+    setActiveAttemptId(attempt.id);
+    setActiveRunId(null);
+    setActiveAgentId(null);
+    setActiveSessionId(null);
+    replaceUrl({
+      task: selectedTaskId,
+      attempt: attempt.id,
+      run: null,
+      agent: null,
+      session: null,
+    });
+  };
+
+  const selectRun = (run: TeamRunSnapshot) => {
+    setActiveRunId(run.id);
+    setActiveAgentId(null);
+    setActiveSessionId(null);
+    replaceUrl({
+      task: selectedTaskId,
+      attempt: activeAttemptId,
+      run: run.id,
+      agent: null,
+      session: null,
+    });
+  };
+
+  const selectAgent = (agent: AgentRunSnapshot) => {
+    setActiveAgentId(agent.id);
+    setActiveSessionId(agent.providerSession?.threadId ?? null);
+    replaceUrl({
+      task: selectedTaskId,
+      attempt: activeAttemptId,
+      run: agent.teamRunId,
+      agent: agent.id,
+      session: agent.providerSession?.threadId ?? null,
+    });
+  };
+
+  const selectSession = (threadId: string) => {
+    setActiveSessionId(threadId);
+    replaceUrl({
+      task: selectedTaskId,
+      attempt: activeAttemptId,
+      run: activeRunId,
+      agent: activeAgentId,
+      session: threadId,
+    });
+  };
+
   return (
     <BoardChrome
       connection={connection}
       dictionary={dictionary}
-      health={health}
       locale={locale}
       snapshot={snapshot}
     >
@@ -213,10 +291,18 @@ export function TaskBoard({
         {selectedTask && selectedAttempt ? (
           <div className="view-stage flex min-h-0 flex-1" key={selectedAttempt.id}>
             <TaskDetail
+              activeAgentId={activeAgentId}
+              activeRunId={activeRunId}
+              activeSessionId={activeSessionId}
+              attempts={selectedAttempts}
               detail={detail}
               latestAttempt={selectedAttempt}
               onBack={() => openTask(selectedTask, null)}
               onCommand={sendCommand}
+              onSelectAgent={selectAgent}
+              onSelectAttempt={selectAttempt}
+              onSelectRun={selectRun}
+              onSelectSession={selectSession}
               selectedTask={selectedTask}
               snapshot={snapshot}
               dictionary={dictionary}
@@ -241,8 +327,11 @@ export function TaskBoard({
               </span>
             </div>
             <TaskColumns
+              connection={connection}
               onOpenTask={openTask}
               onStartWorkflow={startWorkflow}
+              filter={taskFilter}
+              onFilterChange={setTaskFilter}
               selectedTaskId={selectedTaskId}
               snapshot={snapshot}
               dictionary={dictionary}

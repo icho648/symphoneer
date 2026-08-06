@@ -3,21 +3,25 @@ import { formatDateTime } from "@/lib/format";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
 
 export function ExecutorOutput({
+  activeAgentId,
+  activeRunId,
   detail,
   dictionary,
   locale,
 }: {
+  activeAgentId: string | null;
+  activeRunId: string | null;
   detail: RuntimeAttemptDetail;
   dictionary: Dictionary;
   locale: Locale;
 }) {
-  const workflow = latestWorkflow(detail);
+  const workflow = detail.teamRuns.find((run) => run.id === activeRunId) ?? latestWorkflow(detail);
   const agents = workflow
     ? detail.agentRuns
         .filter((agent) => agent.teamRunId === workflow.id)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     : [];
-  const currentAgent = agents[0] ?? null;
+  const currentAgent = agents.find((agent) => agent.id === activeAgentId) ?? agents[0] ?? null;
   const events = workflow
     ? detail.teamEvents
         .filter((event) => event.teamRunId === workflow.id)
@@ -110,6 +114,9 @@ function OutputEvent({
         <div className="flex items-center justify-between gap-2">
           <span className="executor-event-role">
             {dictionary.workflow.roles[event.role] ?? event.role}
+          </span>
+          <span className="executor-event-type">
+            {dictionary.workflow.eventTypes[event.type] ?? event.type.replaceAll("_", " ")}
           </span>
           <time className="executor-event-time" dateTime={event.occurredAt}>
             {formatDateTime(event.occurredAt, locale)}
