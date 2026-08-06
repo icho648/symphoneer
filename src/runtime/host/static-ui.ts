@@ -17,11 +17,7 @@ const MIME: Record<string, string> = {
 };
 
 export function isApiPath(pathname: string): boolean {
-  return (
-    pathname === "/healthz" ||
-    pathname.startsWith("/v1/") ||
-    pathname === "/v1"
-  );
+  return pathname === "/healthz" || pathname.startsWith("/v1/") || pathname === "/v1";
 }
 
 export async function tryServeStaticUi(

@@ -1,14 +1,8 @@
-import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { NonEmptyString } from "./shared.ts";
 
-export const OrchestrationNodeKindSchema = z.enum([
-  "agent",
-  "human_gate",
-  "verification",
-  "route",
-]);
+export const OrchestrationNodeKindSchema = z.enum(["agent", "human_gate", "verification", "route"]);
 
 export type OrchestrationNodeKind = z.infer<typeof OrchestrationNodeKindSchema>;
 
@@ -47,19 +41,3 @@ export const OrchestrationBindingSchema = z.object({
 });
 
 export type OrchestrationBinding = z.infer<typeof OrchestrationBindingSchema>;
-
-export function hashOrchestrationDefinition(definition: OrchestrationDefinition): string {
-  const canonical = JSON.stringify(OrchestrationDefinitionSchema.parse(definition));
-  return createHash("sha256").update(canonical).digest("hex");
-}
-
-export function bindOrchestrationDefinition(
-  definition: OrchestrationDefinition,
-): OrchestrationBinding {
-  const parsed = OrchestrationDefinitionSchema.parse(definition);
-  return {
-    definitionId: parsed.id,
-    definitionVersion: parsed.version,
-    definitionHash: hashOrchestrationDefinition(parsed),
-  };
-}

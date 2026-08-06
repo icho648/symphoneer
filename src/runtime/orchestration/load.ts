@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
-  bindOrchestrationDefinition,
   type OrchestrationBinding,
   type OrchestrationDefinition,
   OrchestrationDefinitionSchema,
@@ -10,13 +9,10 @@ import {
 import { z } from "zod";
 
 import { RuntimeError } from "../errors.ts";
+import { bindOrchestrationDefinition } from "./hash.ts";
 
 export function loadOrchestrationDefinitionSync(
-  options: {
-    id?: string;
-    path?: string;
-    cwd?: string;
-  } = {},
+  options: { id?: string; path?: string; cwd?: string } = {},
 ): { definition: OrchestrationDefinition; binding: OrchestrationBinding; path: string } {
   const id = options.id ?? "plan-implement-review";
   const filePath = resolve(
@@ -56,11 +52,7 @@ export function loadOrchestrationDefinitionSync(
 }
 
 export async function loadOrchestrationDefinition(
-  options: {
-    id?: string;
-    path?: string;
-    cwd?: string;
-  } = {},
+  options: { id?: string; path?: string; cwd?: string } = {},
 ): Promise<{ definition: OrchestrationDefinition; binding: OrchestrationBinding; path: string }> {
   return loadOrchestrationDefinitionSync(options);
 }

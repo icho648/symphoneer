@@ -75,112 +75,121 @@ async function withServer(
 }
 
 test("HttpRuntimeTransport maps domain methods and typed errors", async () => {
-  await withServer(async (request, response) => {
-    const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (url.pathname === "/healthz") {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify(health()));
-      return;
-    }
-    if (url.pathname === "/v1/snapshot") {
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify(emptySnapshot()));
-      return;
-    }
-    if (url.pathname === "/v1/attempts/missing") {
-      response.writeHead(404, { "Content-Type": "application/json" });
-      response.end(
-        JSON.stringify({
-          schemaVersion: CONTRACT_SCHEMA_VERSION,
-          code: "not_found",
-          message: "Attempt was not found",
-          retryable: false,
-        }),
+  await withServer(
+    async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (url.pathname === "/healthz") {
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(health()));
+        return;
+      }
+      if (url.pathname === "/v1/snapshot") {
+        response.writeHead(200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(emptySnapshot()));
+        return;
+      }
+      if (url.pathname === "/v1/attempts/missing") {
+        response.writeHead(404, { "Content-Type": "application/json" });
+        response.end(
+          JSON.stringify({
+            schemaVersion: CONTRACT_SCHEMA_VERSION,
+            code: "not_found",
+            message: "Attempt was not found",
+            retryable: false,
+          }),
+        );
+        return;
+      }
+      if (url.pathname === "/v1/commands") {
+        response.writeHead(409, { "Content-Type": "application/json" });
+        response.end(
+          JSON.stringify({
+            schemaVersion: CONTRACT_SCHEMA_VERSION,
+            code: "conflict",
+            message: "stale expectedEventSequence",
+            retryable: false,
+          }),
+        );
+        return;
+      }
+      response.statusCode = 404;
+      response.end();
+    },
+    async (baseUrl) => {
+      const client = new DefaultRuntimeClient(new HttpRuntimeTransport({ baseUrl }));
+      assert.equal((await client.health()).status, "ok");
+      assert.equal((await client.snapshot()).tasks.length, 0);
+      await assert.rejects(
+        () => client.getAttempt("missing"),
+        (error: unknown) => error instanceof RuntimeClientError && error.code === "not_found",
       );
-      return;
-    }
-    if (url.pathname === "/v1/commands") {
-      response.writeHead(409, { "Content-Type": "application/json" });
-      response.end(
-        JSON.stringify({
-          schemaVersion: CONTRACT_SCHEMA_VERSION,
-          code: "conflict",
-          message: "stale expectedEventSequence",
-          retryable: false,
-        }),
+      await assert.rejects(
+        () =>
+          client.pauseAttempt({
+            kind: "pause_attempt",
+            attemptId: "a1",
+            idempotencyKey: "k1",
+          }),
+        (error: unknown) => error instanceof RuntimeClientError && error.code === "stale",
       );
-      return;
-    }
-    response.statusCode = 404;
-    response.end();
-  }, async (baseUrl) => {
-    const client = new DefaultRuntimeClient(new HttpRuntimeTransport({ baseUrl }));
-    assert.equal((await client.health()).status, "ok");
-    assert.equal((await client.snapshot()).tasks.length, 0);
-    await assert.rejects(
-      () => client.getAttempt("missing"),
-      (error: unknown) => error instanceof RuntimeClientError && error.code === "not_found",
-    );
-    await assert.rejects(
-      () =>
-        client.pauseAttempt({
-          kind: "pause_attempt",
-          attemptId: "a1",
-          idempotencyKey: "k1",
-        }),
-      (error: unknown) => error instanceof RuntimeClientError && error.code === "stale",
-    );
-  });
+    },
+  );
 });
 
 test("HttpRuntimeTransport subscribe delivers ordered SSE and closes", async () => {
-  await withServer((request, response) => {
-    const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    assert.equal(url.pathname, "/v1/events/stream");
-    response.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    });
-    response.write(`event: snapshot\ndata: ${JSON.stringify(emptySnapshot(0))}\n\n`);
-    response.write(
-      `event: domain\ndata: ${JSON.stringify({
-        sequence: 1,
-        event: {
-          schemaVersion: CONTRACT_SCHEMA_VERSION,
-          id: "evt-1",
-          type: "runtime.command.requested",
-          occurredAt: "2026-08-06T00:00:00.000Z",
-          source: "runtime",
-          aggregate: { kind: "attempt", id: "attempt-1" },
-          payload: {},
-        },
-      })}\n\n`,
-    );
-    response.end();
-  }, async (baseUrl) => {
-    const client = new DefaultRuntimeClient(new HttpRuntimeTransport({ baseUrl }));
-    const subscription = client.subscribe({ afterSequence: 0 });
-    const seen: string[] = [];
-    for await (const event of subscription.events) {
-      if (event.kind === "snapshot") seen.push("snapshot");
-      if (event.kind === "domain") seen.push(`domain:${event.event.sequence}`);
-      if (event.kind === "error") throw event.error;
-    }
-    assert.deepEqual(seen, ["snapshot", "domain:1"]);
-  });
+  await withServer(
+    (request, response) => {
+      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      assert.equal(url.pathname, "/v1/events/stream");
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+      response.write(`event: snapshot\ndata: ${JSON.stringify(emptySnapshot(0))}\n\n`);
+      response.write(
+        `event: domain\ndata: ${JSON.stringify({
+          sequence: 1,
+          event: {
+            schemaVersion: CONTRACT_SCHEMA_VERSION,
+            id: "evt-1",
+            type: "runtime.command.requested",
+            occurredAt: "2026-08-06T00:00:00.000Z",
+            source: "runtime",
+            aggregate: { kind: "attempt", id: "attempt-1" },
+            payload: {},
+          },
+        })}\n\n`,
+      );
+      response.end();
+    },
+    async (baseUrl) => {
+      const client = new DefaultRuntimeClient(new HttpRuntimeTransport({ baseUrl }));
+      const subscription = client.subscribe({ afterSequence: 0 });
+      const seen: string[] = [];
+      for await (const event of subscription.events) {
+        if (event.kind === "snapshot") seen.push("snapshot");
+        if (event.kind === "domain") seen.push(`domain:${event.event.sequence}`);
+        if (event.kind === "error") throw event.error;
+      }
+      assert.deepEqual(seen, ["snapshot", "domain:1"]);
+    },
+  );
 });
 
 test("HttpRuntimeTransport rejects invalid JSON responses", async () => {
-  await withServer((_request, response) => {
-    response.writeHead(200, { "Content-Type": "application/json" });
-    response.end("{not-json");
-  }, async (baseUrl) => {
-    const transport = new HttpRuntimeTransport({ baseUrl });
-    await assert.rejects(
-      () => transport.request({ method: "GET", path: "/healthz" }),
-      (error: unknown) =>
-        error instanceof RuntimeClientError && error.code === "invalid_response",
-    );
-  });
+  await withServer(
+    (_request, response) => {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end("{not-json");
+    },
+    async (baseUrl) => {
+      const transport = new HttpRuntimeTransport({ baseUrl });
+      await assert.rejects(
+        () => transport.request({ method: "GET", path: "/healthz" }),
+        (error: unknown) =>
+          error instanceof RuntimeClientError && error.code === "invalid_response",
+      );
+    },
+  );
 });

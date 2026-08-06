@@ -6,10 +6,7 @@ import test from "node:test";
 
 import { RuntimeHttpServer, RuntimeService } from "@symphoneer/runtime";
 import { DefaultRuntimeClient, HttpRuntimeTransport } from "@symphoneer/runtime-client";
-import {
-  createAssistantAdapter,
-  executeRuntimeTool,
-} from "../../src/runtime-tools/index.ts";
+import { createAssistantAdapter, executeRuntimeTool } from "../../src/runtime-tools/index.ts";
 
 test("headless RuntimeClient supports query, mutation, and subscription without React/MCP", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "symphoneer-headless-"));
@@ -30,7 +27,8 @@ test("headless RuntimeClient supports query, mutation, and subscription without 
     subscription.close();
 
     await assert.rejects(
-      () => executeRuntimeTool(client, "pause_attempt", { attemptId: "missing", idempotencyKey: "k" }),
+      () =>
+        executeRuntimeTool(client, "pause_attempt", { attemptId: "missing", idempotencyKey: "k" }),
       /requires confirmation/,
     );
 

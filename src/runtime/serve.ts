@@ -1,9 +1,5 @@
 #!/usr/bin/env node
-import {
-  resolveRuntimeHostConfig,
-  RuntimeHttpServer,
-  RuntimeService,
-} from "./index.ts";
+import { RuntimeHttpServer, RuntimeService, resolveRuntimeHostConfig } from "./index.ts";
 
 export async function runServer(
   options: {

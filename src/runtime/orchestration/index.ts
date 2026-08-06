@@ -1,6 +1,9 @@
+export type {
+  OrchestrationBinding,
+  OrchestrationDefinition,
+} from "@symphoneer/contracts";
+export { bindOrchestrationDefinition, hashOrchestrationDefinition } from "./hash.ts";
 export {
   loadOrchestrationDefinition,
   loadOrchestrationDefinitionSync,
-  type OrchestrationBinding,
-  type OrchestrationDefinition,
 } from "./load.ts";

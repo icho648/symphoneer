@@ -1,10 +1,9 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-
 import {
   createHttpRuntimeClient,
-  DefaultRuntimeClient,
+  type DefaultRuntimeClient,
   RuntimeClient,
 } from "@symphoneer/runtime-client";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 type Bootstrap = {
   token?: string;

@@ -9,10 +9,7 @@ export interface RuntimeToolDefinition<TSchema extends z.ZodType = z.ZodType> {
   inputSchema: TSchema;
   approval: ToolApproval;
   readOnly: boolean;
-  execute: (
-    runtime: RuntimeClient,
-    input: z.infer<TSchema>,
-  ) => Promise<unknown>;
+  execute: (runtime: RuntimeClient, input: z.infer<TSchema>) => Promise<unknown>;
 }
 
 export function defineRuntimeTool<TSchema extends z.ZodType>(

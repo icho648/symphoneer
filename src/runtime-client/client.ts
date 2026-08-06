@@ -141,7 +141,7 @@ export class DefaultRuntimeClient {
     const transportSub = this.#transport.subscribe({
       path: "/v1/events/stream",
       query: { after: input.afterSequence ?? 0 },
-      signal: input.signal,
+      ...(input.signal ? { signal: input.signal } : {}),
     });
 
     const events: AsyncIterable<RuntimeSubscriptionEvent> = {
@@ -219,11 +219,7 @@ export class DefaultRuntimeClient {
     try {
       return schema.parse(value);
     } catch {
-      throw new RuntimeClientError(
-        200,
-        "invalid_response",
-        "Runtime returned an invalid response",
-      );
+      throw new RuntimeClientError(200, "invalid_response", "Runtime returned an invalid response");
     }
   }
 }
@@ -245,7 +241,9 @@ export function createHttpRuntimeClient(options: {
 /** Historical alias: accepts transport or `{ baseUrl }`. */
 export class RuntimeClient extends DefaultRuntimeClient {
   constructor(
-    transportOrOptions: RuntimeTransport | { baseUrl: string; fetch?: typeof fetch; token?: string },
+    transportOrOptions:
+      | RuntimeTransport
+      | { baseUrl: string; fetch?: typeof fetch; token?: string },
   ) {
     if (isTransport(transportOrOptions)) {
       super(transportOrOptions);

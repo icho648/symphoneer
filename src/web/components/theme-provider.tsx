@@ -1,4 +1,3 @@
-
 import { ThemeProvider as NextThemesProvider, useTheme } from "next-themes";
 
 export { useTheme };

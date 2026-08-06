@@ -5,12 +5,12 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { RuntimeHttpServer, RuntimeService } from "@symphoneer/runtime";
+import { RuntimeError } from "../../src/runtime/errors.ts";
 import {
   assertAllowedOrigin,
   redactSecrets,
   resolveRuntimeHostConfig,
 } from "../../src/runtime/host/index.ts";
-import { RuntimeError } from "../../src/runtime/errors.ts";
 
 test("Host config writes session token and validates loopback transport", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "symphoneer-host-"));

@@ -77,7 +77,7 @@ export function registerMcpTools(server: McpServer, client: RuntimeClient): void
     async () => {
       try {
         const data = await executeRuntimeTool(client, "runtime_health", {});
-        return toolSuccess(data, "Runtime healthy");
+        return toolSuccess(data, "Runtime health: ok");
       } catch (error) {
         return toolFailure(error);
       }

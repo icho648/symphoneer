@@ -5,15 +5,12 @@ import { Command, MemorySaver } from "@langchain/langgraph";
 import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import {
-  bindOrchestrationDefinition,
-  type OrchestrationBinding,
-  type TaskSummary,
-} from "@symphoneer/contracts";
-import {
   type AgentRunSnapshot,
   AgentRunSnapshotSchema,
   type FakeTeamScenario,
   FakeTeamScenarioSchema,
+  type OrchestrationBinding,
+  type TaskSummary,
   type TeamProcessEvent,
   TeamProcessEventSchema,
   type TeamProvider,
@@ -23,6 +20,7 @@ import {
   WorkspaceReferenceSchema,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "../errors.ts";
+import { bindOrchestrationDefinition } from "../orchestration/hash.ts";
 import { FakeAgentRunner, type TeamAgentRunner } from "./fake-agent-runner.ts";
 import { FakeVerificationAdapter, type TeamVerificationAdapter } from "./fake-verification.ts";
 import { buildTeamGraph, type TeamGraphState } from "./workflow.ts";

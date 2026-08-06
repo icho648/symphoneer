@@ -23,22 +23,28 @@ export class RuntimeClientError extends Error {
   }
 }
 
-export function mapHttpError(
-  status: number,
-  code: string,
-  message: string,
-): RuntimeClientError {
-  if (code === "stale" || /stale|expectedEventSequence|expectedAttemptUpdatedAt|revision/i.test(message)) {
-    return new RuntimeClientError(status, "stale", message);
-  }
-  if (code === "terminal" || /terminal/i.test(message)) {
-    return new RuntimeClientError(status, "terminal", message);
-  }
+export function mapHttpError(status: number, code: string, message: string): RuntimeClientError {
+  if (code === "stale") return new RuntimeClientError(status, "stale", message);
+  if (code === "terminal") return new RuntimeClientError(status, "terminal", message);
   if (status === 404 || code === "not_found") {
     return new RuntimeClientError(status, "not_found", message);
   }
-  if (status === 409 || code === "conflict" || code === "duplicate_event" || code === "artifact_conflict") {
-    return new RuntimeClientError(status, "conflict", message);
+  if (
+    status === 409 ||
+    code === "conflict" ||
+    code === "duplicate_event" ||
+    code === "artifact_conflict"
+  ) {
+    if (
+      /expectedEventSequence|expectedAttemptUpdatedAt|projection changed|revision/i.test(message)
+    ) {
+      return new RuntimeClientError(status, "stale", message);
+    }
+    return new RuntimeClientError(
+      status,
+      code === "duplicate_event" ? "duplicate_event" : "conflict",
+      message,
+    );
   }
   if (status === 501 || code === "unsupported") {
     return new RuntimeClientError(status, "unsupported", message);

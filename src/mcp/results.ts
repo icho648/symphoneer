@@ -58,6 +58,9 @@ function mapCode(code: string): McpErrorCode {
     case "invalid_request":
     case "duplicate_event":
       return code;
+    case "stale":
+    case "terminal":
+      return "conflict";
     default:
       return "runtime_error";
   }

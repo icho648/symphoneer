@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { OrchestrationDefinitionSchema } from "@symphoneer/contracts";
 import {
   bindOrchestrationDefinition,
   hashOrchestrationDefinition,
-  OrchestrationDefinitionSchema,
-} from "@symphoneer/contracts";
-import { loadOrchestrationDefinitionSync } from "../../src/runtime/orchestration/index.ts";
+  loadOrchestrationDefinitionSync,
+} from "../../src/runtime/orchestration/index.ts";
 import { loadProjectProfile } from "../../src/runtime/workflow/index.ts";
 
 test("ProjectProfile loads WORKFLOW.md without treating it as orchestration", async () => {
@@ -36,10 +36,7 @@ test("OrchestrationDefinition JSON IR loads with stable hash binding", () => {
   assert.equal(loaded.binding.definitionId, "plan-implement-review");
   assert.equal(loaded.binding.definitionVersion, 1);
   assert.match(loaded.binding.definitionHash, /^[a-f0-9]{64}$/);
-  assert.equal(
-    loaded.binding.definitionHash,
-    hashOrchestrationDefinition(loaded.definition),
-  );
+  assert.equal(loaded.binding.definitionHash, hashOrchestrationDefinition(loaded.definition));
   const rebound = bindOrchestrationDefinition(loaded.definition);
   assert.deepEqual(rebound, loaded.binding);
 });

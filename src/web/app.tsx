@@ -15,6 +15,7 @@ function LocaleBoard() {
   if (!isLocale(raw)) return <Navigate replace to={`/${defaultLocale}`} />;
   const locale: Locale = raw;
   document.documentElement.lang = locale;
+  // biome-ignore lint/suspicious/noDocumentCookie: locale preference is a simple first-party cookie
   document.cookie = `${localeCookieName}=${locale}; path=/; max-age=31536000`;
   return (
     <main className="box-border h-screen overflow-hidden">

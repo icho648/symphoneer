@@ -17,8 +17,8 @@ import {
   type VerificationResult,
   type WorkspaceReference,
 } from "@symphoneer/contracts";
-import type { ImmutableArtifactStore, JsonlEventStore } from "../storage.ts";
 import { loadOrchestrationDefinitionSync } from "../orchestration/index.ts";
+import type { ImmutableArtifactStore, JsonlEventStore } from "../storage.ts";
 import {
   LangGraphWorkflowOrchestrator,
   VerificationRunnerAdapter,

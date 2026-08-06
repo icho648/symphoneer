@@ -31,19 +31,20 @@ export class HttpRuntimeTransport implements RuntimeTransport {
 
   async request(request: RuntimeTransportRequest): Promise<unknown> {
     const url = this.#url(request.path, request.query);
+    const init: RequestInit = {
+      method: request.method,
+      headers: {
+        Accept: "application/json",
+        ...this.#authHeaders(),
+        ...request.headers,
+        ...(request.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+    };
+    if (request.body !== undefined) init.body = JSON.stringify(request.body);
+    if (request.signal) init.signal = request.signal;
     let response: Response;
     try {
-      response = await this.#fetch(url, {
-        method: request.method,
-        headers: {
-          Accept: "application/json",
-          ...this.#authHeaders(),
-          ...request.headers,
-          ...(request.body !== undefined ? { "Content-Type": "application/json" } : {}),
-        },
-        body: request.body === undefined ? undefined : JSON.stringify(request.body),
-        signal: request.signal,
-      });
+      response = await this.#fetch(url, init);
     } catch (error) {
       if (error instanceof RuntimeClientError) throw error;
       throw new RuntimeClientError(0, "unavailable", "Runtime is unavailable");

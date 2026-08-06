@@ -1,7 +1,7 @@
 import type { RuntimeAttemptDetail, TeamRunSnapshot } from "@symphoneer/contracts";
 import { useState } from "react";
-import { formatDateTime } from "../../lib/format.ts";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
+import { formatDateTime } from "../../lib/format.ts";
 import type { CommandIntent } from "./task-detail";
 import { WorkflowMap } from "./workflow-map";
 

@@ -1,7 +1,7 @@
 export {
-  resolveRuntimeHostConfig,
-  RuntimeHostConfigSchema,
   type RuntimeHostConfig,
+  RuntimeHostConfigSchema,
+  resolveRuntimeHostConfig,
 } from "./config.ts";
 export {
   assertAllowedOrigin,

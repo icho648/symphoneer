@@ -1,4 +1,3 @@
-
 import { type Dictionary, isLocale, type Locale, locales } from "../i18n/index.ts";
 
 export function LocaleSwitcher({ dictionary, locale }: { dictionary: Dictionary; locale: Locale }) {

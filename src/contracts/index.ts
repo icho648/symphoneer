@@ -9,6 +9,20 @@ export {
 export type { Intervention, ReviewDecision } from "./human.ts";
 export { InterventionSchema, ReviewDecisionSchema } from "./human.ts";
 export type {
+  OrchestrationBinding,
+  OrchestrationDefinition,
+  OrchestrationEdge,
+  OrchestrationNode,
+  OrchestrationNodeKind,
+} from "./orchestration.ts";
+export {
+  OrchestrationBindingSchema,
+  OrchestrationDefinitionSchema,
+  OrchestrationEdgeSchema,
+  OrchestrationNodeKindSchema,
+  OrchestrationNodeSchema,
+} from "./orchestration.ts";
+export type {
   RuntimeAttemptDetail,
   RuntimeCommand,
   RuntimeCommandResult,
@@ -81,21 +95,5 @@ export {
   WorkflowRunSnapshotSchema,
   WorkflowVerificationOutcomeSchema,
 } from "./team.ts";
-export type {
-  OrchestrationBinding,
-  OrchestrationDefinition,
-  OrchestrationEdge,
-  OrchestrationNode,
-  OrchestrationNodeKind,
-} from "./orchestration.ts";
-export {
-  bindOrchestrationDefinition,
-  hashOrchestrationDefinition,
-  OrchestrationBindingSchema,
-  OrchestrationDefinitionSchema,
-  OrchestrationEdgeSchema,
-  OrchestrationNodeKindSchema,
-  OrchestrationNodeSchema,
-} from "./orchestration.ts";
 export type { VerificationResult } from "./verification.ts";
 export { VerificationResultSchema, VerificationStatusSchema } from "./verification.ts";
