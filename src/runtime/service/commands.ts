@@ -9,14 +9,29 @@ import {
   type RuntimeSnapshot,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "../errors.ts";
+import type { WorkflowOrchestrator } from "../team/index.ts";
 import type { EventLog } from "./event-log.ts";
 import { commandMessage, isCommandEvent } from "./helpers.ts";
+
+export type TeamCommand = Exclude<
+  RuntimeCommand,
+  { kind: "pause_attempt" | "retry_attempt" | "respond_intervention" }
+>;
+
+export type TeamCommandHandler = (
+  command: TeamCommand,
+  log: EventLog,
+  orchestrator: WorkflowOrchestrator,
+) => Promise<RuntimeEvent>;
+export type WorkflowCommand = TeamCommand;
+export type WorkflowCommandHandler = TeamCommandHandler;
 
 export async function executeCommand(
   log: EventLog,
   commandInput: unknown,
   snapshot: () => RuntimeSnapshot,
   now: () => Date,
+  workflow?: { orchestrator: WorkflowOrchestrator; handle: TeamCommandHandler },
 ): Promise<RuntimeCommandResult> {
   log.requireStarted();
   const parsed = RuntimeCommandSchema.safeParse(commandInput);
@@ -39,17 +54,36 @@ export async function executeCommand(
       throw new RuntimeError("conflict", "Runtime projection changed before this command was read");
     }
 
-    const stored =
-      command.kind === "respond_intervention"
-        ? await respondToIntervention(log, command, now)
-        : await requestAttemptCommand(log, command);
+    let stored: RuntimeEvent;
+    if (isTeamCommand(command)) {
+      if (!workflow) throw new RuntimeError("unsupported", "Workflow commands are not enabled");
+      stored = await workflow.handle(command, log, workflow.orchestrator);
+    } else if (command.kind === "respond_intervention") {
+      stored = await respondToIntervention(log, command, now);
+    } else {
+      stored = await requestAttemptCommand(log, command);
+    }
     return commandResult(stored.sequence, commandMessage(command), snapshot());
   });
 }
 
+function isTeamCommand(command: RuntimeCommand): command is TeamCommand {
+  return (
+    command.kind === "start_team_run" ||
+    command.kind === "approve_plan" ||
+    command.kind === "reject_plan" ||
+    command.kind === "revise_plan" ||
+    command.kind === "stop_team_session" ||
+    command.kind === "resume_team_session" ||
+    command.kind === "answer_team_input" ||
+    command.kind === "final_decision" ||
+    command.kind === "reset_team_run"
+  );
+}
+
 async function requestAttemptCommand(
   log: EventLog,
-  command: Exclude<RuntimeCommand, { kind: "respond_intervention" }>,
+  command: Exclude<RuntimeCommand, TeamCommand | { kind: "respond_intervention" }>,
 ): Promise<RuntimeEvent> {
   const attempt = log.projection.getAttempt(command.attemptId);
   if (!attempt) throw new RuntimeError("not_found", `Attempt ${command.attemptId} was not found`);

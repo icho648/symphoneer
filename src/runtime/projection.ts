@@ -1,4 +1,6 @@
 import {
+  type AgentRunSnapshot,
+  AgentRunSnapshotSchema,
   type AttemptSnapshot,
   AttemptSnapshotSchema,
   InterventionSchema,
@@ -10,6 +12,10 @@ import {
   type RuntimeSnapshot,
   RuntimeSnapshotSchema,
   TaskSummarySchema,
+  type TeamProcessEvent,
+  TeamProcessEventSchema,
+  type TeamRunSnapshot,
+  TeamRunSnapshotSchema,
   VerificationResultSchema,
   type WorkspaceReference,
   WorkspaceReferenceSchema,
@@ -32,6 +38,9 @@ export class RuntimeProjection {
   readonly #verifications = new Map<string, ReturnType<typeof VerificationResultSchema.parse>>();
   readonly #reviews = new Map<string, ReturnType<typeof ReviewDecisionSchema.parse>>();
   readonly #interventions = new Map<string, ReturnType<typeof InterventionSchema.parse>>();
+  readonly #teamRuns = new Map<string, TeamRunSnapshot>();
+  readonly #agentRuns = new Map<string, AgentRunSnapshot>();
+  readonly #teamEvents = new Map<string, TeamProcessEvent>();
 
   apply(stored: RuntimeEvent): void {
     const event = stored.event;
@@ -73,6 +82,48 @@ export class RuntimeProjection {
         this.#interventions.set(intervention.id, intervention);
         break;
       }
+      case "team.run.created":
+      case "team.run.updated": {
+        const teamRun = TeamRunSnapshotSchema.parse(payloadValue(stored, "teamRun"));
+        this.#teamRuns.set(teamRun.id, teamRun);
+        const agents = eventPayload(event).agentRuns;
+        if (agents !== undefined) {
+          for (const agent of zodArray(agents, AgentRunSnapshotSchema)) {
+            this.#agentRuns.set(agent.id, agent);
+          }
+        }
+        const processEvents = eventPayload(event).events;
+        if (processEvents !== undefined) {
+          for (const processEvent of zodArray(processEvents, TeamProcessEventSchema)) {
+            this.#teamEvents.set(processEvent.id, processEvent);
+          }
+        }
+        break;
+      }
+      case "team.agent.updated": {
+        const agent = AgentRunSnapshotSchema.parse(payloadValue(stored, "agentRun"));
+        this.#agentRuns.set(agent.id, agent);
+        break;
+      }
+      case "team.process.event": {
+        const processEvent = TeamProcessEventSchema.parse(payloadValue(stored, "event"));
+        this.#teamEvents.set(processEvent.id, processEvent);
+        break;
+      }
+      case "team.run.reset": {
+        const teamRunId = payloadValue(stored, "teamRunId");
+        if (typeof teamRunId !== "string") {
+          throw new RuntimeError("corrupt_event", "Team reset event has no TeamRun ID");
+        }
+        this.#teamRuns.delete(teamRunId);
+        for (const [agentId, agent] of this.#agentRuns) {
+          if (agent.teamRunId === teamRunId) this.#agentRuns.delete(agentId);
+        }
+        for (const [eventId, processEvent] of this.#teamEvents) {
+          if (processEvent.teamRunId === teamRunId) this.#teamEvents.delete(eventId);
+        }
+        break;
+      }
       case "runtime.command.requested":
         break;
       default:
@@ -94,6 +145,13 @@ export class RuntimeProjection {
       interventions: [...this.#interventions.values()].sort((a, b) =>
         b.createdAt.localeCompare(a.createdAt),
       ),
+      teamRuns: [...this.#teamRuns.values()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+      agentRuns: [...this.#agentRuns.values()].sort((a, b) =>
+        b.updatedAt.localeCompare(a.updatedAt),
+      ),
+      teamEvents: [...this.#teamEvents.values()].sort((a, b) =>
+        a.occurredAt.localeCompare(b.occurredAt),
+      ),
     });
   }
 
@@ -113,11 +171,30 @@ export class RuntimeProjection {
       interventions: [...this.#interventions.values()].filter(
         (intervention) => intervention.attemptId === attempt.id,
       ),
+      teamRuns: [...this.#teamRuns.values()].filter((teamRun) => teamRun.attemptId === attempt.id),
+      agentRuns: [...this.#agentRuns.values()].filter((agent) =>
+        [...this.#teamRuns.values()]
+          .filter((teamRun) => teamRun.attemptId === attempt.id)
+          .some((teamRun) => teamRun.id === agent.teamRunId),
+      ),
+      teamEvents: [...this.#teamEvents.values()].filter((event) =>
+        [...this.#teamRuns.values()]
+          .filter((teamRun) => teamRun.attemptId === attempt.id)
+          .some((teamRun) => teamRun.id === event.teamRunId),
+      ),
     });
   }
 
   getAttempt(attemptId: string): AttemptSnapshot | undefined {
     return this.#attempts.get(attemptId);
+  }
+
+  getTask(taskId: string) {
+    return this.#tasks.get(taskId);
+  }
+
+  getTeamRun(teamRunId: string): TeamRunSnapshot | undefined {
+    return this.#teamRuns.get(teamRunId);
   }
 
   getIntervention(interventionId: string) {
@@ -128,4 +205,9 @@ export class RuntimeProjection {
     const workspace = WorkspaceReferenceSchema.parse(value);
     this.#workspaces.set(workspace.id, workspace);
   }
+}
+
+function zodArray<T>(value: unknown, schema: { parse(value: unknown): T }): T[] {
+  if (!Array.isArray(value)) throw new RuntimeError("corrupt_event", "Team event list is invalid");
+  return value.map((item) => schema.parse(item));
 }

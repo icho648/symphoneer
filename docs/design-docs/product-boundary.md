@@ -99,6 +99,6 @@ V1 采用 Codex App Server 作为唯一生产 Agent Runtime，并保留一个测
 - 首版同时支持多个 Tracker、Runtime、模型 Adapter 或云部署。
 - 为未来 Provider、Electron、数据库、队列或多 Agent 预建占位包、空 Interface 和配置。
 - 复制 Phoenix UI、用综合分数评价 Agent，或自动替用户修改项目规则、权限和 CI。
-- 在核心交付闭环前引入 LangGraph、数据库、消息队列或 Electron。
+- 未经关联 Issue 授权，不在核心交付闭环外追加 LangGraph、数据库、消息队列或 Electron；当前垂直切片的 LangGraph 与本地 checkpoint 由 Issue #40 明确授权。
 
 当前阶段、授权范围和验收由 [active plan](../plans/active/symphoneer-v1.md) 与关联 GitHub Issue 决定；本文不复制易漂移的实施进度。当前真实代码结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)。

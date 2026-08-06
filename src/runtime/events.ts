@@ -15,6 +15,11 @@ export const KNOWN_DOMAIN_EVENT_TYPES = [
   "intervention.requested",
   "intervention.resolved",
   "runtime.command.requested",
+  "team.run.created",
+  "team.run.updated",
+  "team.agent.updated",
+  "team.process.event",
+  "team.run.reset",
 ] as const;
 
 export type DomainEventType = (typeof KNOWN_DOMAIN_EVENT_TYPES)[number];

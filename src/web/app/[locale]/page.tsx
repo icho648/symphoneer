@@ -13,7 +13,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
   const [snapshot, health] = await Promise.all([initialSnapshot(), initialHealth()]);
 
   return (
-    <main className="box-border min-h-screen">
+    <main className="box-border h-screen overflow-hidden">
       <TaskBoard
         dictionary={getDictionary(locale)}
         initialHealth={health}

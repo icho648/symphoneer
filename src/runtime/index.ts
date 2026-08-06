@@ -21,6 +21,7 @@ export * from "./scheduler/index.ts";
 export type { RuntimeServiceOptions } from "./service/index.ts";
 export { RuntimeService } from "./service/index.ts";
 export { ImmutableArtifactStore, JsonlEventStore } from "./storage.ts";
+export * from "./team/index.ts";
 export * from "./tracker/index.ts";
 export * from "./verification/index.ts";
 export * from "./workflow/index.ts";

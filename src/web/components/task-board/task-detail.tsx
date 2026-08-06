@@ -1,132 +1,243 @@
 import type {
+  AgentRunSnapshot,
   AttemptSnapshot,
   RuntimeAttemptDetail,
   RuntimeSnapshot,
   TaskSummary,
+  TeamRunSnapshot,
 } from "@symphoneer/contracts";
+import { useState } from "react";
 import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
 
-import { AttemptDetail, AttemptRow } from "./attempt-detail";
+import { AttemptDetail } from "./attempt-detail";
+import { AttemptHistory } from "./attempt-history";
+import { ExecutorOutput } from "./executor-output";
 
-export type AttemptCommand = "pause_attempt" | "retry_attempt";
+export type CommandIntent =
+  | { kind: "pause_attempt" }
+  | { kind: "retry_attempt" }
+  | { kind: "start_team_run"; task: TaskSummary }
+  | { kind: "approve_plan"; teamRunId: string; expectedTeamRevision: number }
+  | { kind: "revise_plan"; teamRunId: string; expectedTeamRevision: number }
+  | { kind: "reject_plan"; teamRunId: string; expectedTeamRevision: number }
+  | {
+      kind: "answer_team_input";
+      teamRunId: string;
+      expectedTeamRevision: number;
+      response: "approve" | "request_changes" | "stop";
+    }
+  | {
+      kind: "final_decision";
+      teamRunId: string;
+      expectedTeamRevision: number;
+      decision: "accept" | "stop";
+    }
+  | { kind: "stop_team_session"; teamRunId: string; expectedTeamRevision: number };
 
 export function TaskDetail({
   dictionary,
   detail,
+  activeAgentId,
+  activeRunId,
+  activeSessionId,
+  attempts,
   latestAttempt,
+  locale,
+  onBack,
   onCommand,
-  selectedAttempts,
+  onSelectAgent,
+  onSelectAttempt,
+  onSelectRun,
+  onSelectSession,
   selectedTask,
   snapshot,
-  locale,
 }: {
+  activeAgentId: string | null;
+  activeRunId: string | null;
+  activeSessionId: string | null;
+  attempts: readonly AttemptSnapshot[];
   dictionary: Dictionary;
   detail: RuntimeAttemptDetail | null;
-  latestAttempt: AttemptSnapshot | null;
-  onCommand: (kind: AttemptCommand) => void;
-  selectedAttempts: AttemptSnapshot[];
-  selectedTask: TaskSummary | null;
-  snapshot: RuntimeSnapshot | null;
+  latestAttempt: AttemptSnapshot;
   locale: Locale;
+  onBack: () => void;
+  onCommand: (command: CommandIntent) => void;
+  onSelectAgent: (agent: AgentRunSnapshot) => void;
+  onSelectAttempt: (attempt: AttemptSnapshot) => void;
+  onSelectRun: (run: TeamRunSnapshot) => void;
+  onSelectSession: (threadId: string) => void;
+  selectedTask: TaskSummary;
+  snapshot: RuntimeSnapshot | null;
 }) {
-  return (
-    <section
-      className="mt-4 overflow-hidden rounded-[10px] border border-line bg-panel"
-      id="selected-task"
-      aria-labelledby="detail-title"
-    >
-      {selectedTask ? (
-        <>
-          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 max-[700px]:flex-col max-[700px]:items-start">
-            <div className="min-w-0">
-              <p className="mb-1 text-[11px] font-medium text-faint">
-                {interpolate(dictionary.detail.selectedTask, {
-                  identifier: selectedTask.identifier,
-                })}
-              </p>
-              <h2
-                className="truncate text-[17px] font-semibold tracking-[-0.02em]"
-                id="detail-title"
-              >
-                {selectedTask.title}
-              </h2>
-            </div>
-            <a
-              className="macos-btn macos-btn-primary shrink-0"
-              href={selectedTask.source.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {dictionary.detail.openGitHub}
-            </a>
-          </div>
-          <div className="grid grid-cols-1 divide-y divide-line min-[701px]:grid-cols-2 min-[701px]:divide-x min-[701px]:divide-y-0">
-            <section className="min-w-0 px-4 py-3.5" aria-labelledby="attempts-title">
-              <div className="mb-2.5 flex items-center justify-between gap-3">
-                <h3 className="text-[13px] font-semibold" id="attempts-title">
-                  {dictionary.detail.attempts}
-                </h3>
-                <span className="font-mono text-[11px] text-faint">{selectedAttempts.length}</span>
-              </div>
-              {selectedAttempts.length === 0 ? (
-                <p className="text-[12px] leading-relaxed text-faint">
-                  {dictionary.detail.noAttempt}
-                </p>
-              ) : (
-                <div className="overflow-hidden rounded-[8px] border border-line">
-                  {selectedAttempts.map((attempt) => (
-                    <AttemptRow
-                      attempt={attempt}
-                      active={attempt.id === latestAttempt?.id}
-                      dictionary={dictionary}
-                      key={attempt.id}
-                    />
-                  ))}
-                </div>
-              )}
-              {detail && latestAttempt && (
-                <div className="flex flex-wrap gap-2 pt-3">
-                  <button
-                    className="macos-btn"
-                    type="button"
-                    onClick={() => onCommand("pause_attempt")}
-                  >
-                    {dictionary.detail.requestPause}
-                  </button>
-                  <button
-                    className="macos-btn"
-                    type="button"
-                    onClick={() => onCommand("retry_attempt")}
-                  >
-                    {dictionary.detail.requestRetry}
-                  </button>
-                </div>
-              )}
-            </section>
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const selectedRun =
+    detail?.teamRuns.find((run) => run.id === activeRunId) ??
+    latestWorkflow(detail?.teamRuns ?? []);
 
-            <VerificationPanel
-              dictionary={dictionary}
-              latestAttempt={latestAttempt}
-              snapshot={snapshot}
-            />
+  return (
+    <section className="attempt-view" id="attempt-view" aria-labelledby="attempt-view-title">
+      <header className="attempt-view-header">
+        <div className="flex min-w-0 items-start gap-3">
+          <button className="back-button" type="button" onClick={onBack}>
+            <span aria-hidden="true">←</span>
+            {dictionary.detail.backToTasks}
+          </button>
+          <span className="attempt-view-divider" aria-hidden="true" />
+          <div className="min-w-0">
+            <nav className="attempt-breadcrumb" aria-label={dictionary.detail.breadcrumbTasks}>
+              <button type="button" onClick={onBack}>
+                {dictionary.detail.breadcrumbTasks}
+              </button>
+              <span aria-hidden="true">/</span>
+              <span>{selectedTask.identifier}</span>
+              <span aria-hidden="true">/</span>
+              <strong>
+                {dictionary.detail.breadcrumbAttempt}{" "}
+                {String(latestAttempt.sequence).padStart(2, "0")}
+              </strong>
+              {selectedRun && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span>{dictionary.detail.breadcrumbRun}</span>
+                </>
+              )}
+              {activeAgentId && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span>{dictionary.detail.breadcrumbAgent}</span>
+                </>
+              )}
+              {activeSessionId && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <span>{dictionary.detail.breadcrumbSession}</span>
+                </>
+              )}
+            </nav>
+            <h1
+              className="truncate text-[20px] font-semibold tracking-[-0.03em]"
+              id="attempt-view-title"
+            >
+              {interpolate(dictionary.detail.selectedTask, { identifier: selectedTask.identifier })}{" "}
+              · {selectedTask.title}
+            </h1>
           </div>
-          {detail && <AttemptDetail detail={detail} dictionary={dictionary} locale={locale} />}
-        </>
-      ) : (
-        <div className="px-6 py-16 text-center">
-          <span
-            className="mb-3 inline-grid size-12 place-items-center rounded-full bg-panel-raised text-[18px] text-muted"
-            aria-hidden="true"
-          >
-            ⌘
-          </span>
-          <h2 className="mb-1 text-[17px] font-semibold tracking-[-0.02em]" id="detail-title">
-            {dictionary.detail.noTask}
-          </h2>
-          <p className="mb-0 text-[13px] text-muted">{dictionary.detail.empty}</p>
         </div>
-      )}
+        <div className="flex shrink-0 items-center gap-2 max-[700px]:w-full max-[700px]:justify-between">
+          <span className={`macos-pill ${attemptStatusClass(latestAttempt.status)}`}>
+            {dictionary.statuses[latestAttempt.status] ?? latestAttempt.status}
+          </span>
+          <a
+            className="macos-btn macos-btn-primary"
+            href={selectedTask.source.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {dictionary.detail.openGitHub}
+          </a>
+        </div>
+      </header>
+
+      <div className={`attempt-view-grid ${historyOpen ? "history-is-open" : ""}`}>
+        <AttemptHistory
+          activeAgentId={activeAgentId}
+          activeRunId={activeRunId}
+          attempts={attempts}
+          currentAttemptId={latestAttempt.id}
+          detail={detail}
+          dictionary={dictionary}
+          locale={locale}
+          onSelectAgent={onSelectAgent}
+          onSelectAttempt={onSelectAttempt}
+          onSelectRun={onSelectRun}
+          onSelectSession={onSelectSession}
+          onToggle={() => setHistoryOpen((value) => !value)}
+          open={historyOpen}
+        />
+        <main className="attempt-main">
+          <div className="attempt-facts">
+            <Fact
+              label={dictionary.detail.tracker}
+              value={formatTracker(selectedTask.source.kind)}
+            />
+            <Fact
+              label={dictionary.detail.attempt}
+              value={`${dictionary.detail.attempt} ${String(latestAttempt.sequence).padStart(2, "0")}`}
+            />
+            <Fact
+              label={dictionary.detail.executor}
+              value={detail ? executorLabel(detail, dictionary) : "—"}
+            />
+            <Fact label={dictionary.detail.workflow} value={selectedRun?.workflow ?? "—"} />
+          </div>
+          <VerificationPanel
+            dictionary={dictionary}
+            latestAttempt={latestAttempt}
+            snapshot={snapshot}
+          />
+          {detail && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="macos-btn"
+                type="button"
+                onClick={() => onCommand({ kind: "pause_attempt" })}
+              >
+                {dictionary.detail.requestPause}
+              </button>
+              <button
+                className="macos-btn"
+                type="button"
+                onClick={() => onCommand({ kind: "retry_attempt" })}
+              >
+                {dictionary.detail.requestRetry}
+              </button>
+            </div>
+          )}
+          {detail ? (
+            <AttemptDetail
+              activeAgentId={activeAgentId}
+              activeRunId={activeRunId}
+              detail={detail}
+              dictionary={dictionary}
+              locale={locale}
+              onCommand={onCommand}
+            />
+          ) : (
+            <div className="attempt-loading" aria-live="polite">
+              <span className="executor-empty-mark" aria-hidden="true">
+                ◌
+              </span>
+              <p>{dictionary.board.attemptUnavailable}</p>
+            </div>
+          )}
+        </main>
+        {detail && (
+          <ExecutorOutput
+            activeAgentId={activeAgentId}
+            activeRunId={activeRunId}
+            detail={detail}
+            dictionary={dictionary}
+            locale={locale}
+          />
+        )}
+      </div>
     </section>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="attempt-fact">
+      <small>{label}</small>
+      <strong className="truncate">{value}</strong>
+    </span>
+  );
+}
+
+function latestWorkflow(runs: readonly TeamRunSnapshot[]): TeamRunSnapshot | null {
+  return runs.reduce<TeamRunSnapshot | null>(
+    (latest, run) => (!latest || run.updatedAt > latest.updatedAt ? run : latest),
+    null,
   );
 }
 
@@ -136,46 +247,61 @@ function VerificationPanel({
   snapshot,
 }: {
   dictionary: Dictionary;
-  latestAttempt: AttemptSnapshot | null;
+  latestAttempt: AttemptSnapshot;
   snapshot: RuntimeSnapshot | null;
 }) {
   const verifications =
-    snapshot?.verifications.filter((item) => item.attemptId === latestAttempt?.id) ?? [];
-
+    snapshot?.verifications.filter((item) => item.attemptId === latestAttempt.id) ?? [];
   return (
-    <section className="min-w-0 px-4 py-3.5" id="verification" aria-labelledby="verification-title">
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <h3 className="text-[13px] font-semibold" id="verification-title">
+    <section className="verification-strip" id="verification" aria-labelledby="verification-title">
+      <div>
+        <h2 className="text-[13px] font-semibold" id="verification-title">
           {dictionary.detail.verification}
-        </h3>
-        <span className="text-[11px] font-medium text-signal">{dictionary.detail.independent}</span>
+        </h2>
+        <p className="mb-0 mt-0.5 text-[11px] text-faint">{dictionary.detail.independent}</p>
       </div>
       {verifications.length ? (
-        <div className="overflow-hidden rounded-[8px] border border-line">
+        <div className="flex min-w-0 items-center gap-3">
           {verifications.map((item) => (
-            <div
-              className="flex items-center justify-between gap-3 border-b border-line px-3 py-2.5 text-[12px] text-muted last:border-b-0"
-              key={item.id}
-            >
-              <span className={`macos-pill ${verificationStatusClass(item.status)}`}>
-                {dictionary.statuses[item.status] ?? item.status}
-              </span>
-              <span className="truncate">{item.checkId}</span>
-              <code className="shrink-0 font-mono text-[11px] text-faint">
-                {item.exitCode === null ? "—" : `exit ${item.exitCode}`}
-              </code>
-            </div>
+            <span className={`macos-pill ${verificationStatusClass(item.status)}`} key={item.id}>
+              {dictionary.statuses[item.status] ?? item.status}
+            </span>
           ))}
+          <code className="truncate font-mono text-[11px] text-muted">
+            {verifications[verifications.length - 1]?.checkId}
+          </code>
         </div>
       ) : (
-        <p className="text-[12px] leading-relaxed text-faint">{dictionary.detail.notVerified}</p>
+        <span className="text-[11px] text-faint">{dictionary.detail.notVerified}</span>
       )}
     </section>
   );
 }
 
+function executorLabel(detail: RuntimeAttemptDetail, dictionary: Dictionary): string {
+  const workflow = detail.teamRuns[0];
+  if (!workflow) return "—";
+  return workflow.provider === "fake"
+    ? dictionary.workflow.fakeShort
+    : dictionary.workflow.codexShort;
+}
+
+function formatTracker(kind: string): string {
+  if (kind === "github") return "GitHub";
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+
 function verificationStatusClass(status: string): string {
   if (status === "passed") return "bg-success/15 text-success";
   if (status === "failed" || status === "timed_out") return "bg-danger/15 text-danger";
+  return "bg-panel-raised text-muted";
+}
+
+function attemptStatusClass(status: AttemptSnapshot["status"]): string {
+  if (status === "succeeded") return "bg-success/15 text-success";
+  if (status === "failed" || status === "timed_out" || status === "stalled") {
+    return "bg-danger/15 text-danger";
+  }
+  if (status === "paused") return "bg-amber/15 text-amber";
   return "bg-panel-raised text-muted";
 }

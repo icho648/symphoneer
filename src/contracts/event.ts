@@ -9,7 +9,16 @@ export const DomainEventEnvelopeSchema = z.object({
   source: z.enum(["symphony-core", "runtime", "adapter", "human"]),
   occurredAt: Timestamp,
   aggregate: z.object({
-    kind: z.enum(["task", "attempt", "workspace", "verification", "review", "intervention"]),
+    kind: z.enum([
+      "task",
+      "attempt",
+      "workspace",
+      "verification",
+      "review",
+      "intervention",
+      "team_run",
+      "agent_run",
+    ]),
     id: NonEmptyString,
   }),
   taskId: NonEmptyString.optional(),
