@@ -68,8 +68,13 @@ export class RuntimeHttpServer {
   }
 
   async close(): Promise<void> {
-    for (const stream of this.#streams) stream.end();
+    for (const stream of [...this.#streams]) {
+      stream.end();
+      stream.destroy();
+    }
+    this.#streams.clear();
     if (!this.#server.listening) return;
+    this.#server.closeAllConnections();
     await new Promise<void>((resolve, reject) => {
       this.#server.close((error) => (error ? reject(error) : resolve()));
     });

@@ -21,7 +21,7 @@
     "web:build": "vite build --config src/web/vite.config.ts",
     "web:dev": "vite --config src/web/vite.config.ts",
     "web:preview": "vite preview --config src/web/vite.config.ts",
-    "test": "node --test"
+    "test": "node --test tests/**/*.test.ts"
   },
   "dependencies": {
     "@langchain/langgraph": "1.4.9",
