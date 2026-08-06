@@ -29,9 +29,11 @@ MCP 由 Codex 等 Host 按需 STDIO 拉起，不要和 `pnpm up` 抢同一个进
 ```toml
 [mcp_servers.symphoneer]
 command = "pnpm"
-args = ["mcp:serve"]
+args = ["--silent", "mcp:serve"]
 cwd = "/absolute/path/to/symphoneer"
 ```
+
+`pnpm` 不加 `--silent` 时会把生命周期日志写到 stdout，污染 STDIO JSON-RPC；也可用 `command = "node"`、`args = ["src/mcp/stdio.ts"]`。
 
 ## 项目文档
 
