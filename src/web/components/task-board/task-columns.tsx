@@ -137,7 +137,7 @@ function TaskCard({
   const agent = workflow ? latestAgent(snapshot, workflow.id) : null;
   const verification = attempt ? latestVerification(snapshot, attempt.id) : null;
   const mode = workflow
-    ? dictionary.taskCard.modes.team
+    ? dictionary.taskCard.modes.workflow
     : task.labels.includes("symphoneer:review")
       ? dictionary.taskCard.modes.autopilot
       : dictionary.taskCard.modes.single;

@@ -23,7 +23,7 @@ export function BoardChrome({
   const online = connection === "online";
 
   return (
-    <div className="flex min-h-screen w-full flex-col overflow-hidden bg-window">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-window">
       <header className="flex min-h-[58px] shrink-0 items-center justify-between gap-4 border-b border-line bg-toolbar px-4 backdrop-blur-2xl max-[700px]:px-3">
         <div className="flex min-w-0 items-center gap-3">
           <img

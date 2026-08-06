@@ -10,7 +10,7 @@ import type {
 } from "@symphoneer/contracts";
 import { useEffect, useMemo, useState } from "react";
 import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
-
+import { AssistantShell } from "./assistant-shell";
 import { BoardChrome } from "./board-chrome";
 import { TaskColumns, type TaskStatusFilter } from "./task-columns";
 import { type CommandIntent, TaskDetail } from "./task-detail";
@@ -33,6 +33,7 @@ export function TaskBoard({
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(true);
   const [detail, setDetail] = useState<RuntimeAttemptDetail | null>(null);
   const [connection, setConnection] = useState(
     initialHealth?.runtime.status ?? initialSnapshot?.runtime.status ?? "offline",
@@ -311,31 +312,64 @@ export function TaskBoard({
           </div>
         ) : (
           <div className="view-stage flex min-h-0 flex-1 flex-col" key="task-lists">
-            <div className="mb-3 flex items-end justify-between gap-4 max-[700px]:flex-col max-[700px]:items-start">
-              <div>
-                <p className="eyebrow-label">{dictionary.board.eyebrow}</p>
-                <h1 className="mb-0 text-[22px] font-semibold tracking-[-0.03em]" id="board-title">
-                  {dictionary.board.title}
-                </h1>
-                <p className="mb-0 mt-1 text-[12px] text-muted">{dictionary.board.levelOneHint}</p>
+            <div
+              className={`task-workbench ${assistantOpen ? "assistant-is-open" : "assistant-is-closed"}`}
+            >
+              {assistantOpen && (
+                <AssistantShell
+                  dictionary={dictionary}
+                  onClose={() => setAssistantOpen(false)}
+                  selectedAttempt={selectedAttempt}
+                  selectedTask={selectedTask}
+                />
+              )}
+              <div className="task-deck">
+                <div className="task-deck-heading">
+                  <div>
+                    <p className="eyebrow-label">{dictionary.board.eyebrow}</p>
+                    <h1
+                      className="mb-0 text-[22px] font-semibold tracking-[-0.03em]"
+                      id="board-title"
+                    >
+                      {dictionary.board.title}
+                    </h1>
+                    <p className="mb-0 mt-1 text-[12px] text-muted">
+                      {dictionary.board.levelOneHint}
+                    </p>
+                  </div>
+                  <div className="task-deck-heading-actions">
+                    <span
+                      className="max-w-72 truncate rounded-full bg-panel px-2.5 py-1 text-[11px] text-muted shadow-[0_0_0_0.5px_var(--line)] max-[700px]:max-w-none"
+                      aria-live="polite"
+                    >
+                      {notice}
+                    </span>
+                    <button
+                      aria-controls="assistant-slot"
+                      aria-expanded={assistantOpen}
+                      className="assistant-toggle"
+                      type="button"
+                      onClick={() => setAssistantOpen((open) => !open)}
+                    >
+                      <span aria-hidden="true">✦</span>
+                      {assistantOpen
+                        ? dictionary.board.assistant.close
+                        : dictionary.board.assistant.open}
+                    </button>
+                  </div>
+                </div>
+                <TaskColumns
+                  connection={connection}
+                  onOpenTask={openTask}
+                  onStartWorkflow={startWorkflow}
+                  filter={taskFilter}
+                  onFilterChange={setTaskFilter}
+                  selectedTaskId={selectedTaskId}
+                  snapshot={snapshot}
+                  dictionary={dictionary}
+                />
               </div>
-              <span
-                className="max-w-72 truncate rounded-full bg-panel px-2.5 py-1 text-[11px] text-muted shadow-[0_0_0_0.5px_var(--line)] max-[700px]:max-w-none"
-                aria-live="polite"
-              >
-                {notice}
-              </span>
             </div>
-            <TaskColumns
-              connection={connection}
-              onOpenTask={openTask}
-              onStartWorkflow={startWorkflow}
-              filter={taskFilter}
-              onFilterChange={setTaskFilter}
-              selectedTaskId={selectedTaskId}
-              snapshot={snapshot}
-              dictionary={dictionary}
-            />
           </div>
         )}
       </section>
