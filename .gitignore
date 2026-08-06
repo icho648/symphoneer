@@ -5,3 +5,4 @@ coverage/
 out/
 next-env.d.ts
 *.tsbuildinfo
+ignore/
