@@ -94,11 +94,13 @@ export function buildTeamGraph(options: {
   };
 
   const approvePlan = (state: TeamGraphState) => {
-    const decision = interrupt<TeamHumanInput, "approve" | "reject" | "revise">(PLAN_INPUT);
-    if (decision === "reject") {
+    const decision = interrupt<TeamHumanInput, "approve" | "reject" | "revise" | "stop">(
+      PLAN_INPUT,
+    );
+    if (decision === "reject" || decision === "stop") {
       return {
         revision: state.revision + 1,
-        planDecision: decision,
+        planDecision: "reject" as const,
         pendingHumanInput: null,
         nextRoute: "stop" as const,
         currentNode: "stop",

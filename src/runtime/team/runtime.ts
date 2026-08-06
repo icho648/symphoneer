@@ -95,6 +95,9 @@ export class WorkflowRuntimeCoordinator {
     if (log.projection.getTeamRun(teamRunId)) {
       throw new RuntimeError("conflict", `TeamRun ${teamRunId} already exists`);
     }
+    if (log.projection.getAttempt(attemptId)) {
+      throw new RuntimeError("conflict", `Attempt ${attemptId} already exists`);
+    }
     await log.commit({
       type: "task.upserted",
       source: "adapter",
