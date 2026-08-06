@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runtimeIsHealthy } from "../../../scripts/dev.ts";
+import { runtimeIsHealthy } from "../../scripts/dev.ts";
 
 test("root dev recognizes a healthy Runtime before spawning a duplicate", async () => {
   const healthy = await runtimeIsHealthy("http://127.0.0.1:4318", async () =>

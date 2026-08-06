@@ -5,7 +5,7 @@
 > Implementation evidence: Per-Issue and live; this coordination plan does not cache current Issue, PR, test, or Smoke status
 > Owner: Repository owner with Codex as implementation agent  
 > Created: 2026-08-01  
-> Last updated: 2026-08-06
+> Last updated: 2026-08-03
 > Canonical task source: GitHub Issues [#12](https://github.com/icho648/symphoneer/issues/12)–[#18](https://github.com/icho648/symphoneer/issues/18)
 
 本文件是 V1 的跨 Issue 协调索引，不是 GitHub Issue 的第二份实现规格。每个 Issue 自己承载目标、范围、非目标、依赖、验收和证据要求；本文件只保留跨 Issue 顺序、Review Gate、仓库级决定、本地证据和恢复入口。Issue 内容变化后，不在这里复制整段 Issue。
@@ -62,7 +62,7 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 
 - [src/contracts/](../../../src/contracts/)：跨边界 Schema。
 - [src/runtime/](../../../src/runtime/)：Workflow、Eligibility、Scheduler、Workspace、Executor 和 Runtime API。
-- [tests/](../../../tests/)：只承载按范围分类的自动化测试（`unit`、`contract`、`integration`、`e2e`、`fixtures`）；需要人执行或判断的流程位于仓库根目录 [acceptance/](../../../acceptance/)。
+- [tests/](../../../tests/)：根目录下按 Module 行为分类的测试（contracts、scheduler、workspace、runtime、web、integration 等）。
 - [docs/design-docs/](../../design-docs/)：确认后的产品与系统边界。
 - [docs/references/](../../references/)：GitHub Issues、Symphony 和 Codex App Server 外部契约。
 

@@ -4,7 +4,7 @@ import { homedir, tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { loadWorkflow, renderPrompt, WorkflowError } from "../../../src/runtime/workflow/index.ts";
+import { loadWorkflow, renderPrompt, WorkflowError } from "../../src/runtime/workflow/index.ts";
 
 test("the repository .symphoneer/WORKFLOW.md loads into a validated effective config", async () => {
   const workspaceRoot = resolve(tmpdir(), "symphoneer-host-workspaces");

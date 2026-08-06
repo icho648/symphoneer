@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CoreError, CoreScheduler, retryDelayMs } from "../../../src/runtime/scheduler/index.ts";
-import { policy, queueFailedAttempt, retained, task, workspace } from "../../fixtures/scheduler.ts";
+import { CoreError, CoreScheduler, retryDelayMs } from "../../src/runtime/scheduler/index.ts";
+import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
 
 test("the scheduler owns Attempt sequence, retry provenance, and consecutive backoff", () => {
   const scheduler = new CoreScheduler(policy);

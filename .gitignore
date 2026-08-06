@@ -1,5 +1,4 @@
 node_modules/
-ignore/
 .pnpm-store/
 coverage/
 .next/

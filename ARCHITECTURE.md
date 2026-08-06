@@ -82,23 +82,18 @@ scripts/
   check-project.mjs          链接、Agent 导航、Plan、测试位置、依赖与 Codemap 路径检查
   dev.ts                     Runtime 与 Web 的产品级前台 launcher（`pnpm up` / `pnpm dev`，纳入 tsc）
 tests/
-  unit/                       纯模块行为
-    scheduler/                Scheduler 可观察行为（dispatch、eligibility、retry…）
-    web/                      Web 纯函数、i18n 与 task projection
-  contract/                   共享 Schema、Agent Runner / Tracker / Verification contract
-  integration/                本地多模块协作（Runtime、MCP、Workspace、Workflow、适配器）
-    executor/                 Codex 执行者 contract / failure checks
-    mcp/                      MCP 工具契约、Runtime 映射、Apps resource 与错误语义
-    runtime/                  JSONL 重放、artifact、Runtime 命令、HTTP / SSE
-    verification/             Verification runner 与 artifact 行为
-    web/                      Web launcher 健康检查
-    workflow/                 WORKFLOW.md 解析与 Prompt
-    workspace/                Workspace 生命周期、引用、安全与 Git worktree
-  e2e/                        Issue、Workspace、Codex、Verification 跨边界闭环
-  fixtures/                   测试专用 Fake；不是 Provider 证据
-acceptance/
-  AGENTS.md                   人类执行和验收流程规则
-  host/                       真实 Host / 外部客户端兼容性流程
+  contracts/                 共享 Schema 与 Agent Runner / Tracker contract
+  scheduler/                 Scheduler 可观察行为（dispatch、eligibility、retry…）
+  workspace/                 Workspace 生命周期、引用、安全与 Git worktree
+  workflow/                  WORKFLOW.md 解析与 Prompt
+  executor/                  Codex 执行者 contract / failure checks
+  tracker/                   GitHub Tracker contract / failure checks
+  verification/              Verification contract / failure checks
+  runtime/                   JSONL 重放、artifact、Runtime 命令、HTTP / SSE
+  mcp/                       MCP 工具契约、Runtime 映射、Apps resource 与错误语义
+  web/                       Web 纯函数、i18n 与 launcher 健康检查
+  integration/               Fake Runner 到 Core Attempt 的确定性跨边界流程
+  fixtures/                  测试专用 Fake；不是 Provider 证据
 docs/
   AGENTS.md                  文档总路由和事实源归属
   design-docs/               产品和架构决定

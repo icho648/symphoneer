@@ -21,11 +21,7 @@
     "web:build": "next build src/web",
     "web:dev": "WATCHPACK_POLLING=true next dev src/web",
     "web:start": "next start src/web",
-    "test": "node --test",
-    "test:unit": "node --test tests/unit/scheduler/*.test.ts tests/unit/web/*.test.ts",
-    "test:contract": "node --test tests/contract/*.test.ts",
-    "test:integration": "node --test tests/integration/*.test.ts tests/integration/*/*.test.ts",
-    "test:e2e": "node --test tests/e2e/*.test.ts"
+    "test": "node --test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
