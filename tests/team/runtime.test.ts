@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
-import { RuntimeService } from "@symphoneer/runtime";
+import { RuntimeError, RuntimeService } from "@symphoneer/runtime";
 
 const task: TaskSummary = {
   schemaVersion: CONTRACT_SCHEMA_VERSION,
@@ -76,4 +76,35 @@ test("Runtime persists LangGraph workflow checkpoints and resumes from the proje
   });
   assert.equal(completed.snapshot.teamRuns[0]?.status, "completed");
   assert.equal(completed.snapshot.attempts[0]?.status, "succeeded");
+});
+
+test("Runtime rejects team commands that do not match the pending human gate", async (t) => {
+  const dataDir = await root(t);
+  const runtime = service(dataDir, "gate-match");
+  await runtime.start();
+  const started = await runtime.execute({
+    kind: "start_team_run",
+    idempotencyKey: "web:start-mismatched-gate",
+    task,
+  });
+  const waiting = started.snapshot.teamRuns[0];
+  assert.equal(waiting?.status, "awaiting_plan_approval");
+  assert.equal(waiting?.pendingHumanInput?.kind, "plan_approval");
+
+  await assert.rejects(
+    () =>
+      runtime.execute({
+        kind: "final_decision",
+        idempotencyKey: "web:final-while-plan",
+        teamRunId: waiting?.id,
+        expectedTeamRevision: waiting?.revision,
+        expectedEventSequence: started.snapshot.runtime.lastEventSequence,
+        decision: "accept",
+      }),
+    (error) => error instanceof RuntimeError && error.code === "invalid_request",
+  );
+
+  const stillWaiting = runtime.snapshot().teamRuns[0];
+  assert.equal(stillWaiting?.status, "awaiting_plan_approval");
+  assert.equal(stillWaiting?.revision, waiting?.revision);
 });

@@ -263,21 +263,54 @@ function resumeInput(
   command: Exclude<TeamCommand, { kind: "start_team_run" | "reset_team_run" }>,
   pendingKind: "plan_approval" | "review_input" | "final_decision" | undefined,
 ): TeamResumeInput {
-  if (command.kind === "approve_plan") return "approve";
-  if (command.kind === "reject_plan") return "reject";
-  if (command.kind === "revise_plan") return "revise";
-  if (command.kind === "final_decision") return command.decision;
-  if (command.kind === "answer_team_input") {
-    if (command.response === "accept" && pendingKind === "final_decision") return "accept";
-    if (command.response === "revise" && pendingKind === "plan_approval") return "revise";
-    if (command.response === "reject" && pendingKind === "plan_approval") return "reject";
-    if (command.response === "approve") return "approve";
-    if (command.response === "request_changes") return "request_changes";
-    return "stop";
-  }
   if (command.kind === "stop_team_session") return "stop";
   if (command.kind === "resume_team_session") {
     throw new RuntimeError("conflict", "Resume requires the pending Team human decision");
+  }
+  if (!pendingKind) {
+    throw new RuntimeError("conflict", "No pending human gate for this Team command");
+  }
+  if (
+    command.kind === "approve_plan" ||
+    command.kind === "reject_plan" ||
+    command.kind === "revise_plan"
+  ) {
+    if (pendingKind !== "plan_approval") {
+      throw new RuntimeError(
+        "invalid_request",
+        `Command ${command.kind} is not valid while awaiting ${pendingKind}`,
+      );
+    }
+    if (command.kind === "approve_plan") return "approve";
+    if (command.kind === "reject_plan") return "reject";
+    return "revise";
+  }
+  if (command.kind === "final_decision") {
+    if (pendingKind !== "final_decision") {
+      throw new RuntimeError(
+        "invalid_request",
+        `Command final_decision is not valid while awaiting ${pendingKind}`,
+      );
+    }
+    return command.decision;
+  }
+  if (command.kind === "answer_team_input") {
+    if (pendingKind === "plan_approval") {
+      if (command.response === "approve") return "approve";
+      if (command.response === "revise") return "revise";
+      if (command.response === "reject") return "reject";
+    } else if (pendingKind === "review_input") {
+      if (command.response === "approve") return "approve";
+      if (command.response === "request_changes") return "request_changes";
+      if (command.response === "stop") return "stop";
+    } else if (pendingKind === "final_decision") {
+      if (command.response === "accept") return "accept";
+      if (command.response === "stop") return "stop";
+    }
+    throw new RuntimeError(
+      "invalid_request",
+      `Response ${command.response} is not valid while awaiting ${pendingKind}`,
+    );
   }
   throw new RuntimeError("invalid_request", "Unsupported Team command");
 }
