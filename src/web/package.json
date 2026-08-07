@@ -2,8 +2,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "../../node_modules/.bin/next build",
-    "dev": "WATCHPACK_POLLING=true ../../node_modules/.bin/next dev",
-    "start": "../../node_modules/.bin/next start"
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
   }
 }

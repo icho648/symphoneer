@@ -65,7 +65,7 @@ for (const testFile of globSync("**/*.{test,spec}.ts", { exclude: ["node_modules
 
 for (const file of globSync("src/runtime/**/*.ts")) {
   const source = readFileSync(file, "utf8");
-  if (/from ["'](?:next|react)(?:\/|["'])/.test(source)) {
+  if (/from ["'](?:next|react|vite)(?:\/|["'])/.test(source)) {
     failures.push(`${file}: Runtime must not depend on Web modules`);
   }
   if (/from ["']@symphoneer\/runtime-client["']/.test(source)) {
@@ -73,24 +73,27 @@ for (const file of globSync("src/runtime/**/*.ts")) {
   }
 }
 
-for (const file of globSync("src/web/**/*.{ts,tsx}")) {
+for (const file of globSync("src/web/**/*.{ts,tsx}", { exclude: ["src/web/dist/**"] })) {
   const source = readFileSync(file, "utf8");
   if (/from ["']@symphoneer\/runtime["']/.test(source)) {
-    failures.push(`${file}: Web must reach the Runtime through loopback HTTP`);
+    failures.push(`${file}: Web must reach the Runtime through @symphoneer/runtime-client`);
+  }
+  if (/from ["']next(?:\/|["'])/.test(source)) {
+    failures.push(`${file}: Web must not import Next.js after the Vite migration`);
   }
 }
 
 for (const file of globSync("src/mcp/**/*.ts")) {
   const source = readFileSync(file, "utf8");
   if (/from ["']@symphoneer\/runtime["']/.test(source)) {
-    failures.push(`${file}: MCP must reach the Runtime through loopback HTTP`);
+    failures.push(`${file}: MCP must reach the Runtime through @symphoneer/runtime-client`);
   }
 }
 
 for (const file of globSync("src/cli/**/*.ts")) {
   const source = readFileSync(file, "utf8");
   if (/from ["']@symphoneer\/runtime["']/.test(source)) {
-    failures.push(`${file}: CLI must reach the Runtime through loopback HTTP`);
+    failures.push(`${file}: CLI must reach the Runtime through @symphoneer/runtime-client`);
   }
 }
 

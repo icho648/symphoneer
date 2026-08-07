@@ -4,12 +4,13 @@ import { dirname } from "node:path";
 import { Command, MemorySaver } from "@langchain/langgraph";
 import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-import type { TaskSummary } from "@symphoneer/contracts";
 import {
   type AgentRunSnapshot,
   AgentRunSnapshotSchema,
   type FakeTeamScenario,
   FakeTeamScenarioSchema,
+  type OrchestrationBinding,
+  type TaskSummary,
   type TeamProcessEvent,
   TeamProcessEventSchema,
   type TeamProvider,
@@ -19,6 +20,7 @@ import {
   WorkspaceReferenceSchema,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "../errors.ts";
+import { bindOrchestrationDefinition } from "../orchestration/hash.ts";
 import { FakeAgentRunner, type TeamAgentRunner } from "./fake-agent-runner.ts";
 import { FakeVerificationAdapter, type TeamVerificationAdapter } from "./fake-verification.ts";
 import { buildTeamGraph, type TeamGraphState } from "./workflow.ts";
@@ -88,6 +90,7 @@ export class LangGraphWorkflowOrchestrator implements WorkflowOrchestrator {
   readonly #verification: TeamVerificationAdapter;
   readonly #provider: TeamProvider;
   readonly #checkpointer: BaseCheckpointSaver;
+  readonly #orchestration: OrchestrationBinding;
 
   constructor(
     options: {
@@ -97,12 +100,21 @@ export class LangGraphWorkflowOrchestrator implements WorkflowOrchestrator {
       provider?: TeamProvider;
       checkpointer?: BaseCheckpointSaver;
       checkpointPath?: string;
+      orchestration?: OrchestrationBinding;
     } = {},
   ) {
     this.#now = options.now ?? (() => new Date());
     this.#agentRunner = options.agentRunner ?? new FakeAgentRunner();
     this.#verification = options.verification ?? new FakeVerificationAdapter();
     this.#provider = options.provider ?? "fake";
+    this.#orchestration =
+      options.orchestration ??
+      bindOrchestrationDefinition({
+        id: "plan-implement-review",
+        version: 1,
+        nodes: [{ id: "plan", kind: "agent", role: "planner" }],
+        edges: [{ from: "START", to: "plan" }],
+      });
     if (options.checkpointer) {
       this.#checkpointer = options.checkpointer;
     } else if (options.checkpointPath) {
@@ -248,7 +260,10 @@ export class LangGraphWorkflowOrchestrator implements WorkflowOrchestrator {
       schemaVersion: 2,
       id: run.request.teamRunId,
       attemptId: run.request.attemptId,
-      workflow: "plan-implement-review",
+      workflow: this.#orchestration.definitionId,
+      definitionId: this.#orchestration.definitionId,
+      definitionVersion: this.#orchestration.definitionVersion,
+      definitionHash: this.#orchestration.definitionHash,
       provider: state.provider,
       status: state.status,
       currentNode: state.currentNode,

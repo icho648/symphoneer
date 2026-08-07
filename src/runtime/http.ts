@@ -3,6 +3,13 @@ import { URL } from "node:url";
 
 import { ApiErrorSchema, CONTRACT_SCHEMA_VERSION } from "@symphoneer/contracts";
 import { RuntimeError } from "./errors.ts";
+import {
+  assertAllowedOrigin,
+  assertLoopbackHost,
+  assertSessionToken,
+  isApiPath,
+  tryServeStaticUi,
+} from "./host/index.ts";
 import type { RuntimeService } from "./service/index.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -10,12 +17,16 @@ const MAX_BODY_BYTES = 64 * 1024;
 export interface RuntimeHttpServerOptions {
   host?: "127.0.0.1" | "localhost" | "::1";
   port?: number;
+  uiDistDir?: string;
+  sessionToken?: string;
 }
 
 export class RuntimeHttpServer {
   readonly #service: RuntimeService;
   readonly #host: RuntimeHttpServerOptions["host"];
   readonly #port: number;
+  readonly #uiDistDir: string | undefined;
+  readonly #sessionToken: string | undefined;
   readonly #server: Server;
   readonly #streams = new Set<ServerResponse>();
 
@@ -23,6 +34,8 @@ export class RuntimeHttpServer {
     this.#service = service;
     this.#host = options.host ?? "127.0.0.1";
     this.#port = options.port ?? 0;
+    this.#uiDistDir = options.uiDistDir;
+    this.#sessionToken = options.sessionToken;
     this.#server = createServer((request, response) => {
       void this.#handle(request, response);
     });
@@ -55,8 +68,13 @@ export class RuntimeHttpServer {
   }
 
   async close(): Promise<void> {
-    for (const stream of this.#streams) stream.end();
+    for (const stream of [...this.#streams]) {
+      stream.end();
+      stream.destroy();
+    }
+    this.#streams.clear();
     if (!this.#server.listening) return;
+    this.#server.closeAllConnections();
     await new Promise<void>((resolve, reject) => {
       this.#server.close((error) => (error ? reject(error) : resolve()));
     });
@@ -65,6 +83,12 @@ export class RuntimeHttpServer {
   async #handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      assertLoopbackHost(request.headers.host);
+      assertAllowedOrigin(request.headers.origin, { requireOrigin: false });
+      if (isApiPath(url.pathname) && url.pathname !== "/healthz") {
+        assertSessionToken(request, this.#sessionToken);
+      }
+
       if (request.method === "GET") {
         await this.#get(url, request, response);
         return;
@@ -109,6 +133,19 @@ export class RuntimeHttpServer {
       sendJson(response, 200, detail);
       return;
     }
+
+    if (this.#uiDistDir && !isApiPath(url.pathname)) {
+      if (!this.#sessionToken) {
+        throw new RuntimeError("invalid_request", "UI hosting requires a session token");
+      }
+      await tryServeStaticUi(response, {
+        uiDistDir: this.#uiDistDir,
+        pathname: url.pathname,
+        sessionToken: this.#sessionToken,
+      });
+      return;
+    }
+
     throw new RuntimeError("not_found", "Runtime route was not found");
   }
 

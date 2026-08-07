@@ -1,6 +1,6 @@
 import type { RuntimeAttemptDetail, TeamProcessEvent } from "@symphoneer/contracts";
-import { formatDateTime } from "@/lib/format";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
+import { formatDateTime } from "../../lib/format.ts";
 
 export function ExecutorOutput({
   activeAgentId,

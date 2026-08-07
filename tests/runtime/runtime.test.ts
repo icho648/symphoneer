@@ -224,7 +224,6 @@ test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loop
   await service.recordTask(task);
   const server = new RuntimeHttpServer(service);
   const endpoint = await server.listen();
-  t.after(() => server.close());
 
   const health = await fetch(`${endpoint.url}/healthz`);
   assert.equal(health.status, 200);
@@ -239,10 +238,7 @@ test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loop
   const history = await fetch(`${endpoint.url}/v1/events?after=0`);
   assert.equal((await history.json()).events.length, 1);
 
-  const controller = new AbortController();
-  const streamResponse = await fetch(`${endpoint.url}/v1/events/stream?after=0`, {
-    signal: controller.signal,
-  });
+  const streamResponse = await fetch(`${endpoint.url}/v1/events/stream?after=0`);
   assert.equal(streamResponse.headers.get("content-type"), "text/event-stream; charset=utf-8");
   const reader = streamResponse.body?.getReader();
   assert.ok(reader);
@@ -252,10 +248,20 @@ test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loop
     if (chunk.done) break;
     body += new TextDecoder().decode(chunk.value);
   }
-  controller.abort();
-  await reader.cancel().catch(() => undefined);
   assert.match(body, /event: snapshot/);
   assert.match(body, /event: domain/);
+
+  // Close must finish even while the SSE response is still open; otherwise `pnpm check` hangs.
+  await Promise.race([
+    server.close(),
+    new Promise((_, reject) => {
+      setTimeout(
+        () => reject(new Error("RuntimeHttpServer.close hung with an open SSE client")),
+        1_000,
+      );
+    }),
+  ]);
+  await reader.cancel().catch(() => undefined);
 });
 
 test("JSONL replay fails closed for corrupt and unknown records", async (t) => {

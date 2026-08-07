@@ -1,33 +1,22 @@
-"use client";
-
 import type {
   AgentRunSnapshot,
   RuntimeAttemptDetail,
-  RuntimeHealth,
   RuntimeSnapshot,
   TaskSummary,
   TeamRunSnapshot,
 } from "@symphoneer/contracts";
 import { useEffect, useMemo, useState } from "react";
 import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
-import { AssistantShell } from "./assistant-shell";
-import { BoardChrome } from "./board-chrome";
-import { TaskColumns, type TaskStatusFilter } from "./task-columns";
-import { type CommandIntent, TaskDetail } from "./task-detail";
+import { useRuntimeClient } from "../../runtime-provider.tsx";
+import { AssistantShell } from "./assistant-shell.tsx";
+import { BoardChrome } from "./board-chrome.tsx";
+import { TaskColumns, type TaskStatusFilter } from "./task-columns.tsx";
+import { type CommandIntent, TaskDetail } from "./task-detail.tsx";
 
-export function TaskBoard({
-  dictionary,
-  initialHealth,
-  initialSnapshot,
-  locale,
-}: {
-  dictionary: Dictionary;
-  initialHealth: RuntimeHealth | null;
-  initialSnapshot: RuntimeSnapshot | null;
-  locale: Locale;
-}) {
-  const [snapshot, setSnapshot] = useState(initialSnapshot);
-  const [selectedTaskId, setSelectedTaskId] = useState(initialSnapshot?.tasks[0]?.id ?? null);
+export function TaskBoard({ dictionary, locale }: { dictionary: Dictionary; locale: Locale }) {
+  const runtime = useRuntimeClient();
+  const [snapshot, setSnapshot] = useState<RuntimeSnapshot | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskStatusFilter>("ALL");
   const [activeAttemptId, setActiveAttemptId] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
@@ -35,64 +24,59 @@ export function TaskBoard({
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(true);
   const [detail, setDetail] = useState<RuntimeAttemptDetail | null>(null);
-  const [connection, setConnection] = useState(
-    initialHealth?.runtime.status ?? initialSnapshot?.runtime.status ?? "offline",
-  );
+  const [connection, setConnection] = useState<"online" | "offline">("offline");
   const [notice, setNotice] = useState(dictionary.board.waitingRuntime);
 
   useEffect(() => {
     let disposed = false;
-    const fetchRuntimeJson = async <T,>(path: string): Promise<T> => {
-      const response = await fetch(path, { cache: "no-store" });
-      const body = (await response.json()) as T;
-      if (!response.ok) throw new Error(dictionary.board.runtimeUnavailable);
-      return body;
-    };
-    const refreshHealth = async () => {
+    const refresh = async () => {
       try {
-        await fetchRuntimeJson<RuntimeHealth>("/api/runtime/health");
-        if (!disposed) {
-          setConnection("online");
-        }
+        const [nextHealth, nextSnapshot] = await Promise.all([
+          runtime.health(),
+          runtime.snapshot(),
+        ]);
+        if (disposed) return;
+        setConnection(nextHealth.runtime.status);
+        setSnapshot(nextSnapshot);
+        setSelectedTaskId((current) => current ?? nextSnapshot.tasks[0]?.id ?? null);
+        setNotice(dictionary.board.projectionSynchronized);
       } catch (error) {
-        if (!disposed) {
-          setConnection("offline");
-          setNotice(error instanceof Error ? error.message : dictionary.board.runtimeUnavailable);
-        }
-      }
-    };
-    const refreshSnapshot = async () => {
-      try {
-        const body = await fetchRuntimeJson<RuntimeSnapshot>("/api/runtime/snapshot");
-        if (!disposed) {
-          setSnapshot(body);
-          setNotice(dictionary.board.projectionSynchronized);
-        }
-      } catch (error) {
-        if (!disposed)
-          setNotice(error instanceof Error ? error.message : dictionary.board.runtimeUnavailable);
-      }
-    };
-    const refresh = () => {
-      void refreshHealth();
-      void refreshSnapshot();
-    };
-    refresh();
-    const stream = new EventSource(
-      `/api/runtime/events?after=${initialSnapshot?.runtime.lastEventSequence ?? 0}`,
-    );
-    stream.addEventListener("snapshot", refresh);
-    stream.addEventListener("domain", refresh);
-    stream.onerror = () => {
-      if (!disposed) {
+        if (disposed) return;
         setConnection("offline");
+        setNotice(error instanceof Error ? error.message : dictionary.board.runtimeUnavailable);
       }
     };
+
+    void refresh();
+    const subscription = runtime.subscribe({
+      afterSequence: snapshot?.runtime.lastEventSequence ?? 0,
+    });
+    void (async () => {
+      for await (const event of subscription.events) {
+        if (disposed) break;
+        if (event.kind === "error") {
+          setConnection("offline");
+          continue;
+        }
+        if (event.kind === "snapshot") {
+          setSnapshot(event.snapshot);
+          setConnection("online");
+          setNotice(dictionary.board.projectionSynchronized);
+          continue;
+        }
+        if (event.kind === "domain") {
+          void refresh();
+        }
+      }
+    })();
+
     return () => {
       disposed = true;
-      stream.close();
+      subscription.close();
     };
-  }, [dictionary.board, initialSnapshot?.runtime.lastEventSequence]);
+    // Subscribe once per runtime/dictionary; refresh closes over latest notice copy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictionary.board, runtime]);
 
   useEffect(() => {
     const syncTaskFromUrl = () => {
@@ -127,14 +111,8 @@ export function TaskBoard({
     }
     let disposed = false;
     setDetail(null);
-    void fetch(`/api/runtime/attempts/${encodeURIComponent(selectedAttempt.id)}`, {
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const body = (await response.json()) as RuntimeAttemptDetail & { message?: string };
-        if (!response.ok) throw new Error(dictionary.board.attemptUnavailable);
-        return body;
-      })
+    void runtime
+      .getAttempt(selectedAttempt.id)
       .then((body) => {
         if (!disposed) setDetail(body);
       })
@@ -144,7 +122,18 @@ export function TaskBoard({
     return () => {
       disposed = true;
     };
-  }, [dictionary.board, selectedAttempt]);
+  }, [runtime, selectedAttempt]);
+
+  const replaceUrl = (
+    values: Record<"task" | "attempt" | "run" | "agent" | "session", string | null>,
+  ) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(values)) {
+      if (value) params.set(key, value);
+    }
+    const query = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+  };
 
   const openTask = (task: TaskSummary, attempt: (typeof selectedAttempts)[number] | null) => {
     setSelectedTaskId(task.id);
@@ -152,11 +141,6 @@ export function TaskBoard({
     setActiveRunId(null);
     setActiveAgentId(null);
     setActiveSessionId(null);
-    window.history.replaceState(
-      null,
-      "",
-      `?task=${encodeURIComponent(task.id)}${attempt ? `&attempt=${encodeURIComponent(attempt.id)}` : ""}`,
-    );
     replaceUrl({
       task: task.id,
       attempt: attempt?.id ?? null,
@@ -165,10 +149,6 @@ export function TaskBoard({
       session: null,
     });
     setNotice(interpolate(dictionary.board.selectedTask, { identifier: task.identifier }));
-  };
-
-  const startWorkflow = (task: TaskSummary) => {
-    void sendCommand({ kind: "start_team_run", task });
   };
 
   const sendCommand = async (intent: CommandIntent) => {
@@ -187,27 +167,23 @@ export function TaskBoard({
         expectedEventSequence: snapshot.runtime.lastEventSequence,
         idempotencyKey: `web:${intent.kind}:${crypto.randomUUID()}`,
       };
-      const response = await fetch("/api/runtime/commands", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(command),
-      });
-      const body = (await response.json()) as { message?: string; snapshot?: RuntimeSnapshot };
-      if (!response.ok) throw new Error(dictionary.board.commandRejected);
-      if (body.snapshot) setSnapshot(body.snapshot);
+      const body = await runtime.execute(command);
+      setSnapshot(body.snapshot);
       if (intent.kind === "start_team_run") {
-        const attempt = body.snapshot?.attempts.find((item) => item.taskId === intent.task.id);
+        const attempt = body.snapshot.attempts.find((item) => item.taskId === intent.task.id);
         if (attempt) {
           setSelectedTaskId(intent.task.id);
           setActiveAttemptId(attempt.id);
           setActiveRunId(null);
           setActiveAgentId(null);
           setActiveSessionId(null);
-          window.history.replaceState(
-            null,
-            "",
-            `?task=${encodeURIComponent(intent.task.id)}&attempt=${encodeURIComponent(attempt.id)}`,
-          );
+          replaceUrl({
+            task: intent.task.id,
+            attempt: attempt.id,
+            run: null,
+            agent: null,
+            session: null,
+          });
         }
       }
       setNotice(dictionary.board.commandAccepted);
@@ -216,15 +192,8 @@ export function TaskBoard({
     }
   };
 
-  const replaceUrl = (
-    values: Record<"task" | "attempt" | "run" | "agent" | "session", string | null>,
-  ) => {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(values)) {
-      if (value) params.set(key, value);
-    }
-    const query = params.toString();
-    window.history.replaceState(null, "", window.location.pathname + (query ? `?${query}` : ""));
+  const startWorkflow = (task: TaskSummary) => {
+    void sendCommand({ kind: "start_team_run", task });
   };
 
   const selectAttempt = (attempt: (typeof selectedAttempts)[number]) => {
@@ -321,6 +290,7 @@ export function TaskBoard({
                   onClose={() => setAssistantOpen(false)}
                   selectedAttempt={selectedAttempt}
                   selectedTask={selectedTask}
+                  snapshot={snapshot}
                 />
               )}
               <div className="task-deck">

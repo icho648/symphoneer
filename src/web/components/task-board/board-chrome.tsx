@@ -85,61 +85,7 @@ export function BoardChrome({
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[76px_minmax(0,1fr)] max-[700px]:grid-cols-1">
-        <aside
-          className="flex flex-col border-r border-line bg-sidebar px-2 py-3 backdrop-blur-2xl max-[700px]:border-b max-[700px]:border-r-0"
-          aria-label={dictionary.navigation.label}
-        >
-          <nav className="grid gap-0.5 max-[700px]:grid-flow-col max-[700px]:auto-cols-fr">
-            <a
-              className="macos-nav-item"
-              href="#task-board"
-              title={dictionary.navigation.tasks}
-              aria-current="page"
-            >
-              <SidebarGlyph name="tasks" />
-              <span className="macos-nav-label truncate">{dictionary.navigation.tasks}</span>
-              <span className="macos-nav-meta ml-auto font-mono text-[11px] text-faint">
-                {snapshot?.tasks.length ?? 0}
-              </span>
-            </a>
-            <a
-              className="macos-nav-item"
-              href="#selected-task"
-              title={dictionary.navigation.activity}
-            >
-              <SidebarGlyph name="activity" />
-              <span className="macos-nav-label truncate">{dictionary.navigation.activity}</span>
-            </a>
-            <a
-              className="macos-nav-item"
-              href="#verification"
-              title={dictionary.navigation.evidence}
-            >
-              <SidebarGlyph name="evidence" />
-              <span className="macos-nav-label truncate">{dictionary.navigation.evidence}</span>
-            </a>
-          </nav>
-
-          <div
-            className="mt-auto grid justify-items-center gap-1 px-1 py-2 text-[10px] text-muted max-[700px]:hidden"
-            title={
-              dictionary.navigation.projection +
-              " v" +
-              (snapshot?.projectionVersion ?? 1) +
-              " · " +
-              dictionary.navigation.events +
-              " " +
-              (snapshot?.runtime.lastEventSequence ?? 0)
-            }
-          >
-            <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
-            <code className="font-mono text-signal">v{snapshot?.projectionVersion ?? 1}</code>
-          </div>
-        </aside>
-
-        <div className="flex min-h-0 min-w-0 flex-col overflow-auto bg-window">{children}</div>
-      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto bg-window">{children}</div>
     </div>
   );
 }
@@ -158,28 +104,5 @@ function ContextChip({
       <small>{label}</small>
       <strong>{value}</strong>
     </span>
-  );
-}
-
-function SidebarGlyph({ name }: { name: "tasks" | "activity" | "evidence" }) {
-  const paths = {
-    tasks: "M4 6h16M4 12h16M4 18h10",
-    activity: "M12 5v14M5 12h14",
-    evidence: "M5 12.5l4 4 10-10",
-  } as const;
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="size-3.5 shrink-0 opacity-80"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <path d={paths[name]} />
-    </svg>
   );
 }

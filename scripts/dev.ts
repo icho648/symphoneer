@@ -1,4 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -92,6 +94,43 @@ export async function runtimeIsHealthy(
   }
 }
 
+/** Discover the token Runtime persisted under `dataDir/runtime-token`. */
+export async function readStoredRuntimeToken(
+  dir: string,
+  reader: (filePath: string, encoding: "utf8") => Promise<string> = (filePath, encoding) =>
+    readFile(filePath, encoding),
+): Promise<string | undefined> {
+  try {
+    const token = (await reader(path.join(dir, "runtime-token"), "utf8")).trim();
+    return token.length >= 16 ? token : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve the session token for the local stack.
+ * When reusing a healthy Runtime, read its stored token — never invent a new one.
+ */
+export async function resolveDevSessionToken(options: {
+  envToken?: string;
+  dataDir: string;
+  reuseHealthyRuntime: boolean;
+  readStoredToken?: (dir: string) => Promise<string | undefined>;
+  createToken?: () => string;
+}): Promise<string> {
+  if (options.envToken) return options.envToken;
+  if (options.reuseHealthyRuntime) {
+    const readStored = options.readStoredToken ?? readStoredRuntimeToken;
+    const stored = await readStored(options.dataDir);
+    if (stored) return stored;
+    throw new Error(
+      `Runtime is healthy at the default endpoint but its session token was not found at ${path.join(options.dataDir, "runtime-token")}. Set SYMPHONEER_RUNTIME_TOKEN to reuse it.`,
+    );
+  }
+  return (options.createToken ?? (() => randomBytes(24).toString("base64url")))();
+}
+
 export async function main(): Promise<void> {
   process.once("SIGINT", () => shutdown(0));
   process.once("SIGTERM", () => shutdown(0));
@@ -106,18 +145,29 @@ export async function main(): Promise<void> {
       "",
     ].join("\n"),
   );
-  if (canReuseRuntime && (await runtimeIsHealthy(runtimeUrl))) {
+  const reuseHealthyRuntime = canReuseRuntime && (await runtimeIsHealthy(runtimeUrl));
+  const envToken = process.env.SYMPHONEER_RUNTIME_TOKEN;
+  const sessionToken = await resolveDevSessionToken({
+    ...(envToken ? { envToken } : {}),
+    dataDir,
+    reuseHealthyRuntime,
+  });
+  const sharedEnv = {
+    SYMPHONEER_DATA_DIR: dataDir,
+    SYMPHONEER_RUNTIME_HOST: runtimeHost,
+    SYMPHONEER_RUNTIME_PORT: runtimePort,
+    SYMPHONEER_RUNTIME_URL: runtimeUrl,
+    SYMPHONEER_RUNTIME_TOKEN: sessionToken,
+    VITE_RUNTIME_TOKEN: sessionToken,
+    SYMPHONEER_WEB_HOST: webHost,
+    SYMPHONEER_WEB_PORT: webPort,
+  };
+  if (reuseHealthyRuntime) {
     process.stdout.write(`Runtime already healthy; reusing ${runtimeUrl}\n`);
   } else {
-    start("Runtime", ["runtime:serve"], {
-      SYMPHONEER_DATA_DIR: dataDir,
-      SYMPHONEER_RUNTIME_HOST: runtimeHost,
-      SYMPHONEER_RUNTIME_PORT: runtimePort,
-    });
+    start("Runtime", ["runtime:serve"], sharedEnv);
   }
-  start("Web", ["run", "web:dev", "--", "--hostname", webHost, "--port", webPort], {
-    SYMPHONEER_RUNTIME_URL: runtimeUrl,
-  });
+  start("Web", ["run", "web:dev"], sharedEnv);
 }
 
 if (import.meta.main) {

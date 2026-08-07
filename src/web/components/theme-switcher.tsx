@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import type { Dictionary } from "../i18n/index.ts";
 

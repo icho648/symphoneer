@@ -1,12 +1,12 @@
 import { Liquid } from "liquidjs";
 
 import { WorkflowError } from "./error.ts";
-import type { Workflow } from "./load.ts";
+import type { ProjectProfile } from "./load.ts";
 
 const promptEngine = new Liquid({ strictFilters: true, strictVariables: true });
 
 export async function renderPrompt(
-  workflow: Pick<Workflow, "promptTemplate">,
+  workflow: Pick<ProjectProfile, "promptTemplate">,
   input: { issue: Record<string, unknown>; attempt: number | null },
 ): Promise<string> {
   if (!workflow.promptTemplate) return "You are working on an issue from the configured tracker.";

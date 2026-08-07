@@ -14,20 +14,21 @@ pnpm dev / future Electron Main
 │  ├─ Attempt / Workspace / Verification
 │  ├─ Tracker Adapter
 │  ├─ Agent Runner
-│  └─ loopback HTTP / SSE
-└─ ordinary Next.js process
-   └─ Web UI / BFF
+│  ├─ loopback HTTP / SSE
+│  └─ optional static Vite UI (standalone)
+└─ Vite Dev Server (development only)
+   └─ React SPA + proxy to Runtime
 
-Browser → Next.js BFF → Runtime
-CLI ─────────────────→ Runtime
+Browser → Vite SPA / static UI → RuntimeClient → Runtime
+CLI ──────────────────────────────────────────→ Runtime
 ```
 
 本文后续的 Runtime 指 Symphoneer Runtime 进程；`src/runtime` 是其中遵循固定 Symphony SPEC 的核心 Module。
 
 - Runtime 是由 launcher（`scripts/dev.ts` / `pnpm dev`）持有生命周期的长期前台进程：输出 stdout / stderr，不自行 daemonize，不创建 PID 文件或后台 `start / stop / status` 系统。launcher 是产品级 Host 入口，纳入根 TypeScript 检查，而不是未被类型覆盖的旁路脚本。
 - `pnpm dev` 发现目标地址已有健康 Runtime 时，将其视为外部管理进程并复用；launcher 退出时只停止自己启动的 Runtime 和 Web 子进程。显式设置 `SYMPHONEER_DATA_DIR` 时不复用未知数据目录的现有 Runtime。
-- Runtime 与 Next.js 分进程运行，不使用 [Next.js custom server](https://nextjs.org/docs/app/guides/custom-server)。关闭浏览器或重启 Web 不改变 Attempt；明确退出父 launcher 时才向两个子进程转发停止信号。
-- CLI 和 Web 都是 Runtime 的客户端，不复制 Scheduler 或业务状态机。loopback HTTP / SSE 的鉴权、端口发现和断线恢复仍待实现验证。
+- 开发模式下 Runtime 与 Vite 分进程；Standalone 模式由 Runtime 同源托管 Vite 静态 UI，不再常驻第二个 Node Web Server。关闭浏览器或重启 Vite 不改变 Attempt；明确退出父 launcher 时才向自己启动的子进程转发停止信号。
+- CLI 和 Web 都是 Runtime 的客户端，只经 RuntimeClient / RuntimeTransport 通信，不复制 Scheduler 或业务状态机。loopback Host / Origin / session token 已落地；完整浏览器 Smoke 仍待验证。
 - Electron 不是 V1 前提；未来如采用，按其[进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)由 Main 启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口通信。
 
 ## 对象关系
@@ -39,7 +40,7 @@ Tracker Task / GitHub Issue
       ├── Codex Thread / Turn / Item：Agent 运行上下文与事件
       ├── Verification：项目原生检查结果
       └── ReviewDecision：人工决定
-      └── Workflow Run：LangGraph 编排状态与人工门控
+      └── Orchestration Run / TeamRun：LangGraph 编排状态与人工门控
 ```
 
 | 对象 | 权威来源 | Symphoneer 责任 |
@@ -50,7 +51,8 @@ Tracker Task / GitHub Issue
 | Thread / Turn / Item | Codex App Server | 保存原生 ID 和必要事件，不把 Turn 完成当成验收 |
 | Diff / Commit / Branch | Git | 保存版本引用，不伪造变更真相 |
 | Verification | 项目原生检查及其 artifact | 独立运行、记录命令、退出状态、版本和输出引用 |
-| Workflow Run / checkpoint | Runtime 应用数据目录中的 LangGraph SQLite checkpoint | 保存可恢复的编排状态；对外查询仍以 Domain Event 投影为准 |
+| Orchestration Run / checkpoint | Runtime 应用数据目录中的 LangGraph SQLite checkpoint | 保存可恢复的编排状态；对外查询仍以 Domain Event 投影为准 |
+| Orchestration Definition | 仓库 `.symphoneer/orchestrations/*.json`（JSON IR） | 项目拥有的编排定义；TeamRun 绑定 id / version / hash |
 | ReviewDecision | 人 | 记录决定、依据、责任人和下一动作 |
 | PR / Checks / Review / Merge state | GitHub 原生对象；Merge / Close 的最终决定由人持有 | 重新读取原生状态，保存关联和冲突，不从历史投影重建 |
 | Trace / Evaluation | Phoenix 等诊断系统 | 只保存关联 ID；不可用时不阻塞核心流程 |
@@ -58,7 +60,7 @@ Tracker Task / GitHub Issue
 
 ## 当前 V1 的执行粒度
 
-- V1 默认是 `Task → Attempt → 一个活跃 Workflow Run`；当前垂直切片的 Workflow 是 `plan-implement-review`，Session 仍由 Codex `threadId` / `turnId` 表示。
+- V1 默认是 `Task → Attempt → 一个活跃 Orchestration / TeamRun`；当前垂直切片的定义是 `plan-implement-review` JSON IR，Session 仍由 Codex `threadId` / `turnId` 表示。
 - 同一 Task 可以有多个 Attempt，用于首次执行、重试、继续或人工交还；Attempt 不是普通 Session 的归档状态。
 - 多个独立 Task 可以并行；同一 Task 的并行 Attempt、Workspace 或活跃 Turn 必须有明确所有权，当前不允许未定义的并发写入。
 - 同一 Task 多 Thread 的 `AgentRun` 聚合是未来扩展，不是固定 Symphony SPEC 的 V1 对象。只有需要独立写入、验证和合并时才引入它。
