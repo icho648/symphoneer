@@ -28,7 +28,9 @@ export class HttpRuntimeTransport implements RuntimeTransport {
       throw new RuntimeClientError(0, "invalid_url", "Runtime URL must use HTTP");
     }
     this.#baseUrl = baseUrl.href.replace(/\/$/, "");
-    this.#fetch = options.fetch ?? fetch;
+    // Browsers reject unbound fetch when called as `this.#fetch(...)` ("Illegal invocation").
+    const fetchImpl = options.fetch ?? fetch;
+    this.#fetch = (input, init) => fetchImpl(input, init);
     this.#token = options.token;
     this.#sseReconnectDelayMs = options.sseReconnectDelayMs;
   }

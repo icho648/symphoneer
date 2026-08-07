@@ -250,3 +250,31 @@ test("HttpRuntimeTransport rejects invalid JSON responses", async () => {
     },
   );
 });
+
+test("HttpRuntimeTransport keeps fetch this-binding safe for browsers", async () => {
+  await withServer(
+    (_request, response) => {
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify(health()));
+    },
+    async (baseUrl) => {
+      const browserLikeFetch: typeof fetch = function browserLikeFetch(
+        this: unknown,
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) {
+        if (this !== undefined && this !== globalThis) {
+          throw new TypeError("Illegal invocation");
+        }
+        return fetch(input, init);
+      };
+
+      const transport = new HttpRuntimeTransport({
+        baseUrl,
+        fetch: browserLikeFetch,
+      });
+      const body = (await transport.request({ method: "GET", path: "/healthz" })) as RuntimeHealth;
+      assert.equal(body.status, "ok");
+    },
+  );
+});
