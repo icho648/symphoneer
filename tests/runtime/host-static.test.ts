@@ -66,6 +66,15 @@ test("static UI serves assets immutably and SPA fallback without covering API", 
     assert.match(html, /__SYMPHONEER_RUNTIME__/);
     assert.match(html, /ui-token-abcdefghijklmnopqrstuv/);
 
+    for (const path of ["/", "/index.html"] as const) {
+      const root = await fetch(`${endpoint.url}${path}`);
+      assert.equal(root.status, 200);
+      const rootHtml = await root.text();
+      assert.match(rootHtml, /__SYMPHONEER_RUNTIME__/);
+      assert.match(rootHtml, /ui-token-abcdefghijklmnopqrstuv/);
+      assert.equal(root.headers.get("cache-control"), "no-store");
+    }
+
     const api = await fetch(`${endpoint.url}/v1/snapshot`);
     assert.equal(api.status, 400);
 

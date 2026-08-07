@@ -34,15 +34,20 @@ export async function tryServeStaticUi(
     throw new RuntimeError("not_found", "UI build is missing; run pnpm web:build");
   }
 
+  const index = join(dist, "index.html");
   const requested = options.pathname === "/" ? "/index.html" : options.pathname;
   const candidate = safeJoin(dist, requested);
   if (candidate && existsSync(candidate) && statSync(candidate).isFile()) {
+    // Root index must inject the session bootstrap; raw sendFile would omit the token.
+    if (candidate === index) {
+      await sendIndex(response, index, options.sessionToken, options.bootstrap ?? {});
+      return true;
+    }
     await sendFile(response, candidate, options.pathname.startsWith("/assets/"));
     return true;
   }
 
   // SPA fallback — never for API routes (caller must guard).
-  const index = join(dist, "index.html");
   if (!existsSync(index)) {
     throw new RuntimeError("not_found", "UI index.html is missing; run pnpm web:build");
   }
