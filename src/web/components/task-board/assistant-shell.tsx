@@ -3,9 +3,10 @@ import type { AttemptSnapshot, RuntimeSnapshot, TaskSummary } from "@symphoneer/
 import { useMemo, useRef } from "react";
 import type { Dictionary } from "../../i18n/index.ts";
 import {
-  createDemoChatModelAdapter,
+  createDemoAssistantAdapter,
   type DemoAssistantContext,
 } from "../assistant/demo-adapter.ts";
+import { createAssistantUiChatModelAdapter } from "../assistant/assistant-ui-adapter.ts";
 import { DeliveryAssistantThread } from "../assistant/thread.tsx";
 
 export function AssistantShell({
@@ -31,8 +32,12 @@ export function AssistantShell({
   });
   contextRef.current = { dictionary, selectedAttempt, selectedTask };
 
-  const adapter = useMemo(() => createDemoChatModelAdapter(() => contextRef.current), []);
-  const runtime = useLocalRuntime(adapter);
+  const assistantAdapter = useMemo(() => createDemoAssistantAdapter(() => contextRef.current), []);
+  const chatModelAdapter = useMemo(
+    () => createAssistantUiChatModelAdapter(assistantAdapter),
+    [assistantAdapter],
+  );
+  const runtime = useLocalRuntime(chatModelAdapter);
 
   return (
     <div className="assistant-column">

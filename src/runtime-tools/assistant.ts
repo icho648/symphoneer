@@ -1,23 +1,10 @@
-export type AssistantStatus =
-  | { state: "disabled"; reason: "missing_config" | "invalid_key" | "provider_failure" | "opt_out" }
-  | { state: "ready"; provider: string; model?: string };
-
-export interface AssistantSessionInput {
-  taskId?: string;
-  attemptId?: string;
-  locale?: string;
-}
-
-export interface AssistantSession {
-  id: string;
-  status: AssistantStatus;
-  summary: string;
-}
-
-export interface AssistantAdapter {
-  status(): AssistantStatus;
-  createOrResumeSession(input: AssistantSessionInput): Promise<AssistantSession>;
-}
+import type {
+  AssistantAdapter,
+  AssistantEvent,
+  AssistantSession,
+  AssistantSessionInput,
+  AssistantStatus,
+} from "./assistant-contract.ts";
 
 export class DisabledAssistantAdapter implements AssistantAdapter {
   readonly #reason: Extract<AssistantStatus, { state: "disabled" }>["reason"];
@@ -33,10 +20,14 @@ export class DisabledAssistantAdapter implements AssistantAdapter {
   }
 
   async createOrResumeSession(input: AssistantSessionInput): Promise<AssistantSession> {
+    const summary = "Assistant is disabled until a model provider is configured.";
     return {
       id: `assistant:disabled:${input.attemptId ?? input.taskId ?? "none"}`,
       status: this.status(),
-      summary: "Assistant is disabled until a model provider is configured.",
+      summary,
+      run: async function* (): AsyncIterable<AssistantEvent> {
+        yield { type: "error", message: summary };
+      },
     };
   }
 }
@@ -51,6 +42,6 @@ export function createAssistantAdapter(env: NodeJS.ProcessEnv = process.env): As
   if (env.SYMPHONEER_ASSISTANT_API_KEY === "invalid") {
     return new DisabledAssistantAdapter("invalid_key");
   }
-  // Pi / provider adapters are optional; without a concrete SDK keep disabled-ready surface.
+  // Concrete Assistant runtimes (for example Pi SDK) remain optional adapters.
   return new DisabledAssistantAdapter("missing_config");
 }
