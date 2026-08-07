@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -10,7 +11,6 @@ const webHost = process.env.SYMPHONEER_WEB_HOST ?? "127.0.0.1";
 const webPort = process.env.SYMPHONEER_WEB_PORT ?? "3000";
 const runtimeUrl = process.env.SYMPHONEER_RUNTIME_URL ?? `http://${runtimeHost}:${runtimePort}`;
 const dataDir = process.env.SYMPHONEER_DATA_DIR ?? path.join(os.tmpdir(), "symphoneer-runtime");
-const sessionToken = process.env.SYMPHONEER_RUNTIME_TOKEN ?? randomBytes(24).toString("base64url");
 const canReuseRuntime = process.env.SYMPHONEER_DATA_DIR === undefined;
 
 const children = new Map<string, ChildProcess>();
@@ -94,6 +94,43 @@ export async function runtimeIsHealthy(
   }
 }
 
+/** Discover the token Runtime persisted under `dataDir/runtime-token`. */
+export async function readStoredRuntimeToken(
+  dir: string,
+  reader: (filePath: string, encoding: "utf8") => Promise<string> = (filePath, encoding) =>
+    readFile(filePath, encoding),
+): Promise<string | undefined> {
+  try {
+    const token = (await reader(path.join(dir, "runtime-token"), "utf8")).trim();
+    return token.length >= 16 ? token : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve the session token for the local stack.
+ * When reusing a healthy Runtime, read its stored token — never invent a new one.
+ */
+export async function resolveDevSessionToken(options: {
+  envToken?: string;
+  dataDir: string;
+  reuseHealthyRuntime: boolean;
+  readStoredToken?: (dir: string) => Promise<string | undefined>;
+  createToken?: () => string;
+}): Promise<string> {
+  if (options.envToken) return options.envToken;
+  if (options.reuseHealthyRuntime) {
+    const readStored = options.readStoredToken ?? readStoredRuntimeToken;
+    const stored = await readStored(options.dataDir);
+    if (stored) return stored;
+    throw new Error(
+      `Runtime is healthy at the default endpoint but its session token was not found at ${path.join(options.dataDir, "runtime-token")}. Set SYMPHONEER_RUNTIME_TOKEN to reuse it.`,
+    );
+  }
+  return (options.createToken ?? (() => randomBytes(24).toString("base64url")))();
+}
+
 export async function main(): Promise<void> {
   process.once("SIGINT", () => shutdown(0));
   process.once("SIGTERM", () => shutdown(0));
@@ -108,6 +145,12 @@ export async function main(): Promise<void> {
       "",
     ].join("\n"),
   );
+  const reuseHealthyRuntime = canReuseRuntime && (await runtimeIsHealthy(runtimeUrl));
+  const sessionToken = await resolveDevSessionToken({
+    envToken: process.env.SYMPHONEER_RUNTIME_TOKEN,
+    dataDir,
+    reuseHealthyRuntime,
+  });
   const sharedEnv = {
     SYMPHONEER_DATA_DIR: dataDir,
     SYMPHONEER_RUNTIME_HOST: runtimeHost,
@@ -118,7 +161,7 @@ export async function main(): Promise<void> {
     SYMPHONEER_WEB_HOST: webHost,
     SYMPHONEER_WEB_PORT: webPort,
   };
-  if (canReuseRuntime && (await runtimeIsHealthy(runtimeUrl))) {
+  if (reuseHealthyRuntime) {
     process.stdout.write(`Runtime already healthy; reusing ${runtimeUrl}\n`);
   } else {
     start("Runtime", ["runtime:serve"], sharedEnv);
