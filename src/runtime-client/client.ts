@@ -31,10 +31,13 @@ export interface RuntimeSubscription {
   close(): void;
 }
 
-export type PauseAttemptInput = Extract<RuntimeCommand, { kind: "pause_attempt" }>;
-export type RetryAttemptInput = Extract<RuntimeCommand, { kind: "retry_attempt" }>;
-export type RespondInterventionInput = Extract<RuntimeCommand, { kind: "respond_intervention" }>;
-export type StartTeamRunInput = Extract<RuntimeCommand, { kind: "start_team_run" }>;
+export type PauseAttemptInput = Omit<Extract<RuntimeCommand, { kind: "pause_attempt" }>, "kind">;
+export type RetryAttemptInput = Omit<Extract<RuntimeCommand, { kind: "retry_attempt" }>, "kind">;
+export type RespondInterventionInput = Omit<
+  Extract<RuntimeCommand, { kind: "respond_intervention" }>,
+  "kind"
+>;
+export type StartTeamRunInput = Omit<Extract<RuntimeCommand, { kind: "start_team_run" }>, "kind">;
 
 export class DefaultRuntimeClient {
   readonly #transport: RuntimeTransport;

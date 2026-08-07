@@ -127,7 +127,6 @@ test("HttpRuntimeTransport maps domain methods and typed errors", async () => {
       await assert.rejects(
         () =>
           client.pauseAttempt({
-            kind: "pause_attempt",
             attemptId: "a1",
             idempotencyKey: "k1",
           }),

@@ -61,7 +61,6 @@ export const pauseAttemptTool = defineRuntimeTool({
       runtime.getAttempt(input.attemptId),
     ]);
     return runtime.pauseAttempt({
-      kind: "pause_attempt",
       attemptId: input.attemptId,
       idempotencyKey: input.idempotencyKey,
       expectedEventSequence: input.expectedEventSequence ?? snapshot.runtime.lastEventSequence,
@@ -87,7 +86,6 @@ export const retryAttemptTool = defineRuntimeTool({
       runtime.getAttempt(input.attemptId),
     ]);
     return runtime.retryAttempt({
-      kind: "retry_attempt",
       attemptId: input.attemptId,
       idempotencyKey: input.idempotencyKey,
       expectedEventSequence: input.expectedEventSequence ?? snapshot.runtime.lastEventSequence,
@@ -112,7 +110,6 @@ export const respondInterventionTool = defineRuntimeTool({
   execute: async (runtime, input) => {
     const snapshot = await runtime.snapshot();
     return runtime.respondToIntervention({
-      kind: "respond_intervention",
       interventionId: input.interventionId,
       decidedBy: input.decidedBy,
       decision: input.decision,
