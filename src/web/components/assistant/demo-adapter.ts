@@ -1,5 +1,11 @@
-import type { ChatModelAdapter, ThreadMessage } from "@assistant-ui/react";
 import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
+import type {
+  AssistantAdapter,
+  AssistantEvent,
+  AssistantMessage,
+  AssistantSession,
+  AssistantSessionInput,
+} from "../../../runtime-tools/assistant-contract.ts";
 import type { Dictionary } from "../../i18n/index.ts";
 
 export type DemoAssistantContext = {
@@ -8,18 +14,25 @@ export type DemoAssistantContext = {
   selectedTask: TaskSummary | null;
 };
 
-export function createDemoChatModelAdapter(
+export function createDemoAssistantAdapter(
   getContext: () => DemoAssistantContext,
-): ChatModelAdapter {
+): AssistantAdapter {
   return {
-    async *run({ messages, abortSignal }) {
-      const reply = buildDemoReply(messages, getContext());
-      yield* streamText(reply, abortSignal);
+    status: () => ({ state: "ready", provider: "demo" }),
+    async createOrResumeSession(input: AssistantSessionInput): Promise<AssistantSession> {
+      const context = getContext();
+      const subject = context.selectedAttempt?.id ?? context.selectedTask?.id ?? "global";
+      return {
+        id: `assistant:demo:${input.attemptId ?? input.taskId ?? subject}`,
+        status: { state: "ready", provider: "demo" },
+        summary: "Deterministic Symphoneer Assistant demo session.",
+        run: ({ messages, abortSignal }) => streamReply(buildDemoReply(messages, getContext()), abortSignal),
+      };
     },
   };
 }
 
-function buildDemoReply(messages: readonly ThreadMessage[], context: DemoAssistantContext): string {
+function buildDemoReply(messages: readonly AssistantMessage[], context: DemoAssistantContext): string {
   const { dictionary, selectedAttempt, selectedTask } = context;
   const demo = dictionary.board.assistant.demo;
   const prompt = lastUserText(messages).trim();
@@ -75,27 +88,22 @@ function includesAny(haystack: string, needles: string[]): boolean {
   return needles.some((needle) => needle.length > 0 && haystack.includes(needle.toLowerCase()));
 }
 
-function lastUserText(messages: readonly ThreadMessage[]): string {
+function lastUserText(messages: readonly AssistantMessage[]): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message?.role !== "user") continue;
-    return message.content
-      .filter((part): part is { type: "text"; text: string } => part.type === "text")
-      .map((part) => part.text)
-      .join("");
+    if (message?.role === "user") return message.text;
   }
   return "";
 }
 
-async function* streamText(text: string, abortSignal: AbortSignal) {
-  let output = "";
+async function* streamReply(text: string, abortSignal: AbortSignal): AsyncIterable<AssistantEvent> {
   const chunkSize = 4;
   for (let index = 0; index < text.length; index += chunkSize) {
     if (abortSignal.aborted) return;
-    output += text.slice(index, index + chunkSize);
-    yield { content: [{ type: "text" as const, text: output }] };
+    yield { type: "text_delta", delta: text.slice(index, index + chunkSize) };
     await delay(12, abortSignal);
   }
+  if (!abortSignal.aborted) yield { type: "completed" };
 }
 
 function delay(ms: number, abortSignal: AbortSignal): Promise<void> {

@@ -1,9 +1,12 @@
 export type {
   AssistantAdapter,
+  AssistantEvent,
+  AssistantMessage,
+  AssistantRunInput,
   AssistantSession,
   AssistantSessionInput,
   AssistantStatus,
-} from "./assistant.ts";
+} from "./assistant-contract.ts";
 export { createAssistantAdapter, DisabledAssistantAdapter } from "./assistant.ts";
 export {
   executeRuntimeTool,

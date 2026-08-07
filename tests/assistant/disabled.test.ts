@@ -16,4 +16,12 @@ test("Assistant stays disabled without model config", async () => {
   const session = await new DisabledAssistantAdapter().createOrResumeSession({ taskId: "t1" });
   assert.equal(session.status.state, "disabled");
   assert.match(session.summary, /disabled/i);
+
+  const events = [];
+  for await (const event of session.run({ messages: [], abortSignal: new AbortController().signal })) {
+    events.push(event);
+  }
+  assert.deepEqual(events, [
+    { type: "error", message: "Assistant is disabled until a model provider is configured." },
+  ]);
 });
