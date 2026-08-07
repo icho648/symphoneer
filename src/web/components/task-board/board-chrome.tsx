@@ -85,9 +85,7 @@ export function BoardChrome({
         </div>
       </header>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto bg-window">
-        {children}
-      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto bg-window">{children}</div>
     </div>
   );
 }
