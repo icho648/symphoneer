@@ -53,6 +53,9 @@ test("reuse path fails closed when a healthy Runtime has no discoverable token",
 test("readStoredRuntimeToken loads Runtime's persisted token file", async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "symphoneer-dev-token-"));
   const stored = "persisted-runtime-token-xyz123";
-  await writeFile(path.join(dir, "runtime-token"), `${stored}\n`, { encoding: "utf8", mode: 0o600 });
+  await writeFile(path.join(dir, "runtime-token"), `${stored}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
   assert.equal(await readStoredRuntimeToken(dir), stored);
 });
