@@ -18,7 +18,10 @@ test("Assistant stays disabled without model config", async () => {
   assert.match(session.summary, /disabled/i);
 
   const events = [];
-  for await (const event of session.run({ messages: [], abortSignal: new AbortController().signal })) {
+  for await (const event of session.run({
+    messages: [],
+    abortSignal: new AbortController().signal,
+  })) {
     events.push(event);
   }
   assert.deepEqual(events, [

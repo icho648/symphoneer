@@ -26,13 +26,17 @@ export function createDemoAssistantAdapter(
         id: `assistant:demo:${input.attemptId ?? input.taskId ?? subject}`,
         status: { state: "ready", provider: "demo" },
         summary: "Deterministic Symphoneer Assistant demo session.",
-        run: ({ messages, abortSignal }) => streamReply(buildDemoReply(messages, getContext()), abortSignal),
+        run: ({ messages, abortSignal }) =>
+          streamReply(buildDemoReply(messages, getContext()), abortSignal),
       };
     },
   };
 }
 
-function buildDemoReply(messages: readonly AssistantMessage[], context: DemoAssistantContext): string {
+function buildDemoReply(
+  messages: readonly AssistantMessage[],
+  context: DemoAssistantContext,
+): string {
   const { dictionary, selectedAttempt, selectedTask } = context;
   const demo = dictionary.board.assistant.demo;
   const prompt = lastUserText(messages).trim();

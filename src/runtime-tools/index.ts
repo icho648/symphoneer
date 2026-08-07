@@ -1,3 +1,4 @@
+export { createAssistantAdapter, DisabledAssistantAdapter } from "./assistant.ts";
 export type {
   AssistantAdapter,
   AssistantEvent,
@@ -7,7 +8,6 @@ export type {
   AssistantSessionInput,
   AssistantStatus,
 } from "./assistant-contract.ts";
-export { createAssistantAdapter, DisabledAssistantAdapter } from "./assistant.ts";
 export {
   executeRuntimeTool,
   getAttemptTool,

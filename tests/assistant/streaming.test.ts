@@ -5,6 +5,7 @@ import type {
   AssistantAdapter,
   AssistantEvent,
   AssistantSession,
+  AssistantSessionInput,
 } from "../../src/runtime-tools/index.ts";
 
 class StreamingAssistantAdapter implements AssistantAdapter {
@@ -12,7 +13,7 @@ class StreamingAssistantAdapter implements AssistantAdapter {
     return { state: "ready" as const, provider: "test" };
   }
 
-  async createOrResumeSession(): Promise<AssistantSession> {
+  async createOrResumeSession(_input: AssistantSessionInput): Promise<AssistantSession> {
     return {
       id: "assistant:test",
       status: this.status(),

@@ -2,11 +2,11 @@ import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
 import type { AttemptSnapshot, RuntimeSnapshot, TaskSummary } from "@symphoneer/contracts";
 import { useMemo, useRef } from "react";
 import type { Dictionary } from "../../i18n/index.ts";
+import { createAssistantUiChatModelAdapter } from "../assistant/assistant-ui-adapter.ts";
 import {
   createDemoAssistantAdapter,
   type DemoAssistantContext,
 } from "../assistant/demo-adapter.ts";
-import { createAssistantUiChatModelAdapter } from "../assistant/assistant-ui-adapter.ts";
 import { DeliveryAssistantThread } from "../assistant/thread.tsx";
 
 export function AssistantShell({
