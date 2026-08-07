@@ -146,8 +146,9 @@ export async function main(): Promise<void> {
     ].join("\n"),
   );
   const reuseHealthyRuntime = canReuseRuntime && (await runtimeIsHealthy(runtimeUrl));
+  const envToken = process.env.SYMPHONEER_RUNTIME_TOKEN;
   const sessionToken = await resolveDevSessionToken({
-    envToken: process.env.SYMPHONEER_RUNTIME_TOKEN,
+    ...(envToken ? { envToken } : {}),
     dataDir,
     reuseHealthyRuntime,
   });
