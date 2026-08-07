@@ -220,7 +220,8 @@ test("HttpRuntimeTransport reconnects SSE after disconnect without duplicate or 
       const seen: string[] = [];
       for await (const event of subscription.events) {
         if (event.kind === "error") continue;
-        if (event.kind === "snapshot") seen.push(`snapshot:${event.snapshot.runtime.lastEventSequence}`);
+        if (event.kind === "snapshot")
+          seen.push(`snapshot:${event.snapshot.runtime.lastEventSequence}`);
         if (event.kind === "domain") seen.push(`domain:${event.event.sequence}`);
         if (seen.includes("domain:2")) {
           subscription.close();
