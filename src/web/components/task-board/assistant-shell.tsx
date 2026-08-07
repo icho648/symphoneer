@@ -1,111 +1,140 @@
-import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
+import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
+import type { AttemptSnapshot, RuntimeSnapshot, TaskSummary } from "@symphoneer/contracts";
+import { useMemo, useRef } from "react";
 import type { Dictionary } from "../../i18n/index.ts";
+import {
+  createDemoChatModelAdapter,
+  type DemoAssistantContext,
+} from "../assistant/demo-adapter.ts";
+import { DeliveryAssistantThread } from "../assistant/thread.tsx";
 
 export function AssistantShell({
   dictionary,
   onClose,
   selectedAttempt,
   selectedTask,
+  snapshot,
 }: {
   dictionary: Dictionary;
   onClose: () => void;
   selectedAttempt: AttemptSnapshot | null;
   selectedTask: TaskSummary | null;
+  snapshot: RuntimeSnapshot | null;
 }) {
   const assistant = dictionary.board.assistant;
-  const taskState = selectedTask?.state ?? assistant.noTask;
+  const projectionVersion = snapshot?.projectionVersion ?? 1;
+  const lastEventSequence = snapshot?.runtime.lastEventSequence ?? 0;
+  const contextRef = useRef<DemoAssistantContext>({
+    dictionary,
+    selectedAttempt,
+    selectedTask,
+  });
+  contextRef.current = { dictionary, selectedAttempt, selectedTask };
+
+  const adapter = useMemo(() => createDemoChatModelAdapter(() => contextRef.current), []);
+  const runtime = useLocalRuntime(adapter);
 
   return (
-    <aside className="assistant-slot" id="assistant-slot" aria-labelledby="assistant-slot-title">
-      <header className="assistant-slot-header">
-        <div className="assistant-identity">
-          <span className="assistant-mark" aria-hidden="true">
-            ✦
-          </span>
-          <div className="min-w-0">
-            <p className="assistant-slot-eyebrow">{assistant.eyebrow}</p>
-            <h2 id="assistant-slot-title">{assistant.title}</h2>
-          </div>
-        </div>
-        <button
-          aria-label={assistant.close}
-          className="assistant-close"
-          title={assistant.close}
-          type="button"
-          onClick={onClose}
+    <div className="assistant-column">
+      <nav className="assistant-rail-nav" aria-label={dictionary.navigation.label}>
+        <a
+          className="macos-nav-item"
+          href="#task-board"
+          title={dictionary.navigation.tasks}
+          aria-current="page"
         >
-          <span aria-hidden="true">×</span>
-        </button>
-      </header>
+          <NavGlyph name="tasks" />
+          <span className="macos-nav-label truncate">{dictionary.navigation.tasks}</span>
+          <span className="macos-nav-meta font-mono text-[11px] text-faint">
+            {snapshot?.tasks.length ?? 0}
+          </span>
+        </a>
+        <a className="macos-nav-item" href="#selected-task" title={dictionary.navigation.activity}>
+          <NavGlyph name="activity" />
+          <span className="macos-nav-label truncate">{dictionary.navigation.activity}</span>
+        </a>
+        <a className="macos-nav-item" href="#verification" title={dictionary.navigation.evidence}>
+          <NavGlyph name="evidence" />
+          <span className="macos-nav-label truncate">{dictionary.navigation.evidence}</span>
+        </a>
+        <div
+          className="assistant-rail-meta"
+          title={
+            dictionary.navigation.projection +
+            " v" +
+            projectionVersion +
+            " · " +
+            dictionary.navigation.events +
+            " " +
+            lastEventSequence
+          }
+        >
+          <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
+          <code className="font-mono text-signal">v{projectionVersion}</code>
+        </div>
+      </nav>
 
-      <div className="assistant-slot-status">
-        <span className="assistant-status-dot" aria-hidden="true" />
-        <span>{assistant.ready}</span>
-        <span className="assistant-status-note">{assistant.optional}</span>
-      </div>
-
-      <div className="assistant-thread" role="log" aria-live="polite">
-        <article className="assistant-message assistant-message-assistant">
-          <div className="assistant-message-meta">
-            <span className="assistant-message-avatar" aria-hidden="true">
+      <aside className="assistant-slot" id="assistant-slot" aria-labelledby="assistant-slot-title">
+        <header className="assistant-slot-header">
+          <div className="assistant-identity">
+            <span className="assistant-mark" aria-hidden="true">
               ✦
             </span>
-            <strong>{assistant.label}</strong>
+            <div className="min-w-0">
+              <p className="assistant-slot-eyebrow">{assistant.eyebrow}</p>
+              <h2 id="assistant-slot-title">{assistant.title}</h2>
+            </div>
           </div>
-          <p>{assistant.welcome}</p>
-        </article>
+          <button
+            aria-label={assistant.close}
+            className="assistant-close"
+            title={assistant.close}
+            type="button"
+            onClick={onClose}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </header>
 
-        <article className="assistant-context-card">
-          <p className="assistant-card-eyebrow">{assistant.context}</p>
-          <strong>{selectedTask?.title ?? assistant.noTask}</strong>
-          <span>
-            {selectedTask ? `${selectedTask.identifier} · ${taskState}` : assistant.noTask}
-          </span>
-          <dl className="assistant-context-facts">
-            <div>
-              <dt>{assistant.task}</dt>
-              <dd>{selectedTask?.identifier ?? "—"}</dd>
-            </div>
-            <div>
-              <dt>{assistant.attempt}</dt>
-              <dd>
-                {selectedAttempt
-                  ? `${assistant.attempt} ${String(selectedAttempt.sequence).padStart(2, "0")}`
-                  : "—"}
-              </dd>
-            </div>
-          </dl>
-        </article>
-
-        <div className="assistant-suggestions-heading">{assistant.suggestionsLabel}</div>
-        <fieldset className="assistant-suggestions">
-          <legend className="sr-only">{assistant.suggestionsLabel}</legend>
-          <button className="assistant-suggestion" disabled type="button">
-            {assistant.suggestions.explain}
-          </button>
-          <button className="assistant-suggestion" disabled type="button">
-            {assistant.suggestions.attention}
-          </button>
-          <button className="assistant-suggestion" disabled type="button">
-            {assistant.suggestions.summary}
-          </button>
-        </fieldset>
-      </div>
-
-      <footer className="assistant-compose">
-        <div className="assistant-input-shell" aria-disabled="true">
-          <textarea
-            aria-label={assistant.inputPlaceholder}
-            disabled
-            placeholder={assistant.inputPlaceholder}
-            rows={2}
-          />
-          <button aria-label={assistant.disabledHint} disabled type="button">
-            <span aria-hidden="true">↑</span>
-          </button>
+        <div className="assistant-slot-status">
+          <span className="assistant-status-dot" aria-hidden="true" />
+          <span>{assistant.ready}</span>
+          <span className="assistant-status-note">{assistant.optional}</span>
         </div>
-        <p>{assistant.disabledHint}</p>
-      </footer>
-    </aside>
+
+        <AssistantRuntimeProvider runtime={runtime}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <DeliveryAssistantThread
+              dictionary={dictionary}
+              selectedAttempt={selectedAttempt}
+              selectedTask={selectedTask}
+            />
+          </div>
+        </AssistantRuntimeProvider>
+      </aside>
+    </div>
+  );
+}
+
+function NavGlyph({ name }: { name: "tasks" | "activity" | "evidence" }) {
+  const paths = {
+    tasks: "M4 6h16M4 12h16M4 18h10",
+    activity: "M12 5v14M5 12h14",
+    evidence: "M5 12.5l4 4 10-10",
+  } as const;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-3.5 shrink-0 opacity-80"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <path d={paths[name]} />
+    </svg>
   );
 }

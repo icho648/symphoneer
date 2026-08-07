@@ -2,3 +2,9 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   sharp: true
+minimumReleaseAgeExclude:
+  - '@assistant-ui/core@0.3.7'
+  - '@assistant-ui/react@0.15.8'
+  - '@assistant-ui/store@0.3.5'
+  - '@assistant-ui/tap@0.9.10'
+  - assistant-stream@0.3.34

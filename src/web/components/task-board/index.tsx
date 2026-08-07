@@ -290,6 +290,7 @@ export function TaskBoard({ dictionary, locale }: { dictionary: Dictionary; loca
                   onClose={() => setAssistantOpen(false)}
                   selectedAttempt={selectedAttempt}
                   selectedTask={selectedTask}
+                  snapshot={snapshot}
                 />
               )}
               <div className="task-deck">
