@@ -136,6 +136,25 @@ test("HttpRuntimeTransport maps domain methods and typed errors", async () => {
   );
 });
 
+function domainEvent(sequence: number, id: string) {
+  return {
+    sequence,
+    event: {
+      schemaVersion: CONTRACT_SCHEMA_VERSION,
+      id,
+      type: "runtime.command.requested",
+      occurredAt: "2026-08-06T00:00:00.000Z",
+      source: "runtime",
+      aggregate: { kind: "attempt", id: "attempt-1" },
+      payload: {},
+    },
+  };
+}
+
+function writeSse(response: ServerResponse, event: string, data: unknown): void {
+  response.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
 test("HttpRuntimeTransport subscribe delivers ordered SSE and closes", async () => {
   await withServer(
     (request, response) => {
@@ -146,22 +165,9 @@ test("HttpRuntimeTransport subscribe delivers ordered SSE and closes", async () 
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
       });
-      response.write(`event: snapshot\ndata: ${JSON.stringify(emptySnapshot(0))}\n\n`);
-      response.write(
-        `event: domain\ndata: ${JSON.stringify({
-          sequence: 1,
-          event: {
-            schemaVersion: CONTRACT_SCHEMA_VERSION,
-            id: "evt-1",
-            type: "runtime.command.requested",
-            occurredAt: "2026-08-06T00:00:00.000Z",
-            source: "runtime",
-            aggregate: { kind: "attempt", id: "attempt-1" },
-            payload: {},
-          },
-        })}\n\n`,
-      );
-      response.end();
+      writeSse(response, "snapshot", emptySnapshot(0));
+      writeSse(response, "domain", domainEvent(1, "evt-1"));
+      // Keep the stream open; subscription.close() terminates the consumer.
     },
     async (baseUrl) => {
       const client = new DefaultRuntimeClient(new HttpRuntimeTransport({ baseUrl }));
@@ -171,8 +177,58 @@ test("HttpRuntimeTransport subscribe delivers ordered SSE and closes", async () 
         if (event.kind === "snapshot") seen.push("snapshot");
         if (event.kind === "domain") seen.push(`domain:${event.event.sequence}`);
         if (event.kind === "error") throw event.error;
+        if (seen.length >= 2) {
+          subscription.close();
+          break;
+        }
       }
       assert.deepEqual(seen, ["snapshot", "domain:1"]);
+    },
+  );
+});
+
+test("HttpRuntimeTransport reconnects SSE after disconnect without duplicate or gap", async () => {
+  let connections = 0;
+  await withServer(
+    (request, response) => {
+      const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      assert.equal(url.pathname, "/v1/events/stream");
+      const after = Number(url.searchParams.get("after") ?? "0");
+      connections += 1;
+      response.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+      if (connections === 1) {
+        assert.equal(after, 0);
+        writeSse(response, "snapshot", emptySnapshot(0));
+        writeSse(response, "domain", domainEvent(1, "evt-1"));
+        response.end();
+        return;
+      }
+      assert.equal(after, 1);
+      writeSse(response, "snapshot", emptySnapshot(1));
+      writeSse(response, "domain", domainEvent(2, "evt-2"));
+      // Stay open until the client closes after observing sequence 2.
+    },
+    async (baseUrl) => {
+      const client = new DefaultRuntimeClient(
+        new HttpRuntimeTransport({ baseUrl, sseReconnectDelayMs: 0 }),
+      );
+      const subscription = client.subscribe({ afterSequence: 0 });
+      const seen: string[] = [];
+      for await (const event of subscription.events) {
+        if (event.kind === "error") continue;
+        if (event.kind === "snapshot") seen.push(`snapshot:${event.snapshot.runtime.lastEventSequence}`);
+        if (event.kind === "domain") seen.push(`domain:${event.event.sequence}`);
+        if (seen.includes("domain:2")) {
+          subscription.close();
+          break;
+        }
+      }
+      assert.equal(connections, 2);
+      assert.deepEqual(seen, ["snapshot:0", "domain:1", "snapshot:1", "domain:2"]);
     },
   );
 });

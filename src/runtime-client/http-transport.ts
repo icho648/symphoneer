@@ -12,12 +12,15 @@ export interface HttpRuntimeTransportOptions {
   baseUrl: string;
   fetch?: typeof fetch;
   token?: string;
+  /** Delay before SSE reconnect. Default: exponential 250ms..10s. Use 0 in tests. */
+  sseReconnectDelayMs?: number | ((attempt: number) => number);
 }
 
 export class HttpRuntimeTransport implements RuntimeTransport {
   readonly #baseUrl: string;
   readonly #fetch: typeof fetch;
   readonly #token: string | undefined;
+  readonly #sseReconnectDelayMs: number | ((attempt: number) => number) | undefined;
 
   constructor(options: HttpRuntimeTransportOptions) {
     const baseUrl = new URL(options.baseUrl);
@@ -27,6 +30,7 @@ export class HttpRuntimeTransport implements RuntimeTransport {
     this.#baseUrl = baseUrl.href.replace(/\/$/, "");
     this.#fetch = options.fetch ?? fetch;
     this.#token = options.token;
+    this.#sseReconnectDelayMs = options.sseReconnectDelayMs;
   }
 
   async request(request: RuntimeTransportRequest): Promise<unknown> {
@@ -85,7 +89,6 @@ export class HttpRuntimeTransport implements RuntimeTransport {
     const queue: RuntimeTransportEvent[] = [];
     let wake: (() => void) | undefined;
     let closed = false;
-    let lastError: Error | undefined;
 
     const push = (event: RuntimeTransportEvent) => {
       queue.push(event);
@@ -94,22 +97,42 @@ export class HttpRuntimeTransport implements RuntimeTransport {
     };
 
     const run = async () => {
-      try {
-        await this.#consumeSse(request, controller.signal, push);
-      } catch (error) {
-        if (controller.signal.aborted || closed) return;
-        lastError = error instanceof Error ? error : new Error(String(error));
-        push({ kind: "error", error: lastError });
-      } finally {
-        if (!closed) push({ kind: "close" });
+      let after = readAfterSequence(request.query?.after);
+      let attempt = 0;
+      while (!closed && !controller.signal.aborted) {
+        try {
+          await this.#consumeSse(
+            { ...request, query: { ...request.query, after } },
+            controller.signal,
+            (event) => {
+              if (event.kind === "message" && event.event === "domain") {
+                const sequence = readDomainSequence(event.data);
+                if (sequence !== undefined && sequence > after) after = sequence;
+              }
+              if (!closed) push(event);
+            },
+          );
+          attempt = 0;
+        } catch (error) {
+          if (controller.signal.aborted || closed) break;
+          push({
+            kind: "error",
+            error: error instanceof Error ? error : new Error(String(error)),
+          });
+        }
+        if (closed || controller.signal.aborted) break;
+        const delay = resolveReconnectDelay(attempt, this.#sseReconnectDelayMs);
+        attempt += 1;
+        await sleep(delay, controller.signal);
       }
+      if (!closed) push({ kind: "close" });
     };
     void run();
 
     const events: AsyncIterable<RuntimeTransportEvent> = {
       [Symbol.asyncIterator]: () => ({
         async next() {
-          while (queue.length === 0 && !closed && !lastError) {
+          while (queue.length === 0 && !closed) {
             await new Promise<void>((resolve) => {
               wake = resolve;
             });
@@ -228,4 +251,42 @@ export class HttpRuntimeTransport implements RuntimeTransport {
     }
     return url.href;
   }
+}
+
+function readAfterSequence(value: string | number | undefined): number {
+  if (value === undefined) return 0;
+  const sequence = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(sequence) && sequence >= 0 ? sequence : 0;
+}
+
+function readDomainSequence(data: unknown): number | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const sequence = (data as { sequence?: unknown }).sequence;
+  return typeof sequence === "number" && Number.isInteger(sequence) && sequence > 0
+    ? sequence
+    : undefined;
+}
+
+function resolveReconnectDelay(
+  attempt: number,
+  configured: number | ((attempt: number) => number) | undefined,
+): number {
+  if (typeof configured === "function") return Math.max(0, configured(attempt));
+  if (typeof configured === "number") return Math.max(0, configured);
+  return Math.min(10_000, 250 * 2 ** attempt);
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (ms <= 0 || signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
