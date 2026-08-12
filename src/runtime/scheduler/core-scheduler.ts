@@ -6,7 +6,13 @@ import {
   type WorkspaceReference,
 } from "@symphoneer/contracts";
 import { canonicalizeWorkspaceReference } from "../workspace/index.ts";
-import { attachTurn, finishAttempt, pauseAttempt, resumePausedAttempt } from "./attempt/index.ts";
+import {
+  attachTurn,
+  deleteAttempt,
+  finishAttempt,
+  pauseAttempt,
+  resumePausedAttempt,
+} from "./attempt/index.ts";
 import { reserve } from "./dispatch/index.ts";
 import { type ReconcileResult, reconcile } from "./reconcile.ts";
 import { ReplayCache } from "./replay-cache.ts";
@@ -186,6 +192,7 @@ export class CoreScheduler {
     attemptId: string;
     pausedAt: string;
     workspace: WorkspaceReference;
+    controller?: AttemptSnapshot["controller"];
     idempotencyKey: string;
   }): {
     attempt: AttemptSnapshot;
@@ -200,6 +207,14 @@ export class CoreScheduler {
       request.idempotencyKey,
       { operation: "pauseAttempt", ...normalized },
       () => pauseAttempt(this.#state, normalized),
+    );
+  }
+
+  deleteAttempt(request: { attemptId: string; idempotencyKey: string }): boolean {
+    const attemptId = request.attemptId.trim();
+    if (!attemptId) throw new CoreError("conflict", "Attempt ID cannot be blank");
+    return this.#replay.run(request.idempotencyKey, { operation: "deleteAttempt", attemptId }, () =>
+      deleteAttempt(this.#state, attemptId),
     );
   }
 

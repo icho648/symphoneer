@@ -6,9 +6,11 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import {
+  type AttemptSnapshot,
   CONTRACT_SCHEMA_VERSION,
   ExecutionSessionSchema,
   type TaskSummary,
+  type WorkspaceReference,
 } from "@symphoneer/contracts";
 import {
   type AgentRunCompletion,
@@ -212,6 +214,106 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   assert.match(failedAttempt?.failure ?? "", /deterministic_injected_worker_failure/);
   assert.equal(failedService.attemptDetail(failedAttempt?.id ?? "")?.workspace?.state, "retained");
   await failedService.stop();
+
+  let retryReads = 0;
+  const retryTracker: Tracker = {
+    kind: "github",
+    listTasks: async () => ({
+      tasks: [{ task: failedTask, versionToken: null }],
+      nextCursor: null,
+    }),
+    getTask: async () => {
+      retryReads += 1;
+      throw new Error("transient_tracker_failure");
+    },
+  };
+  const retryNow = () => new Date("2099-08-12T10:00:00.000Z");
+  const retryOrchestration = new RealSingleAgentOrchestration({
+    dataDir: failedDataDir,
+    tracker: retryTracker,
+    projectRoot: repository,
+    workspaceRoot: resolve(root, "failed-workspaces"),
+    now: retryNow,
+  });
+  const retryService = new RuntimeService({
+    dataDir: failedDataDir,
+    tracker: retryTracker,
+    defaultOrchestration: retryOrchestration,
+    now: retryNow,
+  });
+  await retryService.start();
+  await retryService.refreshTracker();
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  assert.equal(retryReads, 1);
+  await retryService.stop();
+
+  const recoveryDataDir = resolve(root, "recovery-data");
+  const recoveryWorkspaceRoot = resolve(root, "recovery-workspaces");
+  const lostAttempt: AttemptSnapshot = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "attempt-lost-47",
+    taskId: ready.id,
+    sequence: 1,
+    startReason: "dispatch",
+    status: "launching_agent",
+    controller: "symphoneer",
+    workspaceId: `workspace:${ready.id}`,
+    providerSession: null,
+    startedAt: "2026-08-12T10:00:00.000Z",
+    updatedAt: "2026-08-12T10:00:01.000Z",
+  };
+  const lostWorkspace: WorkspaceReference = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: lostAttempt.workspaceId,
+    taskId: ready.id,
+    path: resolve(recoveryWorkspaceRoot, "issue-47"),
+    repository: "icho648/fixture",
+    branch: "codex/issue-47",
+    gitHead: "a".repeat(40),
+    worktreeFingerprint: "b".repeat(64),
+    host: "local",
+    state: "ready",
+    ownerAttemptId: lostAttempt.id,
+  };
+  const recoverySeed = new RuntimeService({ dataDir: recoveryDataDir });
+  await recoverySeed.start();
+  await recoverySeed.recordTask(ready);
+  await recoverySeed.recordAttempt(lostAttempt, { workspace: lostWorkspace });
+  await recoverySeed.stop();
+
+  let recoveryReads = 0;
+  const recoveryTracker: Tracker = {
+    kind: "github",
+    listTasks: async () => ({ tasks: [{ task: ready, versionToken: null }], nextCursor: null }),
+    getTask: async () => {
+      recoveryReads += 1;
+      return { task: ready, versionToken: null };
+    },
+  };
+  const recoveryOrchestration = new RealSingleAgentOrchestration({
+    dataDir: recoveryDataDir,
+    tracker: recoveryTracker,
+    projectRoot: repository,
+    workspaceRoot: recoveryWorkspaceRoot,
+    runnerFactory: () => ({
+      openWorker: async () => {
+        throw new Error("blocked_task_must_not_dispatch");
+      },
+    }),
+  });
+  const recoveryService = new RuntimeService({
+    dataDir: recoveryDataDir,
+    tracker: recoveryTracker,
+    defaultOrchestration: recoveryOrchestration,
+  });
+  await recoveryService.start();
+  await recoveryService.refreshTracker();
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  assert.equal(recoveryService.snapshot().attempts.length, 1);
+  assert.equal(recoveryService.snapshot().attempts[0]?.status, "canceled_by_reconciliation");
+  assert.match(recoveryService.snapshot().tasks[0]?.blocked?.reason ?? "", /Workspace/);
+  assert.equal(recoveryReads, 0);
+  await recoveryService.stop();
 
   const emptyTracker: Tracker = {
     kind: "github",

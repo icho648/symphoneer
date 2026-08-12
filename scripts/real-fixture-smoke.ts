@@ -54,6 +54,17 @@ export interface RealFixtureSmokeReport {
   failure: string | null;
 }
 
+export function fixtureOutcome(
+  task: { dispatchable: boolean; labels: readonly string[] } | undefined,
+  attempt: { status: string; finishedAt?: string | null | undefined } | undefined,
+): "passed" | "failed" | null {
+  if (!attempt?.finishedAt) return null;
+  if (task?.labels.includes("symphoneer:review")) {
+    return attempt.status === "succeeded" ? "passed" : "failed";
+  }
+  return task?.dispatchable === false ? "failed" : null;
+}
+
 export async function runRealFixture(
   options: RealFixtureSmokeOptions = {},
 ): Promise<RealFixtureSmokeReport> {
@@ -179,9 +190,9 @@ export async function runRealFixture(
             state: detail.workspace.state,
           };
         }
-        if (attempt.finishedAt != null) {
-          const reviewed = task?.labels.includes("symphoneer:review") ?? false;
-          report.status = attempt.status === "succeeded" && reviewed ? "passed" : "failed";
+        const outcome = fixtureOutcome(task, attempt);
+        if (outcome) {
+          report.status = outcome;
           report.failure = report.status === "passed" ? null : (attempt.failure ?? attempt.status);
           break;
         }

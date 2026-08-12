@@ -230,3 +230,54 @@ test("pause and resume preserve consecutive failure backoff", () => {
     2,
   );
 });
+
+test("deleting an Attempt releases its claim but preserves the stable Workspace", () => {
+  const scheduler = new CoreScheduler(policy);
+  const owned = workspace("47", "attempt-47");
+  scheduler.reserveAttempt({
+    task: task("47"),
+    attemptId: "attempt-47",
+    sequence: 1,
+    startReason: "dispatch",
+    workspace: owned,
+    startedAt: "2026-08-03T12:00:00.000Z",
+    idempotencyKey: "dispatch-delete-47",
+  });
+  scheduler.attachTurn({
+    attemptId: "attempt-47",
+    threadId: "thread-delete-47",
+    turnId: "turn-delete-47",
+    updatedAt: "2026-08-03T12:00:00.500Z",
+    idempotencyKey: "turn-delete-47",
+  });
+  scheduler.pauseAttempt({
+    attemptId: "attempt-47",
+    pausedAt: "2026-08-03T12:00:01.000Z",
+    workspace: retained(owned),
+    idempotencyKey: "pause-delete-47",
+  });
+
+  assert.equal(
+    scheduler.deleteAttempt({
+      attemptId: "attempt-47",
+      idempotencyKey: "delete-47",
+    }),
+    true,
+  );
+  assert.deepEqual(scheduler.snapshot().attempts, []);
+  assert.deepEqual(scheduler.snapshot().claimedTaskIds, []);
+  assert.equal(scheduler.snapshot().workspaces[0]?.id, "workspace:47");
+
+  const failedScheduler = new CoreScheduler(policy);
+  assert.ok(queueFailedAttempt(failedScheduler, "48"));
+  assert.equal(
+    failedScheduler.deleteAttempt({
+      attemptId: "attempt-48-1",
+      idempotencyKey: "delete-failed-48",
+    }),
+    true,
+  );
+  assert.deepEqual(failedScheduler.snapshot().retries, []);
+  assert.deepEqual(failedScheduler.snapshot().claimedTaskIds, []);
+  assert.equal(failedScheduler.snapshot().workspaces[0]?.id, "workspace:48");
+});

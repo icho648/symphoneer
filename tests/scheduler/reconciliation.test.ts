@@ -214,12 +214,13 @@ test("reconciliation keeps a Codex-controlled paused Attempt locked", () => {
     attemptId: "attempt-47",
     pausedAt: "2026-08-02T12:00:02.000Z",
     workspace: retained(owned),
+    controller: "codex",
     idempotencyKey: "pause-47",
   });
   const scheduler = new CoreScheduler(policy);
   scheduler.restore({
     tasks: [task("47")],
-    attempts: [{ ...paused.attempt, controller: "codex" }],
+    attempts: [paused.attempt],
     workspaces: [paused.workspace],
   });
 

@@ -315,6 +315,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   async delete(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
     const run = this.#runs.get(input.attempt.id);
     if (run) await this.#pause(run, true);
+    this.#scheduler?.deleteAttempt({
+      attemptId: input.attempt.id,
+      idempotencyKey: `single-agent:delete:${input.attempt.id}`,
+    });
     this.#runs.delete(input.attempt.id);
   }
 
@@ -368,7 +372,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
           );
         }
       } catch {
-        this.#scheduleTick(log, retry.taskId, retry.dueAtMs + 1_000);
+        this.#scheduleTick(log, retry.taskId, this.#now().getTime() + 1_000);
         continue;
       }
       if (!refreshed || !evaluateEligibility(refreshed, corePolicy(workflow)).eligible) {
@@ -418,6 +422,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       if (
         claimed.has(task.id) ||
         this.#runningTasks.has(task.id) ||
+        log.projection.getTask(task.id)?.blocked ||
         !evaluateEligibility(task, corePolicy(workflow)).eligible
       ) {
         continue;
@@ -877,6 +882,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       attemptId: run.attempt.id,
       pausedAt,
       workspace: run.workspace,
+      ...(run.handoffRequested ? { controller: "codex" as const } : {}),
       idempotencyKey: `single-agent:pause:${run.attempt.id}:${pausedAt}`,
     });
     run.attempt =
@@ -1035,14 +1041,20 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
           },
         );
       } catch (error) {
-        await recordTaskStatus(
+        const finishedAt = this.#atLeastNow(attempt.updatedAt);
+        await recordAttempt(
           log,
-          task.id,
-          task.workflowStatus,
-          { reason: errorMessage(error), since: this.#timestamp() },
+          AttemptSnapshotSchema.parse({
+            ...attempt,
+            status: "canceled_by_reconciliation",
+            activeTurn: null,
+            updatedAt: finishedAt,
+            finishedAt,
+            failure: `Workspace recovery failed: ${errorMessage(error)}`,
+          }),
           {
-            source: "symphony-core",
-            idempotencyKey: `single-agent:startup-reconciliation:${attempt.id}:blocked`,
+            workspace: detail.workspace,
+            idempotencyKey: `single-agent:attempt:${attempt.id}:startup-reconciliation-blocked`,
           },
         );
       }
