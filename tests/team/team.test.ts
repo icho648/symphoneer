@@ -17,6 +17,8 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
 };
 
 function orchestrator() {

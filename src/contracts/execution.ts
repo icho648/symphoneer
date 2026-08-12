@@ -63,6 +63,7 @@ export const AttemptSnapshotSchema = z
     sequence: z.int().positive(),
     startReason: z.enum(["dispatch", "retry", "continuation", "reconciliation"]),
     status: AttemptStatusSchema,
+    controller: z.enum(["symphoneer", "codex"]).default("symphoneer"),
     workspaceId: NonEmptyString,
     activeTurn: z
       .object({
@@ -113,6 +114,13 @@ export const AttemptSnapshotSchema = z
         message: "paused Attempts retain their Provider session reference",
       });
     }
+    if (attempt.controller === "codex" && attempt.providerSession == null) {
+      context.addIssue({
+        code: "custom",
+        path: ["controller"],
+        message: "Codex-controlled Attempts require a retained Provider session",
+      });
+    }
     if (attempt.status === "succeeded" && attempt.failure != null) {
       context.addIssue({
         code: "custom",
@@ -129,12 +137,13 @@ export const AttemptSnapshotSchema = z
     }
     if (
       attempt.finishedAt != null &&
-      Date.parse(attempt.finishedAt) < Date.parse(attempt.updatedAt)
+      (Date.parse(attempt.finishedAt) < Date.parse(attempt.startedAt) ||
+        Date.parse(attempt.finishedAt) > Date.parse(attempt.updatedAt))
     ) {
       context.addIssue({
         code: "custom",
         path: ["finishedAt"],
-        message: "Attempt finishedAt cannot precede updatedAt",
+        message: "Attempt finishedAt must fall between startedAt and updatedAt",
       });
     }
   });

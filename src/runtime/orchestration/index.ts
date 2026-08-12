@@ -7,3 +7,5 @@ export {
   loadOrchestrationDefinition,
   loadOrchestrationDefinitionSync,
 } from "./load.ts";
+export type { OrchestrationMode } from "./mode.ts";
+export { RealSingleAgentOrchestration } from "./single-agent.ts";

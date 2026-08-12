@@ -201,14 +201,26 @@ export class GitWorktreeDriver implements WorkspaceDriver {
     return "present";
   }
 
-  async remove(workspace: WorkspaceReference): Promise<"removed" | "already_absent"> {
+  async remove(
+    workspace: WorkspaceReference,
+    options: { discardChanges?: boolean } = {},
+  ): Promise<"removed" | "already_absent"> {
     this.#assertRepository(workspace);
     const record = await this.#record(workspace.path);
     const exists = await pathExists(workspace.path);
     if (!record && !exists) return "already_absent";
     if (!record || !exists) throw identityMismatch(workspace);
-    await this.assertRemovable(workspace);
-    await runGit(this.#repositoryPath, ["worktree", "remove", workspace.path]);
+    if (options.discardChanges) {
+      await this.assertReady(workspace);
+    } else {
+      await this.assertRemovable(workspace);
+    }
+    await runGit(this.#repositoryPath, [
+      "worktree",
+      "remove",
+      ...(options.discardChanges ? ["--force"] : []),
+      workspace.path,
+    ]);
     if ((await this.#record(workspace.path)) || (await pathExists(workspace.path))) {
       throw new WorkspaceError("workspace_git_failed", "Git did not release the managed worktree");
     }

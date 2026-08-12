@@ -19,7 +19,7 @@ V1 用户是希望实践现代 Agent 工程工作流的个人开发者；同一�
 ## V1 主干
 
 ```text
-GitHub Issue
+Tracker Task（V1 由 GitHub Issue 实现）
 → Eligibility / Dispatch
 → Run Attempt
 → Workspace
@@ -36,7 +36,7 @@ GitHub Issue
 
 | 对象 | 作用 | 权威来源 |
 |---|---|---|
-| Task | 持久的任务意图和原生状态 | GitHub Issue |
+| Task | 持久的任务意图和原生状态 | Tracker；GitHub Issue 只是 V1 的一种 Task |
 | Attempt | 针对一个 Task 的一次执行尝试；承载重试、Workspace、运行引用和结果 | Symphoneer Runtime 的 Symphony Core；Symphoneer 保存历史投影 |
 | Workspace | 实际工作目录、仓库、分支、宿主机和所有权；通常由 Git worktree 实现 | Symphoneer Runtime 的 Symphony Core |
 | Thread / Turn / Item | Agent 的上下文、工作轮次和运行事件 | Codex App Server |
@@ -47,7 +47,7 @@ GitHub Issue
 
 ## 系统分工
 
-GitHub Issues 保存任务事实，Symphoneer Runtime 负责调度、执行投影与控制，Codex App Server 负责 Agent 运行上下文；Symphoneer 提供 Task-first 工作台，Codex App 承接深度人工操作。对象权威、进程拓扑和冲突规则只在 [`system-boundaries.md`](system-boundaries.md) 详细定义。
+Tracker 保存任务事实，Symphoneer Runtime 负责调度、执行投影与控制，Codex App Server 负责 Agent 运行上下文；V1 通过 GitHub Issues Tracker Adapter 接入。Symphoneer 提供 Task-first 工作台，Codex App 承接深度人工操作。对象权威、进程拓扑和冲突规则只在 [`system-boundaries.md`](system-boundaries.md) 详细定义。
 
 ## GitHub 原生能力的采用边界
 
@@ -85,6 +85,7 @@ Intent
 
 - Web Dashboard 是主操作面；CLI 与 MCP 复用同一个 Runtime，其中 MCP 只提供查询和受控操作。
 - Codex App 是完整 Chat、Terminal、Diff 与持续人工引导入口，不由 Symphoneer 复制。
+- 多项目是 Symphoneer Desktop Host 的产品能力：Host 维护项目目录并聚合多个相互隔离的单项目 Symphony Runtime；它不是对 Symphony Core 的多项目改写。
 - Electron 和其他生产 Agent Adapter 后置；Phoenix 只在核心闭环后作为非阻塞诊断扩展。
 - Runtime / Web 进程、访问协议、授权和生命周期只在 [`system-boundaries.md`](system-boundaries.md) 定义。
 
@@ -96,7 +97,7 @@ V1 采用 Codex App Server 作为唯一生产 Agent Runtime，并保留一个测
 
 - 重写任何 Agent Loop，或替代 GitHub Issues、Pull Request、Code Review 和 Merge。
 - 成为通用 Workflow Engine、分布式任务调度器或多租户控制面。
-- 首版同时支持多个 Tracker、Runtime、模型 Adapter 或云部署。
+- 首版同时支持多个 Tracker 类型、跨项目统一调度、模型 Adapter 或云部署。
 - 为未来 Provider、Electron、数据库、队列或多 Agent 预建占位包、空 Interface 和配置。
 - 复制 Phoenix UI、用综合分数评价 Agent，或自动替用户修改项目规则、权限和 CI。
 - 未经关联 Issue 授权，不在核心交付闭环外追加 LangGraph、数据库、消息队列或 Electron；当前垂直切片的 LangGraph 与本地 checkpoint 由 Issue #40 明确授权。

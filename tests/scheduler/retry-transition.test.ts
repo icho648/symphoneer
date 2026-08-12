@@ -44,7 +44,11 @@ test("RetryQueued transitions atomically enforce due time, refresh state, slots,
       nowMs: earlyRetry.dueAtMs,
       idempotencyKey: "retry-50-terminal",
     }),
-    { kind: "released", reason: "terminal", cleanupWorkspaceIds: ["workspace:50"] },
+    {
+      kind: "released",
+      reason: "terminal",
+      cleanupWorkspaceIds: ["workspace:attempt-50-1"],
+    },
   );
   assert.equal(early.snapshot().workspaces[0]?.state, "retained");
   assert.equal(early.snapshot().claimedTaskIds.length, 0);

@@ -1,4 +1,10 @@
-import type { TaskSummary, WorkspaceReference } from "@symphoneer/contracts";
+import type {
+  ActivityOccurrence,
+  CodexReasoningEffort,
+  CodexSandbox,
+  TaskSummary,
+  WorkspaceReference,
+} from "@symphoneer/contracts";
 
 export interface AgentRunRequest {
   attemptId: string;
@@ -7,6 +13,9 @@ export interface AgentRunRequest {
   prompt: string;
   continuation: boolean;
   threadId?: string;
+  model?: string;
+  sandbox?: CodexSandbox;
+  effort?: CodexReasoningEffort;
 }
 
 export type InterventionDetails =
@@ -55,7 +64,8 @@ export type AgentRunEvent =
       type: "notification";
       occurredAt: string;
       message: string;
-    };
+    }
+  | ({ type: "activity" } & ActivityOccurrence);
 
 export interface InterventionResponse {
   decision: "approved" | "rejected" | "answered" | "canceled";
@@ -71,6 +81,7 @@ export interface AgentRunCompletion {
 export interface RunHandle {
   events: AsyncIterable<AgentRunEvent>;
   interrupt(): Promise<void>;
+  steer(prompt: string): Promise<void>;
   respondToIntervention(requestRef: string, decision: InterventionResponse): Promise<void>;
   completion: Promise<AgentRunCompletion>;
 }

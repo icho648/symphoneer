@@ -17,6 +17,8 @@ const baseTask: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
 };
 
 const policy = {

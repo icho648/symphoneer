@@ -117,10 +117,27 @@ function processEvent(
             message: event.prompt,
             details: { requestRef: event.requestRef, kind: event.kind },
           }
-        : {
-            type: "progress_summary" as const,
-            message: event.message,
-          };
+        : event.type === "activity"
+          ? {
+              type:
+                event.kind === "message"
+                  ? ("assistant_message" as const)
+                  : event.kind === "command"
+                    ? event.status === "running"
+                      ? ("command_started" as const)
+                      : ("command_completed" as const)
+                    : event.kind === "file_change"
+                      ? ("file_change_summary" as const)
+                      : event.kind === "tool"
+                        ? ("tool_call" as const)
+                        : ("progress_summary" as const),
+              message: event.content ?? event.title,
+              details: event.details,
+            }
+          : {
+              type: "progress_summary" as const,
+              message: event.message,
+            };
   return TeamProcessEventSchema.parse({
     schemaVersion: CONTRACT_SCHEMA_VERSION,
     id: `workflow-event:${request.teamRunId}:${request.eventIndex + index + 1}`,

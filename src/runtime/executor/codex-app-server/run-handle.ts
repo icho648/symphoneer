@@ -4,7 +4,7 @@ import type {
   AgentRunRequest,
   RunHandle,
 } from "../agent-runner.ts";
-
+import { executionActivity } from "./activities.ts";
 import { fingerprint } from "./input-fingerprint.ts";
 import {
   approvalDecision,
@@ -108,6 +108,13 @@ export function createRunHandle(options: {
     async interrupt() {
       await transport.request("turn/interrupt", { threadId, turnId });
     },
+    async steer(prompt) {
+      await transport.request("turn/steer", {
+        threadId,
+        expectedTurnId: turnId,
+        input: [{ type: "text", text: prompt }],
+      });
+    },
     async respondToIntervention(requestRef, decision) {
       const intervention = pending.get(requestRef);
       if (!intervention) throw new Error(`Unknown Codex intervention ${requestRef}`);
@@ -160,12 +167,9 @@ async function pump(
         });
         return;
       }
-      if (message.method !== "turn/started") {
-        emit({
-          type: "notification",
-          occurredAt: now().toISOString(),
-          message: message.method,
-        });
+      if (message.kind === "notification") {
+        const activity = executionActivity(message, now().toISOString());
+        if (activity) emit(activity);
       }
     }
   } catch {

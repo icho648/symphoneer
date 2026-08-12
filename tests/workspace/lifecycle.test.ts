@@ -39,27 +39,23 @@ test("Workspace lifecycle creates, reuses, runs hooks, and removes deterministic
     (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
   );
   await assert.rejects(
-    manager.prepare({ ...input, attemptId: "attempt-13-concurrent" }),
+    manager.prepare({ ...input, taskId: "task-13-conflict" }),
     (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
   );
   const firstFinished = await manager.finish(created.workspace);
-  const reused = await manager.prepare({ ...input, attemptId: "attempt-13-retry" });
+  const reused = await manager.prepare(input);
   assert.equal(reused.createdNow, false);
-  assert.equal(reused.workspace.ownerAttemptId, "attempt-13-retry");
+  assert.equal(reused.workspace.ownerAttemptId, input.attemptId);
   assert.equal(
     await readFile(resolve(reused.workspace.path, "hooks.log"), "utf8"),
     "after_create\nbefore_run\nbefore_run\n",
-  );
-  await assert.rejects(
-    manager.finish(created.workspace),
-    (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
   );
   await assert.rejects(
     manager.remove(firstFinished.workspace),
     (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
   );
   await assert.rejects(
-    manager.prepare({ ...input, taskId: "task-other", attemptId: "attempt-other" }),
+    manager.prepare({ ...input, taskId: "task-other" }),
     (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
   );
 
@@ -212,7 +208,7 @@ test("concurrent identical preparation waits for workspace initialization", asyn
   assert.deepEqual(secondResult, firstResult);
 });
 
-test("cleanup cannot remove a workspace prepared by the next Attempt", async (t) => {
+test("cleanup of one Attempt does not block the next Attempt workspace", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const started = resolve(root, "before-remove.started");
@@ -244,16 +240,15 @@ test("cleanup cannot remove a workspace prepared by the next Attempt", async (t)
     }
   }
 
-  let nextSettled = false;
-  const next = manager.prepare({ ...input, attemptId: "attempt-next" }).finally(() => {
-    nextSettled = true;
+  const preparedNext = await manager.prepare({
+    ...input,
+    attemptId: "attempt-next",
+    branch: "codex/issue-race-next",
   });
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.equal(nextSettled, false);
+  assert.notEqual(preparedNext.workspace.path, retained.workspace.path);
   await writeFile(release, "release\n");
 
   assert.equal((await removal).workspace.state, "released");
-  const preparedNext = await next;
   assert.equal(preparedNext.workspace.ownerAttemptId, "attempt-next");
   await access(preparedNext.workspace.path);
 });

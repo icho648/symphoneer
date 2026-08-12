@@ -1,4 +1,4 @@
-import { existsSync, globSync, readFileSync } from "node:fs";
+import { existsSync, globSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 
 const failures = [];
@@ -103,6 +103,7 @@ if (!codemapMatch) {
   failures.push("ARCHITECTURE.md: missing 当前结构 Codemap fenced block");
 } else {
   const stack = [];
+  const codemapPaths = new Set();
   for (const line of codemapMatch[1].split("\n")) {
     if (!line.trim()) continue;
     const indent = line.match(/^ */)?.[0].length ?? 0;
@@ -114,8 +115,15 @@ if (!codemapMatch) {
       ? `${parent}/${pathToken.replace(/\/$/, "")}`
       : pathToken.replace(/\/$/, "");
     stack.push({ indent, path: fullPath });
+    codemapPaths.add(fullPath);
     if (!existsSync(fullPath)) {
       failures.push(`ARCHITECTURE.md Codemap: missing path ${fullPath}`);
+    }
+  }
+  for (const directory of [...globSync("src/*"), ...globSync("tests/*")]) {
+    if (!statSync(directory).isDirectory() || directory === "src/web/dist") continue;
+    if (!codemapPaths.has(directory)) {
+      failures.push(`ARCHITECTURE.md Codemap: missing directory entry ${directory}`);
     }
   }
 }

@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import {
   type AttemptSnapshot,
   CONTRACT_SCHEMA_VERSION,
+  type CodexModel,
+  type ExecutionActivity,
+  type ExecutionSession,
   type Intervention,
   type ReviewDecision,
   type RuntimeCommandResult,
@@ -17,7 +20,9 @@ import {
   type VerificationResult,
   type WorkspaceReference,
 } from "@symphoneer/contracts";
+import { RuntimeError } from "../errors.ts";
 import { loadOrchestrationDefinitionSync } from "../orchestration/index.ts";
+import type { OrchestrationMode } from "../orchestration/mode.ts";
 import type { ImmutableArtifactStore, JsonlEventStore } from "../storage.ts";
 import {
   LangGraphWorkflowOrchestrator,
@@ -25,10 +30,14 @@ import {
   type WorkflowOrchestrator,
   WorkflowRuntimeCoordinator,
 } from "../team/index.ts";
+import { TrackerSynchronizer } from "../tracker/synchronizer.ts";
+import type { Tracker } from "../tracker/tracker.ts";
 import { executeCommand } from "./commands.ts";
 import { EventLog } from "./event-log.ts";
 import {
   recordAttempt,
+  recordExecutionActivity,
+  recordExecutionSession,
   recordIntervention,
   recordReview,
   recordTask,
@@ -45,6 +54,9 @@ export interface RuntimeServiceOptions {
   eventStore?: JsonlEventStore;
   artifactStore?: ImmutableArtifactStore;
   workflowOrchestrator?: WorkflowOrchestrator;
+  defaultOrchestration?: OrchestrationMode;
+  sessionHistory?: (attempt: AttemptSnapshot) => Promise<ExecutionSession | null>;
+  tracker?: Tracker;
 }
 
 export class RuntimeService {
@@ -55,6 +67,10 @@ export class RuntimeService {
   #endpoint: string;
   readonly #workflowOrchestrator: WorkflowOrchestrator;
   readonly #workflowCoordinator: WorkflowRuntimeCoordinator;
+  #defaultOrchestration: OrchestrationMode | undefined;
+  readonly #sessionHistory: RuntimeServiceOptions["sessionHistory"];
+  #tracker: Tracker | undefined;
+  #trackerSynchronizer: TrackerSynchronizer | undefined;
 
   constructor(options: RuntimeServiceOptions) {
     this.#now = options.now ?? (() => new Date());
@@ -79,11 +95,43 @@ export class RuntimeService {
         checkpointPath: resolve(options.dataDir, "orchestration", "checkpoints.sqlite"),
         orchestration: loadOrchestrationDefinitionSync().binding,
       });
-    this.#workflowCoordinator = new WorkflowRuntimeCoordinator({ idFactory, now: this.#now });
+    this.#workflowCoordinator = new WorkflowRuntimeCoordinator({
+      idFactory,
+      now: this.#now,
+      ...(options.defaultOrchestration
+        ? { defaultOrchestration: options.defaultOrchestration }
+        : {}),
+    });
+    this.#defaultOrchestration = options.defaultOrchestration;
+    this.#sessionHistory = options.sessionHistory;
+    this.#tracker = options.tracker;
+    this.#trackerSynchronizer = this.#createTrackerSynchronizer(options.tracker);
   }
 
   async start(): Promise<void> {
     await this.#log.start();
+    await this.#restoreSessions();
+  }
+
+  async #restoreSessions(): Promise<void> {
+    if (!this.#sessionHistory) return;
+    const attempts = this.#log.projection.snapshot(this.#connection("online")).attempts;
+    for (const attempt of attempts) {
+      if (!attempt.providerSession || this.#log.projection.attemptDetail(attempt.id)?.session) {
+        continue;
+      }
+      try {
+        const session = await this.#sessionHistory(attempt);
+        if (session?.attemptId === attempt.id) await recordExecutionSession(this.#log, session);
+      } catch {
+        // Provider history can be imported later; local event replay must remain available offline.
+      }
+    }
+  }
+
+  async stop(): Promise<void> {
+    await this.#trackerSynchronizer?.stop();
+    this.#log.markOffline();
   }
 
   setEndpoint(endpoint: string): void {
@@ -97,6 +145,14 @@ export class RuntimeService {
   snapshot(): RuntimeSnapshot {
     this.#log.requireStarted();
     return this.#log.projection.snapshot(this.#connection("online"));
+  }
+
+  async listModels(): Promise<CodexModel[]> {
+    this.#log.requireStarted();
+    if (!this.#defaultOrchestration?.listModels) {
+      throw new RuntimeError("unsupported", "Codex model listing is not configured");
+    }
+    return this.#defaultOrchestration.listModels();
   }
 
   health(): RuntimeHealth {
@@ -139,6 +195,14 @@ export class RuntimeService {
     return recordAttempt(this.#log, attemptInput, options);
   }
 
+  recordExecutionActivity(activityInput: ExecutionActivity): Promise<RuntimeEvent> {
+    return recordExecutionActivity(this.#log, activityInput);
+  }
+
+  recordExecutionSession(sessionInput: ExecutionSession): Promise<RuntimeEvent> {
+    return recordExecutionSession(this.#log, sessionInput);
+  }
+
   recordWorkspace(
     workspaceInput: WorkspaceReference,
     idempotencyKey?: string,
@@ -164,10 +228,47 @@ export class RuntimeService {
     return recordIntervention(this.#log, interventionInput, idempotencyKey);
   }
 
+  async refreshTracker(signal?: AbortSignal): Promise<RuntimeSnapshot> {
+    if (!this.#trackerSynchronizer) {
+      throw new Error("Tracker full synchronization is not configured");
+    }
+    await this.#trackerSynchronizer.refresh(signal);
+    return this.snapshot();
+  }
+
+  async configureTracker(tracker: Tracker | undefined): Promise<void> {
+    await this.#trackerSynchronizer?.stop();
+    this.#tracker = tracker;
+    this.#trackerSynchronizer = this.#createTrackerSynchronizer(tracker);
+  }
+
+  setDefaultOrchestration(orchestration: OrchestrationMode | undefined): void {
+    this.#defaultOrchestration = orchestration;
+    this.#workflowCoordinator.setDefaultOrchestration(orchestration);
+  }
+
   execute(commandInput: unknown): Promise<RuntimeCommandResult> {
-    return executeCommand(this.#log, commandInput, () => this.snapshot(), this.#now, {
-      orchestrator: this.#workflowOrchestrator,
-      handle: this.#workflowCoordinator.handle,
+    const trackerSynchronizer = this.#trackerSynchronizer;
+    return executeCommand(
+      this.#log,
+      commandInput,
+      () => this.snapshot(),
+      this.#now,
+      {
+        orchestrator: this.#workflowOrchestrator,
+        handle: this.#workflowCoordinator.handle,
+      },
+      this.#defaultOrchestration,
+      this.#tracker,
+      trackerSynchronizer ? () => trackerSynchronizer.refresh() : undefined,
+    );
+  }
+
+  #createTrackerSynchronizer(tracker: Tracker | undefined): TrackerSynchronizer | undefined {
+    if (!tracker?.listTasks) return undefined;
+    return new TrackerSynchronizer({
+      log: this.#log,
+      tracker,
     });
   }
 

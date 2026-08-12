@@ -163,6 +163,26 @@ test("Git worktree removal refuses dirty state and records a failed cleanup hook
   );
 });
 
+test("Git worktree removal discards changes only after explicit confirmation", async (t) => {
+  const fixture = await repositoryFixture(t);
+  const manager = new WorkspaceManager({
+    root: fixture.workspaceRoot,
+    driver: new GitWorktreeDriver({
+      repositoryPath: fixture.repositoryPath,
+      repository: "icho648/symphoneer",
+      baseRevision: "HEAD",
+    }),
+  });
+  const prepared = await manager.prepare(workspaceInput("codex/confirmed-discard"));
+  await writeFile(resolve(prepared.workspace.path, "uncommitted.txt"), "discard me\n");
+  const retained = await manager.finish(prepared.workspace);
+
+  const removed = await manager.remove(retained.workspace, { discardChanges: true });
+
+  assert.equal(removed.workspace.state, "released");
+  await assert.rejects(access(prepared.workspace.path));
+});
+
 test("Git worktree removal refuses ignored files", async (t) => {
   const fixture = await repositoryFixture(t);
   await writeFile(resolve(fixture.repositoryPath, ".gitignore"), "ignored.txt\n");
@@ -275,9 +295,9 @@ test("Git worktree preparation refreshes identity after a hook failure", async (
     manager.prepare(input),
     (error) => error instanceof WorkspaceError && error.code === "hook_failed",
   );
-  const retried = await manager.prepare({ ...input, attemptId: "attempt-hook-retry" });
+  const retried = await manager.prepare(input);
   assert.equal(retried.createdNow, false);
-  assert.equal(retried.workspace.ownerAttemptId, "attempt-hook-retry");
+  assert.equal(retried.workspace.ownerAttemptId, input.attemptId);
   await access(resolve(retried.workspace.path, "after-create.txt"));
 });
 
@@ -292,7 +312,7 @@ test("Git worktree preparation rolls back when Workspace registration rejects id
   const initial = await manager.prepare(workspaceInput("codex/registration-old"));
   const retained = await manager.finish(initial.workspace);
   const changed = {
-    ...workspaceInput("codex/registration-new", "attempt-registration-new"),
+    ...workspaceInput("codex/registration-new"),
     identifier: "ISSUE-14-renamed",
   };
 
@@ -325,12 +345,12 @@ test("Git worktree recovery rejects identity mismatches and reconciles complete 
   assert.equal(recovered.workspace.ownerAttemptId, "attempt-recovered");
   const retainedAgain = await recovering.finish(recovered.workspace);
   await assert.rejects(
-    recovering.prepare(workspaceInput("codex/wrong", "attempt-wrong")),
+    recovering.prepare(workspaceInput("codex/wrong")),
     (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",
   );
   await assert.rejects(
     recovering.prepare({
-      ...workspaceInput("codex/recovery", "attempt-wrong-repository"),
+      ...workspaceInput("codex/recovery"),
       repository: "other/repository",
     }),
     (error) => error instanceof WorkspaceError && error.code === "workspace_identity_mismatch",

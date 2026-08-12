@@ -1,81 +1,65 @@
-import type {
-  AttemptSnapshot,
-  RuntimeSnapshot,
-  TaskSummary,
-  TeamRunSnapshot,
-} from "@symphoneer/contracts";
-import type { Dictionary } from "../../i18n/index.ts";
+import type { AttemptSnapshot, TaskSummary, TeamRunSnapshot } from "@symphoneer/contracts";
+import { CircleAlert, FolderOpen, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { type Dictionary, interpolate } from "../../i18n/index.ts";
 
-import { type BoardColumn, taskColumn } from "../../lib/task-column";
-import { visibleNode, WorkflowMap } from "./workflow-map";
+import {
+  compareExecutionPriority,
+  taskBelongsToProject,
+  taskNeedsAttention,
+} from "../../lib/task-column";
+import { useWorkbench } from "../../stores/workbench.ts";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input.tsx";
 
-export type TaskStatusFilter = "ALL" | BoardColumn;
-
-export function TaskColumns({
-  connection,
-  dictionary,
-  filter,
-  onFilterChange,
-  onOpenTask,
-  onStartWorkflow,
-  selectedTaskId,
-  snapshot,
-}: {
-  connection: RuntimeSnapshot["runtime"]["status"];
-  dictionary: Dictionary;
-  filter: TaskStatusFilter;
-  onFilterChange: (filter: TaskStatusFilter) => void;
-  onOpenTask: (task: TaskSummary, attempt: AttemptSnapshot | null) => void;
-  onStartWorkflow: (task: TaskSummary) => void;
-  selectedTaskId: string | null;
-  snapshot: RuntimeSnapshot | null;
-}) {
-  const filters: Array<{ id: TaskStatusFilter; label: string }> = [
-    { id: "ALL", label: dictionary.board.filters.all },
-    { id: "READY", label: dictionary.columns.ready.label },
-    { id: "RUNNING", label: dictionary.columns.running.label },
-    { id: "REVIEW", label: dictionary.columns.review.label },
-    { id: "BLOCKED", label: dictionary.columns.blocked.label },
-  ];
+export function TaskColumns() {
+  const {
+    addProject,
+    connection,
+    deleteProject,
+    dictionary,
+    notice,
+    projects,
+    selectedTaskId,
+    snapshot,
+  } = useWorkbench(
+    useShallow((state) => ({
+      addProject: state.addProject,
+      connection: state.connection,
+      deleteProject: state.deleteProject,
+      dictionary: state.dictionary,
+      notice: state.notice,
+      projects: state.projects,
+      selectedTaskId: state.selectedTaskId,
+      snapshot: state.snapshot,
+    })),
+  );
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+  const [expandedCompleted, setExpandedCompleted] = useState<Record<string, boolean>>({});
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [selectingProject, setSelectingProject] = useState(false);
+  const [query, setQuery] = useState("");
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const tasks = snapshot?.tasks ?? [];
   const attempts = snapshot?.attempts ?? [];
-  const counts = filters.reduce<Record<TaskStatusFilter, number>>(
-    (result, item) => {
-      result[item.id] =
-        item.id === "ALL"
-          ? tasks.length
-          : tasks.filter((task) => taskColumn(task, attempts) === item.id).length;
-      return result;
-    },
-    { ALL: tasks.length, READY: 0, RUNNING: 0, REVIEW: 0, BLOCKED: 0 },
-  );
-  const visibleTasks = tasks.filter(
-    (task) => filter === "ALL" || taskColumn(task, attempts) === filter,
-  );
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleTasks = tasks
+    .filter((task) => !attentionOnly || taskNeedsAttention(task))
+    .filter(
+      (task) =>
+        !normalizedQuery ||
+        [task.identifier, task.title, task.body ?? "", ...task.labels]
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(normalizedQuery),
+    )
+    .sort(compareExecutionPriority);
+  const activeCount = tasks.filter((task) => task.workflowStatus !== "done").length;
+  const attentionCount = tasks.filter(taskNeedsAttention).length;
 
   return (
     <div className="task-overview-body">
-      <div className="task-overview-toolbar">
-        <div className="task-filter" role="tablist" aria-label={dictionary.board.filters.label}>
-          {filters.map((item) => (
-            <button
-              aria-selected={filter === item.id}
-              className="task-filter-item"
-              key={item.id}
-              role="tab"
-              type="button"
-              onClick={() => onFilterChange(item.id)}
-            >
-              <span>{item.label}</span>
-              <span className="task-filter-count">{counts[item.id]}</span>
-            </button>
-          ))}
-        </div>
-        <span className="task-overview-total">
-          {visibleTasks.length} / {tasks.length} {dictionary.board.filters.tasks}
-        </span>
-      </div>
-
       {connection === "offline" && (
         <div className="task-alert task-alert-danger" role="alert">
           <span className="task-alert-mark" aria-hidden="true">
@@ -85,200 +69,325 @@ export function TaskColumns({
         </div>
       )}
 
-      <div className="task-card-grid" role="tabpanel">
-        {visibleTasks.map((task) => (
-          <TaskCard
-            attempt={latestAttempt(task, attempts)}
-            connection={connection}
-            dictionary={dictionary}
-            key={task.id}
-            onOpen={() => onOpenTask(task, latestAttempt(task, attempts))}
-            onStart={() => onStartWorkflow(task)}
-            selected={selectedTaskId === task.id}
-            snapshot={snapshot}
-            task={task}
-          />
-        ))}
-        {visibleTasks.length === 0 && (
-          <div className="task-overview-empty">
-            <span className="task-overview-empty-mark" aria-hidden="true">
-              ◌
-            </span>
-            <p>{dictionary.columns.empty}</p>
+      <div className="task-overview-panel">
+        <div className="task-overview-toolbar">
+          <div className="task-queue-search">
+            <Search aria-hidden="true" />
+            <Input
+              aria-label={dictionary.board.queue.search}
+              placeholder={dictionary.board.queue.search}
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
-        )}
+          <span className="task-queue-summary">
+            {interpolate(dictionary.board.queue.summary, {
+              total: tasks.length,
+              active: activeCount,
+              attention: attentionCount,
+            })}
+          </span>
+          <div className="task-overview-toolbar-meta">
+            <span className="task-overview-notice" aria-live="polite">
+              {notice}
+            </span>
+            <Button
+              aria-pressed={attentionOnly}
+              size="sm"
+              type="button"
+              variant={attentionOnly ? "secondary" : "ghost"}
+              onClick={() => setAttentionOnly((value) => !value)}
+            >
+              <CircleAlert aria-hidden="true" />
+              {dictionary.board.queue.attention}
+              {attentionCount > 0 && <span>{attentionCount}</span>}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              data-testid="project-select-button"
+              disabled={selectingProject}
+              onClick={async () => {
+                if (selectingProject) return;
+                setSelectingProject(true);
+                try {
+                  await addProject();
+                } finally {
+                  setSelectingProject(false);
+                }
+              }}
+            >
+              <FolderOpen aria-hidden="true" />
+              {selectingProject
+                ? dictionary.board.config.selectingPath
+                : dictionary.board.selectProject}
+            </Button>
+          </div>
+        </div>
+
+        <div className="project-group-list">
+          {projects.map((project) => {
+            const projectTasks = tasks.filter((task) => taskBelongsToProject(task, project));
+            const projectVisibleTasks = visibleTasks.filter((task) =>
+              taskBelongsToProject(task, project),
+            );
+            const projectActiveTasks = projectVisibleTasks.filter(
+              (task) => task.workflowStatus !== "done",
+            );
+            const projectCompletedTasks = projectVisibleTasks.filter(
+              (task) => task.workflowStatus === "done",
+            );
+            const expanded = expandedProjects[project.id] ?? true;
+            const completedOpen = expandedCompleted[project.id] ?? false;
+            const issuesId = `project-group-issues-${project.id}`;
+            const titleId = `project-group-title-${project.id}`;
+            return (
+              <section className="project-group" key={project.id} aria-labelledby={titleId}>
+                <div className="project-group-header">
+                  <button
+                    aria-label={
+                      expanded
+                        ? dictionary.board.projectGroup.collapse
+                        : dictionary.board.projectGroup.expand
+                    }
+                    aria-controls={issuesId}
+                    aria-expanded={expanded}
+                    className="project-group-toggle"
+                    type="button"
+                    onClick={() =>
+                      setExpandedProjects((current) => ({
+                        ...current,
+                        [project.id]: !expanded,
+                      }))
+                    }
+                  >
+                    <span className="project-group-chevron" aria-hidden="true">
+                      {expanded ? "⌄" : "›"}
+                    </span>
+                    <span className="project-group-heading">
+                      <strong id={titleId} title={project.projectRoot ?? undefined}>
+                        {project.repository}
+                      </strong>
+                    </span>
+                    <span className="project-group-count">
+                      {!attentionOnly && !normalizedQuery
+                        ? projectTasks.length
+                        : `${projectVisibleTasks.length}/${projectTasks.length}`}{" "}
+                      {dictionary.board.projectGroup.issues}
+                    </span>
+                  </button>
+                  <details className="project-group-menu">
+                    <summary
+                      aria-label={dictionary.board.projectGroup.more}
+                      title={dictionary.board.projectGroup.more}
+                    >
+                      <MoreHorizontal aria-hidden="true" />
+                    </summary>
+                    <div className="project-group-menu-content">
+                      <span className="project-group-menu-path">
+                        {project.projectRoot || dictionary.board.config.projectPathPlaceholder}
+                      </span>
+                      <Button
+                        className="project-group-delete"
+                        disabled={deletingProjectId === project.id}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                        onClick={(event) => {
+                          event.currentTarget.closest("details")?.removeAttribute("open");
+                          if (deletingProjectId) return;
+                          setDeletingProjectId(project.id);
+                          void deleteProject(project).finally(() => setDeletingProjectId(null));
+                        }}
+                      >
+                        <Trash2 aria-hidden="true" />
+                        {dictionary.board.projectGroup.delete}
+                      </Button>
+                    </div>
+                  </details>
+                </div>
+                {expanded && (
+                  <div className="project-group-issues" id={issuesId} role="tabpanel">
+                    <div className="task-table-header" aria-hidden="true">
+                      <span>{dictionary.board.projectGroup.issue}</span>
+                      <span>{dictionary.board.projectGroup.title}</span>
+                      <span>{dictionary.taskCard.workflowStatus}</span>
+                      <span>{dictionary.board.projectGroup.action}</span>
+                    </div>
+                    <div className="task-card-grid">
+                      {projectActiveTasks.map((task) => (
+                        <TaskCard
+                          attempt={latestAttempt(task, attempts)}
+                          key={task.id}
+                          selected={selectedTaskId === task.id}
+                          task={task}
+                        />
+                      ))}
+                      {projectCompletedTasks.length > 0 && (
+                        <button
+                          aria-expanded={completedOpen}
+                          className="project-completed-toggle"
+                          type="button"
+                          onClick={() =>
+                            setExpandedCompleted((current) => ({
+                              ...current,
+                              [project.id]: !completedOpen,
+                            }))
+                          }
+                        >
+                          <span aria-hidden="true">{completedOpen ? "⌄" : "›"}</span>
+                          {interpolate(dictionary.board.queue.completed, {
+                            count: projectCompletedTasks.length,
+                          })}
+                        </button>
+                      )}
+                      {completedOpen &&
+                        projectCompletedTasks.map((task) => (
+                          <TaskCard
+                            attempt={latestAttempt(task, attempts)}
+                            key={task.id}
+                            selected={selectedTaskId === task.id}
+                            task={task}
+                          />
+                        ))}
+                      {projectVisibleTasks.length === 0 && (
+                        <div className="task-overview-empty">
+                          <span className="task-overview-empty-mark" aria-hidden="true">
+                            ◌
+                          </span>
+                          <p>{dictionary.board.queue.noMatches}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            );
+          })}
+          {projects.length === 0 && (
+            <div className="task-overview-empty">
+              <span className="task-overview-empty-mark" aria-hidden="true">
+                ◌
+              </span>
+              <p>{dictionary.board.projectGroup.noProjects}</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
+function statusLabel(task: TaskSummary, dictionary: Dictionary): string {
+  const labels = {
+    backlog: dictionary.columns.backlog.label,
+    ready: dictionary.columns.ready.label,
+    in_progress: dictionary.columns.inProgress.label,
+    in_review: dictionary.columns.inReview.label,
+    done: dictionary.columns.done.label,
+  } as const;
+  return labels[task.workflowStatus];
+}
+
 function TaskCard({
   attempt,
-  connection,
-  dictionary,
-  onOpen,
-  onStart,
   selected,
-  snapshot,
   task,
 }: {
   attempt: AttemptSnapshot | null;
-  connection: RuntimeSnapshot["runtime"]["status"];
-  dictionary: Dictionary;
-  onOpen: () => void;
-  onStart: () => void;
   selected: boolean;
-  snapshot: RuntimeSnapshot | null;
   task: TaskSummary;
 }) {
+  const { connection, dictionary, openTask, setTaskStatus, snapshot, startWorkflow } = useWorkbench(
+    useShallow((state) => ({
+      connection: state.connection,
+      dictionary: state.dictionary,
+      openTask: state.openTask,
+      setTaskStatus: state.setTaskStatus,
+      snapshot: state.snapshot,
+      startWorkflow: state.startWorkflow,
+    })),
+  );
   const workflow = attempt
     ? latestWorkflow(snapshot?.teamRuns.filter((run) => run.attemptId === attempt.id) ?? [])
     : null;
-  const agent = workflow ? latestAgent(snapshot, workflow.id) : null;
-  const verification = attempt ? latestVerification(snapshot, attempt.id) : null;
-  const mode = workflow
-    ? dictionary.taskCard.modes.workflow
-    : task.labels.includes("symphoneer:review")
-      ? dictionary.taskCard.modes.autopilot
-      : dictionary.taskCard.modes.single;
   const warnings = [
-    connection === "offline" ? dictionary.taskCard.runtimeOffline : null,
-    !task.dispatchable ? dictionary.taskCard.dispatchBlocked : null,
+    !attempt &&
+    (task.workflowStatus === "backlog" || task.workflowStatus === "ready") &&
+    !task.dispatchable
+      ? dictionary.taskCard.dispatchBlocked
+      : null,
     attempt?.failure ?? null,
     workflow?.pendingHumanInput ? dictionary.taskCard.humanAction : null,
   ].filter((value): value is string => value != null);
 
   return (
     <article className={`task-card-wrap ${selected ? "is-selected" : ""}`}>
-      <button aria-pressed={selected} className="task-card" type="button" onClick={onOpen}>
+      <button
+        aria-pressed={selected}
+        className="task-card"
+        type="button"
+        onClick={() => openTask(task, attempt)}
+      >
         <span className="task-card-source">
-          <span className="task-card-source-mark" aria-hidden="true">
-            ◇
-          </span>
-          <span>{formatTracker(task.source.kind)}</span>
-          <span className="task-card-source-separator">/</span>
-          <code>{repositoryFromUrl(task.source.url)}</code>
-          <span className="task-card-source-separator">/</span>
           <strong>{task.identifier}</strong>
           {task.priority != null && <span className="task-card-priority">P{task.priority}</span>}
         </span>
         <span className="task-card-heading">
           <strong className="task-card-title">{task.title}</strong>
-          <span className="task-card-state">
-            {dictionary.statuses[task.state as keyof typeof dictionary.statuses] ?? task.state}
-          </span>
-        </span>
-        <span className="task-card-labels">
-          {task.labels.length ? task.labels.join(" · ") : dictionary.columns.noLabels}
-        </span>
-
-        <span className="task-card-runline">
-          <span>
-            <small>{dictionary.taskCard.mode}</small>
-            <strong>{mode}</strong>
-          </span>
-          <span>
-            <small>{dictionary.detail.executor}</small>
-            <strong>
-              {workflow
-                ? workflow.provider === "codex-app-server"
-                  ? dictionary.workflow.codexShort
-                  : dictionary.workflow.fakeShort
-                : dictionary.taskCard.notStarted}
-            </strong>
-          </span>
-          <span>
-            <small>{dictionary.detail.workflow}</small>
-            <strong>{workflow?.workflow ?? dictionary.taskCard.notStarted}</strong>
-          </span>
-        </span>
-
-        <span className="task-card-attemptline">
-          <span>
-            <small>{dictionary.taskCard.latestAttempt}</small>
-            <strong>
-              {attempt
-                ? `${dictionary.detail.attempt} ${String(attempt.sequence).padStart(2, "0")}`
-                : dictionary.taskCard.notStarted}
-            </strong>
-          </span>
-          <span>
-            <small>{dictionary.taskCard.runtime}</small>
-            <strong>{attempt ? formatElapsed(attempt.startedAt, attempt.finishedAt) : "—"}</strong>
-          </span>
-          <span>
-            <small>{dictionary.taskCard.workspace}</small>
-            <strong>{attempt ? workspaceState(attempt) : dictionary.taskCard.notStarted}</strong>
-          </span>
-        </span>
-
-        {workflow ? (
-          <div className="task-card-workflow">
-            <div className="task-card-section-heading">
-              <span>{dictionary.taskCard.orchestration}</span>
-              <span className="task-card-current-node">
-                {dictionary.taskCard.current}: {dictionary.workflow.nodes[visibleNode(workflow)]}
-              </span>
-            </div>
-            <WorkflowMap compact dictionary={dictionary} workflow={workflow} />
-          </div>
-        ) : (
-          <div className="task-card-workflow task-card-workflow-empty">
-            <span className="task-card-section-heading">{dictionary.taskCard.orchestration}</span>
-            <span>{dictionary.taskCard.noWorkflow}</span>
-          </div>
-        )}
-
-        <span className="task-card-status-rows">
-          <StatusRow
-            label={dictionary.taskCard.agent}
-            value={agent ? agentLabel(agent, dictionary) : dictionary.taskCard.notStarted}
-          />
-          <StatusRow
-            label={dictionary.taskCard.verification}
-            value={verificationLabel(verification, workflow, dictionary)}
-          />
-          <StatusRow
-            label={dictionary.taskCard.human}
-            value={workflow?.pendingHumanInput?.prompt ?? dictionary.taskCard.noAction}
-            tone={workflow?.pendingHumanInput ? "attention" : ""}
-          />
-        </span>
-
-        {warnings.length > 0 && (
-          <span className="task-card-alerts">
-            {warnings.map((warning) => (
-              <span className="task-card-alert" key={warning}>
+          <span className="task-card-meta">
+            {task.labels.length > 0 && (
+              <span className="task-card-labels">{task.labels.join(" · ")}</span>
+            )}
+            {task.blocked && (
+              <span className="task-card-alert">
                 <span aria-hidden="true">!</span>
-                {warning}
+                {interpolateBlocked(dictionary.taskCard.blockedReason, task.blocked.reason)}
               </span>
-            ))}
+            )}
+            {warnings.length > 0 && !task.blocked && (
+              <span className="task-card-alert" title={warnings.join(" · ")}>
+                <span aria-hidden="true">!</span>
+                {warnings[0]}
+              </span>
+            )}
           </span>
-        )}
+        </span>
+        <span className={`task-card-summary is-${task.workflowStatus}`}>
+          <strong>{statusLabel(task, dictionary)}</strong>
+          {attempt && (
+            <small>
+              {dictionary.detail.attempt} {String(attempt.sequence).padStart(2, "0")}
+            </small>
+          )}
+        </span>
       </button>
-      {!attempt && (
-        <button className="task-card-start" type="button" onClick={onStart}>
-          {dictionary.workflow.start}
-        </button>
-      )}
+      <div className="task-card-actions">
+        {task.blocked ? (
+          <Button
+            className="task-card-action"
+            size="xs"
+            variant="outline"
+            type="button"
+            onClick={() => void setTaskStatus(task, task.workflowStatus)}
+          >
+            {dictionary.taskCard.clearBlocked}
+          </Button>
+        ) : !attempt && (task.workflowStatus === "backlog" || task.workflowStatus === "ready") ? (
+          <Button
+            className="task-card-action task-card-start"
+            disabled={connection === "offline" || !task.dispatchable}
+            size="xs"
+            title={!task.dispatchable ? dictionary.taskCard.dispatchBlocked : undefined}
+            type="button"
+            onClick={() => startWorkflow(task)}
+          >
+            {task.dispatchable ? dictionary.workflow.start : dictionary.taskCard.dispatchBlocked}
+          </Button>
+        ) : null}
+      </div>
     </article>
-  );
-}
-
-function StatusRow({
-  label,
-  tone = "",
-  value,
-}: {
-  label: string;
-  tone?: "attention" | "";
-  value: string;
-}) {
-  return (
-    <span className={`task-card-status-row ${tone ? `is-${tone}` : ""}`}>
-      <span className="task-card-status-label">{label}</span>
-      <span className="task-card-status-value">{value}</span>
-    </span>
   );
 }
 
@@ -300,78 +409,6 @@ function latestWorkflow(runs: TeamRunSnapshot[]): TeamRunSnapshot | null {
   );
 }
 
-function latestAgent(snapshot: RuntimeSnapshot | null, teamRunId: string) {
-  return (
-    snapshot?.agentRuns
-      .filter((agent) => agent.teamRunId === teamRunId)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null
-  );
-}
-
-function latestVerification(snapshot: RuntimeSnapshot | null, attemptId: string) {
-  return (
-    snapshot?.verifications
-      .filter((verification) => verification.attemptId === attemptId)
-      .sort((a, b) =>
-        (b.finishedAt ?? b.startedAt).localeCompare(a.finishedAt ?? a.startedAt),
-      )[0] ?? null
-  );
-}
-
-function agentLabel(
-  agent: NonNullable<ReturnType<typeof latestAgent>>,
-  dictionary: Dictionary,
-): string {
-  const role = dictionary.workflow.roles[agent.role] ?? agent.role;
-  const status = dictionary.workflow.agentStatuses[agent.status] ?? agent.status;
-  return `${role} · ${status}`;
-}
-
-function verificationLabel(
-  verification: ReturnType<typeof latestVerification>,
-  workflow: TeamRunSnapshot | null,
-  dictionary: Dictionary,
-): string {
-  const status = verification?.status ?? workflow?.verificationStatus;
-  if (!status) return dictionary.statuses.not_verified;
-  return dictionary.statuses[status] ?? status;
-}
-
-function workspaceState(attempt: AttemptSnapshot): string {
-  return activeAttemptStatus(attempt.status) ? "active" : "retained";
-}
-
-function activeAttemptStatus(status: AttemptSnapshot["status"]): boolean {
-  return [
-    "preparing_workspace",
-    "building_prompt",
-    "launching_agent",
-    "initializing_session",
-    "streaming_turn",
-    "paused",
-    "finishing",
-  ].includes(status);
-}
-
-function formatElapsed(startedAt: string, finishedAt?: string | null): string {
-  const end = finishedAt ? Date.parse(finishedAt) : Date.now();
-  const seconds = Math.max(0, Math.floor((end - Date.parse(startedAt)) / 1000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-function repositoryFromUrl(url: string): string {
-  try {
-    const parts = new URL(url).pathname.split("/").filter(Boolean);
-    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : url;
-  } catch {
-    return url;
-  }
-}
-
-function formatTracker(kind: string): string {
-  if (kind === "github") return "GitHub";
-  return kind.charAt(0).toUpperCase() + kind.slice(1);
+function interpolateBlocked(template: string, reason: string): string {
+  return template.replace("{reason}", reason);
 }

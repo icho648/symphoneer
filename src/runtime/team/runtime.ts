@@ -4,6 +4,7 @@ import {
   FakeTeamScenarioSchema,
   type RuntimeCommand,
   type RuntimeEvent,
+  type TaskSummary,
   TaskSummarySchema,
   TeamRunSnapshotSchema,
   type TeamVerificationOutcome,
@@ -11,8 +12,15 @@ import {
   WorkspaceReferenceSchema,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "../errors.ts";
-import type { TeamCommand, TeamCommandHandler } from "../service/commands.ts";
+import type { OrchestrationMode } from "../orchestration/mode.ts";
+import type {
+  StartRunCommand,
+  TeamCommand,
+  TeamCommandHandler,
+  WorkflowCommand,
+} from "../service/commands.ts";
 import type { EventLog } from "../service/event-log.ts";
+import { recordTaskStatus } from "../service/recording.ts";
 import type {
   TeamOrchestrator,
   TeamResumeInput,
@@ -25,14 +33,24 @@ export class WorkflowRuntimeCoordinator {
   readonly #idFactory: () => string;
   readonly #now: () => Date;
   readonly #handles = new Map<string, TeamRunHandle>();
+  #defaultOrchestration: OrchestrationMode | undefined;
 
-  constructor(options: { idFactory: () => string; now: () => Date }) {
+  constructor(options: {
+    idFactory: () => string;
+    now: () => Date;
+    defaultOrchestration?: OrchestrationMode;
+  }) {
     this.#idFactory = options.idFactory;
     this.#now = options.now;
+    this.#defaultOrchestration = options.defaultOrchestration;
+  }
+
+  setDefaultOrchestration(orchestration: OrchestrationMode | undefined): void {
+    this.#defaultOrchestration = orchestration;
   }
 
   readonly handle: TeamCommandHandler = async (command, log, orchestrator) => {
-    if (command.kind === "start_team_run") return this.#start(command, log, orchestrator);
+    if (command.kind === "start_run") return this.#start(command, log, orchestrator);
     const teamRun = log.projection.getTeamRun(command.teamRunId);
     if (!teamRun)
       throw new RuntimeError("not_found", `Workflow ${command.teamRunId} was not found`);
@@ -84,11 +102,18 @@ export class WorkflowRuntimeCoordinator {
   };
 
   async #start(
-    command: Extract<TeamCommand, { kind: "start_team_run" }>,
+    command: StartRunCommand,
     log: EventLog,
     orchestrator: TeamOrchestrator,
   ): Promise<RuntimeEvent> {
     const task = TaskSummarySchema.parse(command.task);
+    if (command.mode === "single-agent") {
+      if (!this.#defaultOrchestration) {
+        throw new RuntimeError("unsupported", "Single-agent orchestration is not configured");
+      }
+      await this.#defaultOrchestration.start({ task, command, log });
+      return this.#defaultCommandEvent(log, command, task);
+    }
     const suffix = this.#idFactory();
     const teamRunId = command.teamRunId ?? `team:${suffix}`;
     const attemptId = command.attemptId ?? `attempt:${suffix}`;
@@ -153,6 +178,11 @@ export class WorkflowRuntimeCoordinator {
       attemptId,
       payload: { attempt, workspace },
     });
+    await recordTaskStatus(log, task.id, "in_progress", null, {
+      source: "symphony-core",
+      commit: true,
+      idempotencyKey: `workflow-status:attempt:${attempt.id}:in-progress`,
+    });
     const request: TeamRunRequest = {
       teamRunId,
       attemptId,
@@ -208,6 +238,19 @@ export class WorkflowRuntimeCoordinator {
         attemptId: attempt.id,
         payload: { attempt: finished },
       });
+      if (teamRun.status !== "completed") {
+        await recordTaskStatus(
+          log,
+          attempt.taskId,
+          log.projection.getTask(attempt.taskId)?.workflowStatus ?? "in_progress",
+          { reason: "Team workflow stopped", since: teamRun.updatedAt },
+          {
+            source: "symphony-core",
+            commit: true,
+            idempotencyKey: `workflow-status:team:${teamRun.id}:blocked`,
+          },
+        );
+      }
     }
   }
 
@@ -244,6 +287,28 @@ export class WorkflowRuntimeCoordinator {
       idempotencyKey: `team-verification:${teamRun.id}`,
       payload: { verification },
     });
+    if (verification.status === "passed") {
+      await recordTaskStatus(log, taskId, "in_review", null, {
+        source: "symphony-core",
+        commit: true,
+        idempotencyKey: `workflow-status:verification:${verification.id}:in-review`,
+      });
+    } else {
+      await recordTaskStatus(
+        log,
+        taskId,
+        log.projection.getTask(taskId)?.workflowStatus ?? "in_progress",
+        {
+          reason: `Verification ${verification.status}`,
+          since: verification.finishedAt ?? verification.startedAt,
+        },
+        {
+          source: "symphony-core",
+          commit: true,
+          idempotencyKey: `workflow-status:verification:${verification.id}:blocked`,
+        },
+      );
+    }
   }
 
   #commandEvent(
@@ -260,10 +325,25 @@ export class WorkflowRuntimeCoordinator {
       payload: { commandKind: command.kind, teamRunId: teamRun.id, attemptId: teamRun.attemptId },
     });
   }
+
+  #defaultCommandEvent(
+    log: EventLog,
+    command: StartRunCommand,
+    task: TaskSummary,
+  ): Promise<RuntimeEvent> {
+    return log.commit({
+      type: "runtime.command.requested",
+      source: "human",
+      aggregate: { kind: "task", id: task.id },
+      taskId: task.id,
+      idempotencyKey: command.idempotencyKey,
+      payload: { commandKind: command.kind, taskId: task.id },
+    });
+  }
 }
 
 function resumeInput(
-  command: Exclude<TeamCommand, { kind: "start_team_run" | "reset_team_run" }>,
+  command: Exclude<TeamCommand, { kind: "reset_team_run" }>,
   pendingKind: "plan_approval" | "review_input" | "final_decision" | undefined,
 ): TeamResumeInput {
   if (command.kind === "stop_team_session") return "stop";
@@ -318,8 +398,8 @@ function resumeInput(
   throw new RuntimeError("invalid_request", "Unsupported Team command");
 }
 
-export const isTeamRuntimeCommand = (command: RuntimeCommand): command is TeamCommand =>
-  command.kind === "start_team_run" ||
+export const isTeamRuntimeCommand = (command: RuntimeCommand): command is WorkflowCommand =>
+  command.kind === "start_run" ||
   command.kind === "approve_plan" ||
   command.kind === "reject_plan" ||
   command.kind === "revise_plan" ||

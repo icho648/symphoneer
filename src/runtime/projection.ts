@@ -3,6 +3,11 @@ import {
   AgentRunSnapshotSchema,
   type AttemptSnapshot,
   AttemptSnapshotSchema,
+  BlockedTaskSchema,
+  type ExecutionActivity,
+  ExecutionActivitySchema,
+  type ExecutionSession,
+  ExecutionSessionSchema,
   InterventionSchema,
   ReviewDecisionSchema,
   type RuntimeAttemptDetail,
@@ -11,12 +16,14 @@ import {
   type RuntimeEvent,
   type RuntimeSnapshot,
   RuntimeSnapshotSchema,
+  type TaskSummary,
   TaskSummarySchema,
   type TeamProcessEvent,
   TeamProcessEventSchema,
   type TeamRunSnapshot,
   TeamRunSnapshotSchema,
   VerificationResultSchema,
+  WorkflowStatusSchema,
   type WorkspaceReference,
   WorkspaceReferenceSchema,
 } from "@symphoneer/contracts";
@@ -41,13 +48,38 @@ export class RuntimeProjection {
   readonly #teamRuns = new Map<string, TeamRunSnapshot>();
   readonly #agentRuns = new Map<string, AgentRunSnapshot>();
   readonly #teamEvents = new Map<string, TeamProcessEvent>();
+  readonly #activities = new Map<string, ExecutionActivity>();
+  readonly #sessions = new Map<string, ExecutionSession>();
 
   apply(stored: RuntimeEvent): void {
     const event = stored.event;
     switch (event.type) {
       case "task.upserted": {
         const task = TaskSummarySchema.parse(payloadValue(stored, "task"));
-        this.#tasks.set(task.id, task);
+        const existing = this.#tasks.get(task.id);
+        this.#tasks.set(
+          task.id,
+          TaskSummarySchema.parse(
+            existing
+              ? { ...task, workflowStatus: existing.workflowStatus, blocked: existing.blocked }
+              : task,
+          ),
+        );
+        break;
+      }
+      case "task.status.changed": {
+        const taskId = event.taskId;
+        if (!taskId) throw new RuntimeError("corrupt_event", "Task status event misses taskId");
+        const task = this.#tasks.get(taskId);
+        if (!task) throw new RuntimeError("not_found", `Task ${taskId} was not found`);
+        this.#tasks.set(
+          taskId,
+          TaskSummarySchema.parse({
+            ...task,
+            workflowStatus: WorkflowStatusSchema.parse(payloadValue(stored, "workflowStatus")),
+            blocked: BlockedTaskSchema.nullable().parse(payloadValue(stored, "blocked")),
+          }),
+        );
         break;
       }
       case "attempt.recorded":
@@ -59,6 +91,37 @@ export class RuntimeProjection {
         this.#attempts.set(attempt.id, attempt);
         const workspace = eventPayload(event).workspace;
         if (workspace !== undefined) this.#saveWorkspace(workspace);
+        break;
+      }
+      case "attempt.activity.recorded": {
+        const activity = ExecutionActivitySchema.parse(payloadValue(stored, "activity"));
+        this.#activities.set(activity.id, activity);
+        break;
+      }
+      case "attempt.session.recorded": {
+        const session = ExecutionSessionSchema.parse(payloadValue(stored, "session"));
+        this.#sessions.set(session.attemptId, session);
+        break;
+      }
+      case "attempt.deleted": {
+        const attemptId = payloadValue(stored, "attemptId");
+        if (typeof attemptId !== "string") {
+          throw new RuntimeError("corrupt_event", "Attempt deletion event misses attemptId");
+        }
+        this.#attempts.delete(attemptId);
+        this.#sessions.delete(attemptId);
+        for (const [id, activity] of this.#activities) {
+          if (activity.attemptId === attemptId) this.#activities.delete(id);
+        }
+        for (const [id, verification] of this.#verifications) {
+          if (verification.attemptId === attemptId) this.#verifications.delete(id);
+        }
+        for (const [id, review] of this.#reviews) {
+          if (review.attemptId === attemptId) this.#reviews.delete(id);
+        }
+        for (const [id, intervention] of this.#interventions) {
+          if (intervention.attemptId === attemptId) this.#interventions.delete(id);
+        }
         break;
       }
       case "workspace.recorded":
@@ -182,6 +245,10 @@ export class RuntimeProjection {
           .filter((teamRun) => teamRun.attemptId === attempt.id)
           .some((teamRun) => teamRun.id === event.teamRunId),
       ),
+      activities: [...this.#activities.values()]
+        .filter((activity) => activity.attemptId === attempt.id)
+        .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt)),
+      session: this.#sessions.get(attempt.id) ?? null,
     });
   }
 
@@ -189,8 +256,16 @@ export class RuntimeProjection {
     return this.#attempts.get(attemptId);
   }
 
+  attemptsForTask(taskId: string): AttemptSnapshot[] {
+    return [...this.#attempts.values()].filter((attempt) => attempt.taskId === taskId);
+  }
+
   getTask(taskId: string) {
     return this.#tasks.get(taskId);
+  }
+
+  tasks(): TaskSummary[] {
+    return [...this.#tasks.values()];
   }
 
   getTeamRun(teamRunId: string): TeamRunSnapshot | undefined {

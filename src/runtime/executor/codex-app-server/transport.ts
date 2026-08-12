@@ -215,7 +215,11 @@ export class StdioCodexTransport implements CodexTransport {
     this.#pending.clear();
     if (!this.#ended) {
       this.#ended = true;
-      this.#controller.close();
+      try {
+        this.#controller.close();
+      } catch {
+        // A consumer may cancel the stream while the child process is stopping.
+      }
     }
     this.#closedResolver.resolve({ code, signal });
   }

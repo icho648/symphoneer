@@ -3,7 +3,7 @@ import type {
   AssistantAdapter,
   AssistantMessage,
   AssistantSessionInput,
-} from "../../../runtime-tools/assistant-contract.ts";
+} from "@symphoneer/runtime-tools";
 
 export function createAssistantUiChatModelAdapter(
   assistant: AssistantAdapter,

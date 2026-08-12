@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { CoreError, CoreScheduler } from "../../src/runtime/scheduler/index.ts";
-import { workspaceKey } from "../../src/runtime/workspace/index.ts";
 import { policy, retained, task, workspace } from "./fixtures.ts";
 
 test("workspace and active Turn ownership are unique and idempotent", () => {
@@ -11,12 +10,13 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
     maxConcurrentAgents: 3,
     maxConcurrentAgentsByState: { open: 3, urgent: 3 },
   });
+  const firstWorkspace = workspace("20", "attempt-20", "shared-identifier");
   scheduler.reserveAttempt({
     task: task("20"),
     attemptId: "attempt-20",
     sequence: 1,
     startReason: "dispatch",
-    workspace: workspace("20", "attempt-20", "shared-identifier"),
+    workspace: firstWorkspace,
     startedAt: "2026-08-02T12:00:00.000Z",
     idempotencyKey: "dispatch-20",
   });
@@ -29,7 +29,7 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
       startReason: "dispatch",
       workspace: {
         ...workspace("21", "attempt-21", "shared-identifier"),
-        path: `${workspace("21", "attempt-21", "shared-identifier").path}/../${workspaceKey("shared-identifier")}`,
+        path: firstWorkspace.path,
       },
       startedAt: "2026-08-02T12:00:01.000Z",
       idempotencyKey: "dispatch-21",
@@ -118,7 +118,7 @@ test("workspace and active Turn ownership are unique and idempotent", () => {
   ]);
 });
 
-test("Workspace reservations reject task and stable identity changes", () => {
+test("Workspace reservations reject task changes and retained path reuse", () => {
   const scheduler = new CoreScheduler(policy);
   assert.throws(
     () =>
@@ -133,12 +133,13 @@ test("Workspace reservations reject task and stable identity changes", () => {
       }),
     (error) => error instanceof CoreError && error.code === "conflict",
   );
+  const firstWorkspace = workspace("24", "attempt-24-1");
   scheduler.reserveAttempt({
     task: task("24"),
     attemptId: "attempt-24-1",
     sequence: 1,
     startReason: "dispatch",
-    workspace: workspace("24", "attempt-24-1"),
+    workspace: firstWorkspace,
     startedAt: "2026-08-02T12:00:00.000Z",
     idempotencyKey: "dispatch-24-1",
   });
@@ -146,7 +147,7 @@ test("Workspace reservations reject task and stable identity changes", () => {
     attemptId: "attempt-24-1",
     status: "canceled_by_reconciliation",
     finishedAt: "2026-08-02T12:00:01.000Z",
-    workspace: retained(workspace("24", "attempt-24-1")),
+    workspace: retained(firstWorkspace),
     idempotencyKey: "finish-24-1",
   });
 
@@ -164,28 +165,13 @@ test("Workspace reservations reject task and stable identity changes", () => {
         attemptId,
         sequence: 2,
         startReason: "dispatch",
-        workspace: { ...workspace("24", attemptId), ...mismatch },
+        workspace: { ...workspace("24", attemptId), ...mismatch, path: firstWorkspace.path },
         startedAt: "2026-08-02T12:00:02.000Z",
         idempotencyKey: `dispatch-24-mismatch-${index}`,
       }),
       { kind: "rejected", reasons: ["workspace_identity_mismatch"] },
     );
   }
-
-  const movedAttemptId = "attempt-24-moved";
-  const movedWorkspace = workspace("24", movedAttemptId);
-  assert.deepEqual(
-    scheduler.reserveAttempt({
-      task: task("24"),
-      attemptId: movedAttemptId,
-      sequence: 2,
-      startReason: "dispatch",
-      workspace: { ...movedWorkspace, path: `${movedWorkspace.path}-moved` },
-      startedAt: "2026-08-02T12:00:02.000Z",
-      idempotencyKey: "dispatch-24-moved",
-    }),
-    { kind: "rejected", reasons: ["workspace_identity_mismatch"] },
-  );
 
   assert.equal(
     scheduler.reserveAttempt({

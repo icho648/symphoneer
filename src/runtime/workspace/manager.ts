@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { type WorkspaceReference, WorkspaceReferenceSchema } from "@symphoneer/contracts";
 import { DirectoryWorkspaceDriver } from "./directory-driver.ts";
@@ -91,7 +91,10 @@ export class WorkspaceManager {
     });
   }
 
-  async remove(workspaceInput: WorkspaceReference): Promise<FinishedWorkspace> {
+  async remove(
+    workspaceInput: WorkspaceReference,
+    options: { discardChanges?: boolean } = {},
+  ): Promise<FinishedWorkspace> {
     const input = canonicalizeWorkspaceReference(workspaceInput);
     const canonicalPath = await this.#registry.canonicalPath(input.path);
     return this.#exclusive(input, canonicalPath, async () => {
@@ -150,11 +153,19 @@ export class WorkspaceManager {
           `Workspace ${workspace.id} is still actively owned`,
         );
       }
-      await this.#driver.assertRemovable(workspace);
+      if (options.discardChanges) {
+        await this.#driver.assertReady(workspace);
+      } else {
+        await this.#driver.assertRemovable(workspace);
+      }
       const hookFailures = await this.#hooks.runBestEffort("beforeRemove", workspace.path);
       try {
-        await this.#driver.assertRemovable(workspace);
-        await this.#driver.remove(workspace);
+        if (options.discardChanges) {
+          await this.#driver.assertReady(workspace);
+        } else {
+          await this.#driver.assertRemovable(workspace);
+        }
+        await this.#driver.remove(workspace, options);
       } catch (error) {
         if (error instanceof WorkspaceError && hookFailures.length > 0) {
           throw new WorkspaceError(error.code, error.message, {
@@ -175,7 +186,7 @@ export class WorkspaceManager {
   }
 
   async #prepare(initial: WorkspaceReference): Promise<PreparedWorkspace> {
-    await mkdir(this.#root, { recursive: true });
+    await mkdir(dirname(initial.path), { recursive: true });
     const previous = this.#registry.get(initial.id);
     const expected = WorkspaceReferenceSchema.parse({
       ...initial,

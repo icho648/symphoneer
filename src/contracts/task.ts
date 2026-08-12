@@ -2,19 +2,40 @@ import { z } from "zod";
 
 import { CONTRACT_SCHEMA_VERSION, NonEmptyString, Timestamp } from "./shared.ts";
 
+export const WorkflowStatusSchema = z.enum([
+  "backlog",
+  "ready",
+  "in_progress",
+  "in_review",
+  "done",
+]);
+
+export type WorkflowStatus = z.infer<typeof WorkflowStatusSchema>;
+
+export const BlockedTaskSchema = z.object({
+  reason: NonEmptyString,
+  since: Timestamp,
+});
+
+export type BlockedTask = z.infer<typeof BlockedTaskSchema>;
+
 export const TaskSummarySchema = z.object({
   schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
+  projectId: NonEmptyString.optional(),
   id: NonEmptyString,
   identifier: NonEmptyString,
   source: z.object({
-    kind: z.literal("github"),
+    kind: NonEmptyString,
     nativeId: NonEmptyString,
     url: z.url(),
   }),
   title: NonEmptyString,
+  body: z.string().nullable().optional(),
   state: NonEmptyString,
   labels: z.array(NonEmptyString).transform((labels) => labels.map((label) => label.toLowerCase())),
   dispatchable: z.boolean(),
+  workflowStatus: WorkflowStatusSchema.default("backlog"),
+  blocked: BlockedTaskSchema.nullable().default(null),
   priority: z.int().nullable().optional(),
   createdAt: Timestamp.nullable().optional(),
   updatedAt: Timestamp.nullable().optional(),

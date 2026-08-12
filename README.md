@@ -18,13 +18,13 @@ Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作
 - 确定性测试：[`tests/`](tests/)
 - 全量检查：`pnpm check`
 
-本地一键启动 Runtime + Web（自动临时数据目录）：
+本地一键启动 Runtime + Web：
 
 ```bash
-pnpm up
+pnpm dev
 ```
 
-MCP 由 Codex 等 Host 按需 STDIO 拉起，不要和 `pnpm up` 抢同一个进程。Codex 配置示例：
+MCP 由 Codex 等 Host 按需 STDIO 拉起，不要和 `pnpm dev` 抢同一个进程。Codex 配置示例：
 
 ```toml
 [mcp_servers.symphoneer]

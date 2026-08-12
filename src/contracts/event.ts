@@ -4,6 +4,7 @@ import { CONTRACT_SCHEMA_VERSION, JsonValueSchema, NonEmptyString, Timestamp } f
 
 export const DomainEventEnvelopeSchema = z.object({
   schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
+  projectId: NonEmptyString.optional(),
   id: NonEmptyString,
   type: NonEmptyString,
   source: z.enum(["symphony-core", "runtime", "adapter", "human"]),

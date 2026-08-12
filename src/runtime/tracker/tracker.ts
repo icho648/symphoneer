@@ -28,13 +28,26 @@ export interface TaskSnapshot {
   versionToken: string | null;
 }
 
+export interface TrackerTaskPage {
+  tasks: TaskSnapshot[];
+  nextCursor: string | null;
+}
+
 export interface Tracker {
+  /** Stable adapter kind used by the Task source reference. */
+  readonly kind: string;
+
   /**
    * Read one Task by tracker-native identity.
-   * GitHub uses the Issue number as a decimal string (e.g. `"14"`).
    */
   getTask(
     nativeId: string,
     options?: { expectedUpdatedAt?: string; signal?: AbortSignal },
   ): Promise<TaskSnapshot>;
+
+  /** Read the complete Task collection a page at a time. */
+  listTasks?(options?: { cursor?: string; signal?: AbortSignal }): Promise<TrackerTaskPage>;
+
+  /** Apply the provider-native eligibility marker and re-read the Task. */
+  enableTaskDispatch?(nativeId: string, options?: { signal?: AbortSignal }): Promise<TaskSnapshot>;
 }

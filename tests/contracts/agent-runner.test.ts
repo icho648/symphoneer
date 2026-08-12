@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
+import {
+  CONTRACT_SCHEMA_VERSION,
+  RuntimeCommandSchema,
+  type TaskSummary,
+} from "@symphoneer/contracts";
 import type { AgentRunRequest } from "../../src/runtime/executor/agent-runner.ts";
 import { createWorkspaceReference } from "../../src/runtime/workspace/index.ts";
 import { FakeAgentRunner } from "../fixtures/fake-agent-runner.ts";
@@ -19,6 +23,8 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
 };
 
 const request: AgentRunRequest = {
@@ -36,6 +42,40 @@ const request: AgentRunRequest = {
   prompt: "Implement #13",
   continuation: false,
 };
+
+test("the Runtime start command retains the selected Codex settings", () => {
+  const command = RuntimeCommandSchema.parse({
+    kind: "start_run",
+    mode: "single-agent",
+    idempotencyKey: "start-with-codex-settings",
+    task,
+    model: "gpt-5.6-codex",
+    sandbox: "read-only",
+    effort: "high",
+  });
+
+  if (command.kind !== "start_run") assert.fail("start_run command missing");
+  assert.equal(command.model, "gpt-5.6-codex");
+  assert.equal(command.sandbox, "read-only");
+  assert.equal(command.effort, "high");
+});
+
+test("the Runtime input command retains settings for the next Codex turn", () => {
+  const command = RuntimeCommandSchema.parse({
+    kind: "send_attempt_input",
+    idempotencyKey: "continue-with-codex-settings",
+    attemptId: "attempt-13",
+    prompt: "Continue with broader access",
+    model: "gpt-5.6-codex",
+    sandbox: "danger-full-access",
+    effort: "xhigh",
+  });
+
+  if (command.kind !== "send_attempt_input") assert.fail("send_attempt_input command missing");
+  assert.equal(command.model, "gpt-5.6-codex");
+  assert.equal(command.sandbox, "danger-full-access");
+  assert.equal(command.effort, "xhigh");
+});
 
 test("the deterministic Fake satisfies the Agent Runner public contract", async () => {
   const runner = new FakeAgentRunner([

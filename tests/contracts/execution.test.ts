@@ -56,7 +56,16 @@ test("Attempt and Workspace boundaries reject conflicting active ownership", () 
     updatedAt: "2026-08-02T12:00:01.000Z",
   };
 
-  assert.equal(AttemptSnapshotSchema.parse(attempt).activeTurn?.turnId, "turn-13");
+  const parsed = AttemptSnapshotSchema.parse(attempt);
+  assert.equal(parsed.activeTurn?.turnId, "turn-13");
+  assert.equal(parsed.controller, "symphoneer");
+  assert.equal(
+    AttemptSnapshotSchema.parse({ ...attempt, controller: "codex" }).controller,
+    "codex",
+  );
+  assert.throws(() =>
+    AttemptSnapshotSchema.parse({ ...attempt, controller: "codex", providerSession: null }),
+  );
   assert.throws(() => AttemptSnapshotSchema.parse({ ...attempt, activeTurn: null }));
   assert.throws(() =>
     AttemptSnapshotSchema.parse({ ...attempt, updatedAt: "2026-08-02T11:59:59.000Z" }),
@@ -66,7 +75,7 @@ test("Attempt and Workspace boundaries reject conflicting active ownership", () 
       ...attempt,
       status: "failed",
       activeTurn: null,
-      finishedAt: "2026-08-02T12:00:00.500Z",
+      finishedAt: "2026-08-02T12:00:02.000Z",
       failure: "runner failed",
     }),
   );

@@ -1,7 +1,7 @@
 # Architecture
 
 > Decision status: Accepted for the current repository shape  
-> Implementation evidence: Observed current repository; Runtime/Web code and deterministic checks exist, while installed cross-process Smoke remains `Not verified`
+> Implementation evidence: Observed current repository; deterministic checks and a fake-Tracker browser flow cover the implemented UI path, while real fixture GitHub/Codex execution and MCP Host / Apps Host integration remain `Not verified`
 
 这是当前目录的物理 Codemap，不保存目标设计、工程规则或易变化的测试数量。
 
@@ -31,11 +31,12 @@ src/
     http-transport.ts         HttpRuntimeTransport（HTTP / SSE）
     errors.ts                 typed client errors
   runtime-tools/             MCP / Assistant 轻量 Tool Definition 与 Disabled Assistant
+    package.json              私有 link package identity（@symphoneer/runtime-tools）
     index.ts                  公开入口
     definitions.ts            Runtime tool definitions
     assistant.ts              AssistantAdapter seam
     types.ts                  Tool Definition 类型
-  runtime/                   唯一核心长期运行进程的内部 Module
+  runtime/                   Runtime 进程与单项目 Symphony Core 的内部 Module
     package.json              Runtime 进程脚本边界
     executor/                执行者边界和生产执行者实现
       agent-runner.ts        Agent Runner Interface
@@ -44,6 +45,7 @@ src/
     tracker/                 Tracker 边界和具体 Tracker 实现
       tracker.ts             Tracker Interface
       github-issues.ts       GitHub Issue 读取、原生身份和 dispatch gate
+      synchronizer.ts        项目级全量同步、缺失任务对账和并发刷新合并
       index.ts               Tracker 公开入口
     workspace/                Workspace 引用、生命周期和 Git 实现
       git-worktree/           Git worktree 创建、恢复、脏目录保护和安全释放
@@ -62,15 +64,23 @@ src/
       retry/                  Retry / continuation 生命周期
       eligibility.ts           多种 Scheduler 行为共享的可调度判定
     workflow/                 ProjectProfile（WORKFLOW.md）Schema、解析、路径和 Prompt
-    orchestration/            OrchestrationDefinition JSON IR loader / hash binding
-    host/                     RuntimeHostConfig、静态 UI、Origin / token 安全
-      config.ts               Host 配置解析
+    orchestration/            OrchestrationDefinition 与默认编排 mode facade
+      mode.ts                 OrchestrationMode public seam
+      single-agent.ts         GitHub → Workspace → Codex → Human review 实现
+    host/                     应用级项目目录、Runtime 聚合与 Host 安全边界
+      application-data.ts     项目注册表、稳定身份和持久化路径约定
+      desktop-runtime-host.ts 多项目聚合；每个项目持有独立单项目 RuntimeService
+      polling-coordinator.ts  单一轮询时钟、退避、全局串行和项目回调注册
+      config.ts               应用级 Host 配置解析
+      open-finder.ts          通过 Host 在 macOS Finder 打开受控工作路径
+      repositories.ts         当前项目 GitHub remote 发现与仓库候选
       security.ts             Host / Origin / token / redaction
       static-ui.ts            Vite dist 静态托管与 SPA fallback
       index.ts                Host 公开入口
     storage.ts                append-only JSONL 与 immutable artifact store
     projection.ts             可重放的 Runtime 查询投影
-    service/                  Runtime 写入、幂等窗口、EventLog 与命令边界
+    service/                  单项目 Runtime 写入、幂等窗口、EventLog 与命令边界
+      control-plane.ts        HTTP 面向的最小 Runtime 查询与命令接口
       index.ts                RuntimeService 公开入口
       event-log.ts            append-only 重放、幂等与投影驱动
       helpers.ts              Attempt / Workspace / command 纯辅助
@@ -100,9 +110,11 @@ src/
     app.tsx                   locale Router
     runtime-provider.tsx      RuntimeClient provider
     components/task-board/    Task-first UI，按 Chrome、Task、Attempt 行为拆分
+    components/ui/            shadcn/ui 生成的 Dialog、Button、Input、Textarea、Label
+    components.json            shadcn/ui 生成配置
     components/               Web 语言与主题控件
     i18n/                     Web 内部 locale、字典和纯函数
-    lib/                      loopback URL 校验与 Intl 格式化边界
+    lib/                      loopback URL、Intl 格式化和 cn() 工具边界
     app/globals.css           Tailwind CSS v4 语义主题 token 与可访问性基础样式
     public/                   静态品牌资源
 scripts/
@@ -120,6 +132,7 @@ tests/
   runtime/                   JSONL 重放、artifact、Runtime 命令、HTTP / SSE / Host UI
   runtime-client/            RuntimeTransport / headless client smoke
   assistant/                 Disabled Assistant seam
+  team/                      LangGraph TeamRun / Fake Agent vertical slice
   mcp/                       MCP 工具契约、Runtime 映射、Apps resource 与错误语义
   web/                       Web 纯函数、i18n 与 launcher 健康检查
   integration/               Fake Runner 到 Core Attempt 的确定性跨边界流程
@@ -133,7 +146,7 @@ docs/
   plans/active/              当前 V1 执行计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为 `@symphoneer/contracts`、`@symphoneer/runtime`、`@symphoneer/runtime-client` 和 `@symphoneer/mcp`，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；本地 Orchestration checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；完整浏览器人工审查、真实 Codex MCP Host、MCP Apps Host、真实安装目录发现、GitHub 网络和 Codex 真实 Turn 仍未验证。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 和 runtime-tools 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client`、`src/runtime-tools` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为对应的 `@symphoneer/*` package，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；本地 Orchestration checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；本地 fake Tracker browser Smoke 覆盖任务创建、Ready、手动启动和状态刷新；真实 GitHub fixture/Codex Turn、MCP Host、MCP Apps Host 和真实安装目录发现仍为 `Not verified`。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
 
 ## 当前代码依赖
 
@@ -151,7 +164,7 @@ tests ────────> src/runtime + src/cli + src/web + src/mcp 的可
 - `@symphoneer/contracts` 是 `src/contracts` 的本地 link；它不依赖 Web、CLI、Runtime、MCP 或具体执行者，是跨进程边界的共享 Schema。
 - `src/runtime` 不依赖 Vite、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块，也不依赖自己的 HTTP client；`src/web`、`src/mcp` 与 `src/cli` 只经 `@symphoneer/runtime-client` 访问 Runtime。Web / MCP 方向由 `scripts/check-project.mjs` 检查。
 - `src/runtime/executor` 使用 Codex stdio JSONL；`src/runtime/tracker` 使用 Node 原生 `fetch`；Workspace 和 Verification 使用 Git CLI 与子进程。
-- `src/runtime` 是历史投影、调度、执行边界和受控 Runtime API 的单一运行进程；其 HTTP 入口为 `serve.ts`，并可同源托管 Vite UI。CLI、Web 和 MCP 不复制 Scheduler 或业务状态机。
+- `src/runtime/serve.ts` 是一个长期运行进程；应用级 `DesktopRuntimeHost` 聚合多个项目并持有统一 PollingCoordinator，而每个项目的 `RuntimeService` 仍独立持有 Tracker 同步、Symphony 调度状态、EventLog 和 checkpoint。CLI、Web 和 MCP 不复制 Scheduler 或业务状态机。
 - `src/cli` 是人用 CLI / TUI 访问面（当前仅 Runtime 查询命令），不是 Runtime / MCP 的进程入口。
 - `src/mcp` 是 Host 拉起的独立 STDIO 适配进程；只暴露查询与三种受控 Runtime 命令，不提供 Commit / Merge / dispatch，也不远程公开 loopback Runtime。
 - `src/web` 是 Vite React SPA；浏览器只通过 RuntimeClient 访问 Runtime，Task Board 只展示 Runtime 投影，Workspace 只在 Attempt detail 中展开。

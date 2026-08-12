@@ -100,7 +100,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(result, {
     keptAttemptIds: [],
     stoppedAttemptIds: ["attempt-40", "attempt-41", "attempt-42"],
-    cleanupWorkspaceIds: ["workspace:40"],
+    cleanupWorkspaceIds: ["workspace:attempt-40"],
   });
   assert.deepEqual(
     scheduler.reconcile({
@@ -120,9 +120,9 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     snapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:40", "retained"],
-      ["workspace:41", "retained"],
-      ["workspace:42", "retained"],
+      ["workspace:attempt-40", "retained"],
+      ["workspace:attempt-41", "retained"],
+      ["workspace:attempt-42", "retained"],
     ],
   );
   assert.ok(snapshot.attempts.every((attempt) => attempt.status === "canceled_by_reconciliation"));
@@ -138,7 +138,11 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
       observedAt: "2026-08-02T12:01:00.000Z",
       idempotencyKey: "reconcile-retries",
     }),
-    { keptAttemptIds: [], stoppedAttemptIds: [], cleanupWorkspaceIds: ["workspace:43"] },
+    {
+      keptAttemptIds: [],
+      stoppedAttemptIds: [],
+      cleanupWorkspaceIds: ["workspace:attempt-43-1"],
+    },
   );
   const retrySnapshot = retrying.snapshot();
   assert.deepEqual(retrySnapshot.retries, []);
@@ -146,9 +150,9 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     retrySnapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:43", "retained"],
-      ["workspace:44", "retained"],
-      ["workspace:45", "retained"],
+      ["workspace:attempt-43-1", "retained"],
+      ["workspace:attempt-44-1", "retained"],
+      ["workspace:attempt-45-1", "retained"],
     ],
   );
 });

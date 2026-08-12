@@ -5,7 +5,7 @@ import type {
   AssistantMessage,
   AssistantSession,
   AssistantSessionInput,
-} from "../../../runtime-tools/assistant-contract.ts";
+} from "@symphoneer/runtime-tools";
 import type { Dictionary } from "../../i18n/index.ts";
 
 export type DemoAssistantContext = {

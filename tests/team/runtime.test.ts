@@ -20,6 +20,8 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
 };
 
 async function root(t: TestContext): Promise<string> {
@@ -42,8 +44,10 @@ test("Runtime persists LangGraph workflow checkpoints and resumes from the proje
   const dataDir = await root(t);
   const first = service(dataDir, "first");
   await first.start();
+  await first.recordTask(task);
   const started = await first.execute({
-    kind: "start_team_run",
+    kind: "start_run",
+    mode: "team",
     idempotencyKey: "web:start-workflow-40",
     task,
   });
@@ -79,14 +83,18 @@ test("Runtime persists LangGraph workflow checkpoints and resumes from the proje
   });
   assert.equal(completed.snapshot.teamRuns[0]?.status, "completed");
   assert.equal(completed.snapshot.attempts[0]?.status, "succeeded");
+  assert.equal(completed.snapshot.tasks[0]?.workflowStatus, "in_progress");
+  assert.equal(completed.snapshot.tasks[0]?.blocked?.reason, "Verification failed");
 });
 
 test("Runtime rejects team commands that do not match the pending human gate", async (t) => {
   const dataDir = await root(t);
   const runtime = service(dataDir, "gate-match");
   await runtime.start();
+  await runtime.recordTask(task);
   const started = await runtime.execute({
-    kind: "start_team_run",
+    kind: "start_run",
+    mode: "team",
     idempotencyKey: "web:start-mismatched-gate",
     task,
   });
@@ -116,8 +124,10 @@ test("Runtime stop at the plan approval gate terminates the workflow", async (t)
   const dataDir = await root(t);
   const runtime = service(dataDir, "stop-plan");
   await runtime.start();
+  await runtime.recordTask(task);
   const started = await runtime.execute({
-    kind: "start_team_run",
+    kind: "start_run",
+    mode: "team",
     idempotencyKey: "web:start-stop-plan",
     task,
   });
@@ -135,12 +145,14 @@ test("Runtime stop at the plan approval gate terminates the workflow", async (t)
   assert.equal(stopped.snapshot.attempts[0]?.status, "failed");
 });
 
-test("Runtime rejects start_team_run when the Attempt ID already exists", async (t) => {
+test("Runtime rejects start_run when the Attempt ID already exists", async (t) => {
   const dataDir = await root(t);
   const runtime = service(dataDir, "attempt-collision");
   await runtime.start();
+  await runtime.recordTask(task);
   await runtime.execute({
-    kind: "start_team_run",
+    kind: "start_run",
+    mode: "team",
     idempotencyKey: "web:start-attempt-1",
     task,
     attemptId: "attempt:shared",
@@ -150,7 +162,8 @@ test("Runtime rejects start_team_run when the Attempt ID already exists", async 
   await assert.rejects(
     () =>
       runtime.execute({
-        kind: "start_team_run",
+        kind: "start_run",
+        mode: "team",
         idempotencyKey: "web:start-attempt-2",
         task,
         attemptId: "attempt:shared",

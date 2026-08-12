@@ -1,8 +1,4 @@
-import {
-  CONTRACT_SCHEMA_VERSION,
-  type TaskSummary,
-  TaskSummarySchema,
-} from "@symphoneer/contracts";
+import { CONTRACT_SCHEMA_VERSION, TaskSummarySchema } from "@symphoneer/contracts";
 
 import { type TaskSnapshot, type Tracker, TrackerError } from "./tracker.ts";
 
@@ -21,6 +17,7 @@ interface GitHubIssuePayload {
   number: number;
   html_url: string;
   title: string;
+  body?: string | null;
   state: string;
   labels: Array<string | { name?: string | null }>;
   created_at: string;
@@ -39,6 +36,7 @@ function parseIssuePayload(value: unknown): GitHubIssuePayload {
     !Number.isInteger(value.number) ||
     typeof value.html_url !== "string" ||
     typeof value.title !== "string" ||
+    (value.body !== undefined && value.body !== null && typeof value.body !== "string") ||
     typeof value.state !== "string" ||
     !Array.isArray(labels) ||
     typeof value.created_at !== "string" ||
@@ -52,7 +50,50 @@ function parseIssuePayload(value: unknown): GitHubIssuePayload {
 const invalidResponse = () =>
   new GitHubAdapterError("invalid_response", false, "GitHub returned an invalid Issue payload");
 
+function toTaskSnapshot(
+  repository: string,
+  payload: GitHubIssuePayload,
+  versionToken: string | null,
+): TaskSnapshot {
+  const labels = payload.labels.map((label) => {
+    if (typeof label === "string") return label;
+    if (!isRecord(label) || typeof label.name !== "string") throw invalidResponse();
+    return label.name;
+  });
+  if (labels.some((label) => !label.trim())) throw invalidResponse();
+  const normalizedLabels = labels.map((label) => label.trim().toLowerCase());
+  const dispatchable =
+    payload.state.toLowerCase() === "open" &&
+    normalizedLabels.includes("symphoneer:ready") &&
+    !normalizedLabels.includes("symphoneer:review");
+  try {
+    return {
+      task: TaskSummarySchema.parse({
+        schemaVersion: CONTRACT_SCHEMA_VERSION,
+        id: `github:${repository}:${payload.id}`,
+        identifier: `#${payload.number}`,
+        source: {
+          kind: "github",
+          nativeId: String(payload.number),
+          url: payload.html_url,
+        },
+        title: payload.title,
+        ...(payload.body === undefined ? {} : { body: payload.body }),
+        state: payload.state,
+        labels,
+        dispatchable,
+        createdAt: payload.created_at,
+        updatedAt: payload.updated_at,
+      }),
+      versionToken,
+    };
+  } catch {
+    throw invalidResponse();
+  }
+}
+
 export class GitHubIssuesAdapter implements Tracker {
+  readonly kind = "github";
   readonly #repository: string;
   readonly #token: string;
   readonly #fetch: typeof fetch;
@@ -77,6 +118,7 @@ export class GitHubIssuesAdapter implements Tracker {
     nativeId: string,
     options: { expectedUpdatedAt?: string; signal?: AbortSignal } = {},
   ): Promise<TaskSnapshot> {
+    // GitHub's mutable Issue route is keyed by the repository-local number.
     if (!/^[1-9]\d*$/.test(nativeId)) throw invalidResponse();
     return this.#readIssue(Number(nativeId), options);
   }
@@ -87,6 +129,75 @@ export class GitHubIssuesAdapter implements Tracker {
     options: { expectedUpdatedAt?: string; signal?: AbortSignal } = {},
   ): Promise<TaskSnapshot> {
     if (!Number.isInteger(issueNumber) || issueNumber <= 0) throw invalidResponse();
+    return this.#readIssue(issueNumber, options);
+  }
+
+  async listTasks(
+    options: { cursor?: string; signal?: AbortSignal } = {},
+  ): Promise<{ tasks: TaskSnapshot[]; nextCursor: string | null }> {
+    const page = options.cursor === undefined ? 1 : Number(options.cursor);
+    if (!Number.isInteger(page) || page < 1) throw invalidResponse();
+    let response: Response;
+    try {
+      response = await this.#fetch(
+        `https://api.github.com/repos/${this.#repository}/issues?state=all&per_page=100&page=${page}`,
+        {
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${this.#token}`,
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        },
+      );
+    } catch {
+      throw new GitHubAdapterError("network_error", true, "GitHub Issue list failed");
+    }
+    if (!response.ok) throw await this.#httpError(response);
+    let payloads: unknown;
+    try {
+      payloads = await response.json();
+    } catch {
+      throw invalidResponse();
+    }
+    if (!Array.isArray(payloads)) throw invalidResponse();
+    const versionToken = response.headers.get("etag");
+    const tasks = payloads
+      .map((value) => parseIssuePayload(value))
+      .filter((payload) => payload.pull_request === undefined)
+      .map((payload) => toTaskSnapshot(this.#repository, payload, versionToken));
+    const nextCursor = /<[^>]+>;\s*rel="next"/i.test(response.headers.get("link") ?? "")
+      ? String(page + 1)
+      : null;
+    return { tasks, nextCursor };
+  }
+
+  async enableTaskDispatch(
+    nativeId: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<TaskSnapshot> {
+    if (!/^[1-9]\d*$/.test(nativeId)) throw invalidResponse();
+    const issueNumber = Number(nativeId);
+    let response: Response;
+    try {
+      response = await this.#fetch(
+        `https://api.github.com/repos/${this.#repository}/issues/${issueNumber}/labels`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${this.#token}`,
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+          body: JSON.stringify({ labels: ["symphoneer:ready"] }),
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        },
+      );
+    } catch {
+      throw new GitHubAdapterError("network_error", true, "GitHub Issue label update failed");
+    }
+    if (!response.ok) throw await this.#httpError(response);
     return this.#readIssue(issueNumber, options);
   }
 
@@ -130,39 +241,7 @@ export class GitHubIssuesAdapter implements Tracker {
       );
     }
 
-    const labels = payload.labels.map((label) => {
-      if (typeof label === "string") return label;
-      if (!isRecord(label) || typeof label.name !== "string") throw invalidResponse();
-      return label.name;
-    });
-    if (labels.some((label) => !label.trim())) throw invalidResponse();
-    const normalizedLabels = labels.map((label) => label.trim().toLowerCase());
-    const dispatchable =
-      payload.state.toLowerCase() === "open" &&
-      normalizedLabels.includes("symphoneer:ready") &&
-      !normalizedLabels.includes("symphoneer:review");
-    let task: TaskSummary;
-    try {
-      task = TaskSummarySchema.parse({
-        schemaVersion: CONTRACT_SCHEMA_VERSION,
-        id: `github:${this.#repository}:${payload.id}`,
-        identifier: `#${payload.number}`,
-        source: {
-          kind: "github",
-          nativeId: String(payload.id),
-          url: payload.html_url,
-        },
-        title: payload.title,
-        state: payload.state,
-        labels,
-        dispatchable,
-        createdAt: payload.created_at,
-        updatedAt: payload.updated_at,
-      });
-    } catch {
-      throw invalidResponse();
-    }
-    return { task, versionToken: response.headers.get("etag") };
+    return toTaskSnapshot(this.#repository, payload, response.headers.get("etag"));
   }
 
   async #httpError(response: Response): Promise<GitHubAdapterError> {

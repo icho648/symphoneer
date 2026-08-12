@@ -70,8 +70,14 @@ export function reserve(
   const workspaceIdAtAnotherPath = [...state.workspaces.entries()].some(
     ([path, known]) => known.id === workspace.id && path !== workspace.path,
   );
+  const knownTaskWorkspace = [...state.workspaces.values()].find(
+    (known) => known.taskId === workspace.taskId,
+  );
   const changedWorkspaceIdentity =
     workspaceIdAtAnotherPath ||
+    (knownTaskWorkspace != null &&
+      (knownTaskWorkspace.repository !== workspace.repository ||
+        knownTaskWorkspace.host !== workspace.host)) ||
     (knownWorkspace != null &&
       (knownWorkspace.id !== workspace.id ||
         knownWorkspace.taskId !== workspace.taskId ||

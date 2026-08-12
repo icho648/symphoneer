@@ -20,7 +20,10 @@ export type {
   RuntimeSnapshot,
 } from "./protocol.ts";
 export * from "./scheduler/index.ts";
-export type { RuntimeServiceOptions } from "./service/index.ts";
+export type {
+  RuntimeControlPlane,
+  RuntimeServiceOptions,
+} from "./service/index.ts";
 export { RuntimeService } from "./service/index.ts";
 export { ImmutableArtifactStore, JsonlEventStore } from "./storage.ts";
 export * from "./team/index.ts";

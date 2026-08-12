@@ -1,7 +1,7 @@
 import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
-import type { AttemptSnapshot, RuntimeSnapshot, TaskSummary } from "@symphoneer/contracts";
 import { useMemo, useRef } from "react";
-import type { Dictionary } from "../../i18n/index.ts";
+import { useShallow } from "zustand/react/shallow";
+import { selectActiveAttempt, selectSelectedTask, useWorkbench } from "../../stores/workbench.ts";
 import { createAssistantUiChatModelAdapter } from "../assistant/assistant-ui-adapter.ts";
 import {
   createDemoAssistantAdapter,
@@ -9,19 +9,18 @@ import {
 } from "../assistant/demo-adapter.ts";
 import { DeliveryAssistantThread } from "../assistant/thread.tsx";
 
-export function AssistantShell({
-  dictionary,
-  onClose,
-  selectedAttempt,
-  selectedTask,
-  snapshot,
-}: {
-  dictionary: Dictionary;
-  onClose: () => void;
-  selectedAttempt: AttemptSnapshot | null;
-  selectedTask: TaskSummary | null;
-  snapshot: RuntimeSnapshot | null;
-}) {
+export function AssistantShell() {
+  const { dictionary, open, selectedAttempt, selectedTask, snapshot, toggleAssistant } =
+    useWorkbench(
+      useShallow((state) => ({
+        selectedAttempt: selectActiveAttempt(state),
+        open: state.assistantOpen,
+        dictionary: state.dictionary,
+        selectedTask: selectSelectedTask(state),
+        snapshot: state.snapshot,
+        toggleAssistant: state.toggleAssistant,
+      })),
+    );
   const assistant = dictionary.board.assistant;
   const projectionVersion = snapshot?.projectionVersion ?? 1;
   const lastEventSequence = snapshot?.runtime.lastEventSequence ?? 0;
@@ -40,7 +39,7 @@ export function AssistantShell({
   const runtime = useLocalRuntime(chatModelAdapter);
 
   return (
-    <div className="assistant-column">
+    <div className={`assistant-column ${open ? "is-open" : "is-collapsed"}`}>
       <nav className="assistant-rail-nav" aria-label={dictionary.navigation.label}>
         <a
           className="macos-nav-item"
@@ -58,10 +57,6 @@ export function AssistantShell({
           <NavGlyph name="activity" />
           <span className="macos-nav-label truncate">{dictionary.navigation.activity}</span>
         </a>
-        <a className="macos-nav-item" href="#verification" title={dictionary.navigation.evidence}>
-          <NavGlyph name="evidence" />
-          <span className="macos-nav-label truncate">{dictionary.navigation.evidence}</span>
-        </a>
         <div
           className="assistant-rail-meta"
           title={
@@ -75,8 +70,18 @@ export function AssistantShell({
           }
         >
           <span className="size-1.5 rounded-full bg-signal" aria-hidden="true" />
-          <code className="font-mono text-signal">v{projectionVersion}</code>
+          <code className="assistant-rail-version font-mono text-signal">v{projectionVersion}</code>
         </div>
+        <button
+          aria-expanded={open}
+          aria-label={open ? assistant.close : assistant.open}
+          className="assistant-rail-toggle"
+          title={open ? assistant.close : assistant.open}
+          type="button"
+          onClick={toggleAssistant}
+        >
+          <span aria-hidden="true">{open ? "‹" : "✦"}</span>
+        </button>
       </nav>
 
       <aside className="assistant-slot" id="assistant-slot" aria-labelledby="assistant-slot-title">
@@ -90,15 +95,6 @@ export function AssistantShell({
               <h2 id="assistant-slot-title">{assistant.title}</h2>
             </div>
           </div>
-          <button
-            aria-label={assistant.close}
-            className="assistant-close"
-            title={assistant.close}
-            type="button"
-            onClick={onClose}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
         </header>
 
         <div className="assistant-slot-status">
@@ -121,11 +117,10 @@ export function AssistantShell({
   );
 }
 
-function NavGlyph({ name }: { name: "tasks" | "activity" | "evidence" }) {
+function NavGlyph({ name }: { name: "tasks" | "activity" }) {
   const paths = {
     tasks: "M4 6h16M4 12h16M4 18h10",
     activity: "M12 5v14M5 12h14",
-    evidence: "M5 12.5l4 4 10-10",
   } as const;
 
   return (
