@@ -28,6 +28,11 @@ export interface RuntimeHttpServerOptions {
   addProject?: () => Promise<RuntimeProject>;
   removeProject?: (projectId: string) => Promise<RuntimeProject[]>;
   openCodexThread?: (threadId: string) => Promise<void>;
+  assistantHandler?: (
+    request: IncomingMessage,
+    response: ServerResponse,
+    url: URL,
+  ) => Promise<boolean>;
 }
 
 export class RuntimeHttpServer {
@@ -40,6 +45,7 @@ export class RuntimeHttpServer {
   readonly #addProject: RuntimeHttpServerOptions["addProject"];
   readonly #removeProject: RuntimeHttpServerOptions["removeProject"];
   readonly #openCodexThread: RuntimeHttpServerOptions["openCodexThread"];
+  readonly #assistantHandler: RuntimeHttpServerOptions["assistantHandler"];
   readonly #server: Server;
   readonly #streams = new Set<ServerResponse>();
 
@@ -53,6 +59,7 @@ export class RuntimeHttpServer {
     this.#addProject = options.addProject;
     this.#removeProject = options.removeProject;
     this.#openCodexThread = options.openCodexThread;
+    this.#assistantHandler = options.assistantHandler;
     this.#server = createServer((request, response) => {
       void this.#handle(request, response);
     });
@@ -105,6 +112,14 @@ export class RuntimeHttpServer {
       assertAllowedOrigin(request.headers.origin, { requireOrigin: false });
       if (isApiPath(url.pathname) && url.pathname !== "/healthz") {
         assertSessionToken(request, this.#sessionToken);
+      }
+
+      if (
+        url.pathname.startsWith("/v1/assistant/") &&
+        this.#assistantHandler &&
+        (await this.#assistantHandler(request, response, url))
+      ) {
+        return;
       }
 
       if (request.method === "GET") {

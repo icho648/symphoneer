@@ -1,15 +1,37 @@
-import { AuiIf, ComposerPrimitive, MessagePrimitive, ThreadPrimitive } from "@assistant-ui/react";
+import {
+  AuiIf,
+  ComposerPrimitive,
+  MessagePrimitive,
+  ThreadPrimitive,
+  type ToolCallMessagePartProps,
+} from "@assistant-ui/react";
+import type { AssistantClient } from "@symphoneer/assistant-client";
 import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
+import { createContext, useContext, useMemo, useState } from "react";
 import type { Dictionary } from "../../i18n/index.ts";
+import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "../ai-elements/tool.tsx";
+
+type RuntimeToolContextValue = {
+  assistant: Dictionary["board"]["assistant"];
+  client: AssistantClient;
+  sessionId: string;
+};
+
+const RuntimeToolContext = createContext<RuntimeToolContextValue | null>(null);
+const toolComponents = { tools: { Fallback: RuntimeToolFallback } };
 
 export function DeliveryAssistantThread({
+  client,
   dictionary,
   selectedAttempt,
   selectedTask,
+  sessionId,
 }: {
+  client: AssistantClient;
   dictionary: Dictionary;
   selectedAttempt: AttemptSnapshot | null;
   selectedTask: TaskSummary | null;
+  sessionId: string;
 }) {
   const assistant = dictionary.board.assistant;
   const taskState = selectedTask?.state ?? assistant.noTask;
@@ -74,7 +96,11 @@ export function DeliveryAssistantThread({
 
         <ThreadPrimitive.Messages>
           {({ message }) =>
-            message.role === "user" ? <UserMessage /> : <AssistantMessage label={assistant.label} />
+            message.role === "user" ? (
+              <UserMessage />
+            ) : (
+              <AssistantMessage assistant={assistant} client={client} sessionId={sessionId} />
+            )
           }
         </ThreadPrimitive.Messages>
 
@@ -101,7 +127,7 @@ export function DeliveryAssistantThread({
               </AuiIf>
             </div>
           </ComposerPrimitive.Root>
-          <p className="assistant-compose-hint">{assistant.demoHint}</p>
+          <p className="assistant-compose-hint">{assistant.hint}</p>
         </ThreadPrimitive.ViewportFooter>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
@@ -118,18 +144,102 @@ function UserMessage() {
   );
 }
 
-function AssistantMessage({ label }: { label: string }) {
+function AssistantMessage({
+  assistant,
+  client,
+  sessionId,
+}: {
+  assistant: Dictionary["board"]["assistant"];
+  client: AssistantClient;
+  sessionId: string;
+}) {
+  const toolContext = useMemo(
+    () => ({ assistant, client, sessionId }),
+    [assistant, client, sessionId],
+  );
   return (
     <MessagePrimitive.Root className="assistant-aui-assistant">
       <div className="assistant-message-meta">
         <span className="assistant-message-avatar" aria-hidden="true">
           ✦
         </span>
-        <strong>{label}</strong>
+        <strong>{assistant.label}</strong>
       </div>
       <div className="assistant-aui-bubble assistant-aui-bubble-assistant">
-        <MessagePrimitive.Parts />
+        <RuntimeToolContext.Provider value={toolContext}>
+          <MessagePrimitive.Parts components={toolComponents} />
+        </RuntimeToolContext.Provider>
       </div>
     </MessagePrimitive.Root>
   );
+}
+
+function RuntimeToolFallback(props: ToolCallMessagePartProps) {
+  const context = useContext(RuntimeToolContext);
+  if (!context) throw new Error("Runtime tool context is missing");
+  return <RuntimeToolPart {...props} {...context} />;
+}
+
+function RuntimeToolPart({
+  approval,
+  args,
+  assistant,
+  client,
+  isError,
+  result,
+  sessionId,
+  toolName,
+}: ToolCallMessagePartProps & {
+  assistant: Dictionary["board"]["assistant"];
+  client: AssistantClient;
+  sessionId: string;
+}) {
+  const [decision, setDecision] = useState<"idle" | "submitted" | "failed">("idle");
+  const state =
+    result !== undefined
+      ? isError
+        ? "output-error"
+        : "output-available"
+      : approval && decision === "idle"
+        ? "approval-requested"
+        : approval
+          ? "approval-responded"
+          : "input-available";
+  const decide = async (approved: boolean) => {
+    if (!approval || decision !== "idle") return;
+    setDecision("submitted");
+    try {
+      await client.respondApproval(sessionId, approval.id, approved);
+    } catch {
+      setDecision("failed");
+    }
+  };
+
+  return (
+    <Tool defaultOpen={Boolean(approval || isError)}>
+      <ToolHeader state={state} toolName={toolName} type="dynamic-tool" />
+      <ToolContent>
+        <ToolInput input={args} />
+        {approval && result === undefined ? (
+          <div className="assistant-tool-approval">
+            <button disabled={decision !== "idle"} type="button" onClick={() => void decide(false)}>
+              {assistant.reject}
+            </button>
+            <button disabled={decision !== "idle"} type="button" onClick={() => void decide(true)}>
+              {assistant.approve}
+            </button>
+            {decision === "failed" ? <span>{assistant.approvalFailed}</span> : null}
+          </div>
+        ) : null}
+        <ToolOutput
+          errorText={isError ? stringifyResult(result) : undefined}
+          output={isError ? undefined : result}
+        />
+      </ToolContent>
+    </Tool>
+  );
+}
+
+function stringifyResult(result: unknown): string {
+  return typeof result === "string" ? result : (JSON.stringify(result, null, 2) ?? "");
 }

@@ -1,7 +1,7 @@
 # Architecture
 
 > Decision status: Accepted for the current repository shape  
-> Implementation evidence: Observed current repository; deterministic checks cover the production Tracker tick, Scheduler, per-Issue Workspace, Attempt Worker and UI path, while real fixture GitHub/Codex execution and MCP Host / Apps Host integration remain `Not verified`
+> Implementation evidence: Observed current repository; deterministic checks cover the production Tracker tick, Scheduler, per-Issue Workspace, Attempt Worker, Pi Assistant Faux Provider and UI projection, while real fixture GitHub/Codex execution, real Assistant Provider and MCP Host / Apps Host integration remain `Not verified`
 
 这是当前目录的物理 Codemap，不保存目标设计、工程规则或易变化的测试数量。
 
@@ -30,12 +30,22 @@ src/
     transport.ts              RuntimeTransport seam
     http-transport.ts         HttpRuntimeTransport（HTTP / SSE）
     errors.ts                 typed client errors
-  runtime-tools/             MCP / Assistant 轻量 Tool Definition 与 Disabled Assistant
+  assistant-client/          浏览器安全的 Assistant HTTP / SSE 客户端与公共 Schema
+    package.json              私有 link package identity（@symphoneer/assistant-client）
+    contracts.ts              状态、Session、消息和标准事件 Schema
+    client.ts                 Session CRUD、流式运行、终止与审批响应
+    index.ts                  AssistantClient 公开入口
+  runtime-tools/             MCP / Assistant 共用的 Runtime Tool Definition
     package.json              私有 link package identity（@symphoneer/runtime-tools）
     index.ts                  公开入口
     definitions.ts            Runtime tool definitions
-    assistant.ts              AssistantAdapter seam
     types.ts                  Tool Definition 类型
+  assistant/                 Runtime 可选持有的 Pi Assistant 独立生命周期
+    config.ts                 Provider / model 配置与固定 Session 上下文
+    messages.ts               Pi 消息持久化、恢复修复与标准事件投影
+    http.ts                   同源 Assistant HTTP / SSE 路由
+    service.ts                Agent、官方 Session/SQLite、工具审批与运行生命周期
+    index.ts                  PiAssistantService 公开入口
   runtime/                   Runtime 进程与单项目 Symphony Core 的内部 Module
     package.json              Runtime 进程脚本边界
     executor/                执行者边界和生产执行者实现
@@ -90,7 +100,7 @@ src/
       runtime-service.ts      RuntimeService 编排入口
     http.ts                   loopback HTTP / SSE API 与静态 UI 入口
     protocol.ts               Runtime API 形状（`@symphoneer/runtime/protocol`）
-    serve.ts                  Runtime HTTP 进程入口（`pnpm runtime:serve`）
+    serve.ts                  Runtime HTTP 进程入口与可选 PiAssistantService 组装
     index.ts                  Runtime 内部公开入口
   mcp/                       Host 拉起的 STDIO MCP 适配层（薄封装 RuntimeClient）
     package.json              私有 link package identity（@symphoneer/mcp）
@@ -110,6 +120,7 @@ src/
     main.tsx                  React bootstrap
     app.tsx                   locale Router
     runtime-provider.tsx      RuntimeClient provider
+    components/assistant/     Assistant UI 流式投影、Tool / 审批和 Session Runtime
     components/task-board/    Task-first UI，按 Chrome、Task、Attempt 行为拆分
     components/ui/            shadcn/ui 生成的 Dialog、Button、Input、Textarea、Label
     components.json            shadcn/ui 生成配置
@@ -132,7 +143,7 @@ tests/
   verification/              Verification contract / failure checks
   runtime/                   JSONL 重放、artifact、Runtime 命令、HTTP / SSE / Host UI
   runtime-client/            RuntimeTransport / headless client smoke
-  assistant/                 Disabled Assistant seam
+  assistant/                 Assistant 配置、Session、Faux Provider、恢复、工具与审批
   team/                      LangGraph TeamRun / Fake Agent vertical slice
   mcp/                       MCP 工具契约、Runtime 映射、Apps resource 与错误语义
   web/                       Web 纯函数、i18n 与 launcher 健康检查
@@ -148,7 +159,7 @@ docs/
   plans/completed/           已完成的历史协调计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 和 runtime-tools 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client`、`src/runtime-tools` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为对应的 `@symphoneer/*` package，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；本地 Orchestration checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。根 `WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）；根文件缺失时 loader 兼容旧 `.symphoneer/WORKFLOW.md` 并记录弃用操作。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；确定性 Fake Tracker 测试覆盖生产 tick 自动 dispatch 和同 Worker 多 Turn；真实 GitHub fixture/Codex Turn、MCP Host、MCP Apps Host 和真实安装目录发现仍为 `Not verified`。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP、assistant-client 和 runtime-tools 各有 Module manifest，`src/contracts`、`src/runtime`、`src/runtime-client`、`src/assistant-client`、`src/runtime-tools` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为对应的 `@symphoneer/*` package，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`。本地 Orchestration checkpoint 与 Assistant Session 分别使用 Runtime 数据目录中的 SQLite；Assistant 固定写入 `assistant/sessions.sqlite`，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。根 `WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）；根文件缺失时 loader 兼容旧 `.symphoneer/WORKFLOW.md` 并记录弃用操作。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；确定性 Fake Tracker 与 Pi Faux Provider 测试分别覆盖生产调度和 Assistant 恢复/审批边界；真实 GitHub fixture/Codex Turn、真实 Assistant Provider、MCP Host、MCP Apps Host 和真实安装目录发现仍为 `Not verified`。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
 
 ## 当前代码依赖
 
@@ -156,15 +167,19 @@ docs/
 src/contracts ──> Zod
 src/runtime ───> src/contracts + Node stdlib + Zod + YAML + LiquidJS + LangGraph + SQLite checkpoint
 src/runtime-client ──> src/contracts + Node stdlib
+src/assistant-client ──> Zod + browser fetch / ReadableStream
 src/runtime-tools ──> src/contracts + src/runtime-client + Zod
+src/assistant ──────> assistant-client + runtime-client + runtime-tools + Pi Agent/AI/SQLite
 src/mcp ────────────> src/contracts + src/runtime-client + src/runtime-tools + MCP SDK
 src/cli ────────────> src/runtime-client + Node stdlib
-src/web ────────────> src/contracts + src/runtime-client + Web i18n + Vite / React Router
+src/web ────────────> src/contracts + src/runtime-client + src/assistant-client + Web i18n + Vite / React Router
 tests ────────> src/runtime + src/cli + src/web + src/mcp 的可测试 Module + tests/fixtures/FakeAgentRunner
 ```
 
 - `@symphoneer/contracts` 是 `src/contracts` 的本地 link；它不依赖 Web、CLI、Runtime、MCP 或具体执行者，是跨进程边界的共享 Schema。
+- `@symphoneer/assistant-client` 不导出 Pi 类型；Web 与第二个 headless client 只消费稳定的 HTTP / SSE Schema。
 - `src/runtime` 不依赖 Vite、React、GitHub SDK 或 Codex 进程实现之外的 Web 模块，也不依赖自己的 HTTP client；`src/web`、`src/mcp` 与 `src/cli` 只经 `@symphoneer/runtime-client` 访问 Runtime。Web / MCP 方向由 `scripts/check-project.mjs` 检查。
+- `PiAssistantService` 由 Runtime HTTP 进程可选持有，但拥有独立关闭与故障边界；它通过 RuntimeClient 调用现有工具白名单，不进入 Scheduler 或 Runtime Core 状态机。
 - `src/runtime/executor` 使用 Codex stdio JSONL；`src/runtime/tracker` 使用 Node 原生 `fetch`；Workspace 和 Verification 使用 Git CLI 与子进程。
 - `src/runtime/serve.ts` 是一个长期运行进程；应用级 `DesktopRuntimeHost` 聚合多个项目并持有统一 PollingCoordinator，而每个项目的 `RuntimeService` 仍独立持有 Tracker 同步、Symphony 调度状态、EventLog 和 checkpoint。CLI、Web 和 MCP 不复制 Scheduler 或业务状态机。
 - `src/cli` 是人用 CLI / TUI 访问面（当前仅 Runtime 查询命令），不是 Runtime / MCP 的进程入口。

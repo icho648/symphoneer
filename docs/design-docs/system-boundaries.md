@@ -1,7 +1,7 @@
 # System Boundaries
 
 > Decision status: Accepted  
-> Implementation evidence: Partial — contract v2, production tick wiring, deterministic Core/Worker tests, Git worktree and Verification temp-repository checks; external compatibility remains `Not verified`
+> Implementation evidence: Partial — contract v2, production tick wiring, deterministic Core/Worker and Pi Faux Provider tests, Git worktree and Verification temp-repository checks; external compatibility and real Assistant Provider remain `Not verified`
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
 
@@ -14,12 +14,14 @@ pnpm dev / future Electron Main
 │  │  └─ PollingCoordinator（单一时钟、退避与全局轮询并发）
 │  ├─ ProjectRuntime A（一个 WORKFLOW / Tracker Sync / Scheduler）
 │  ├─ ProjectRuntime B（一个 WORKFLOW / Tracker Sync / Scheduler）
+│  ├─ optional PiAssistantService（官方 Session + SQLite）
 │  ├─ loopback HTTP / SSE
 │  └─ optional static Vite UI (standalone)
 └─ Vite Dev Server (development only)
    └─ React SPA + proxy to Runtime
 
 Browser → Vite SPA / static UI → RuntimeClient → Runtime
+Browser / headless client ─────→ AssistantClient → PiAssistantService → RuntimeClient
 CLI ──────────────────────────────────────────→ Runtime
 ```
 
@@ -29,6 +31,7 @@ CLI ─────────────────────────�
 - `pnpm dev` 发现目标地址已有健康 Runtime 时，将其视为外部管理进程并复用；launcher 退出时只停止自己启动的 Runtime 和 Web 子进程。显式设置 `SYMPHONEER_DATA_DIR` 时不复用未知数据目录的现有 Runtime。
 - 开发模式下 Runtime 与 Vite 分进程；Standalone 模式由 Runtime 同源托管 Vite 静态 UI，不再常驻第二个 Node Web Server。关闭浏览器或重启 Vite 不改变 Attempt；明确退出父 launcher 时才向自己启动的子进程转发停止信号。
 - CLI 和 Web 都是 Runtime 的客户端，只经 RuntimeClient / RuntimeTransport 通信，不复制 Scheduler 或业务状态机。loopback Host / Origin / session token 已落地；完整浏览器 Smoke 仍待验证。
+- Assistant 是 Runtime 进程可选持有的独立服务：缺失配置、配置错误或 Provider 故障不阻止 Runtime 启动。它复用同源 loopback、Origin 和 session token 限制，并只经 RuntimeClient 调用现有 Runtime 工具白名单；Assistant Session 不成为 Task、Attempt 或 Scheduler 的第二套真相。
 - 一个操作系统进程可以承载多个项目 Runtime；应用级 PollingCoordinator 统一计时、退避并串行调用项目同步回调，每个项目仍拥有独立 Tracker scope、EventLog、artifact、checkpoint、Workspace 根和 Symphony 调度状态。V1 不为每个项目创建额外 OS 进程，也不实现跨项目依赖调度。
 - Electron 不是 V1 前提；未来如采用，按其[进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)由 Main 启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口通信。
 
@@ -55,6 +58,7 @@ Tracker Task（V1 由 GitHub Issue 实现）
 | Orchestration Run / checkpoint | Runtime 应用数据目录中的 LangGraph SQLite checkpoint | 保存可恢复的编排状态；对外查询仍以 Domain Event 投影为准 |
 | Orchestration Definition | 仓库 `.symphoneer/orchestrations/*.json`（JSON IR） | 项目拥有的编排定义；TeamRun 绑定 id / version / hash |
 | ReviewDecision | 人 | 记录决定、依据、责任人和下一动作 |
+| Assistant Session | Pi 官方 Session SQLite backend | 创建时固定 provider / model 与 project / task / attempt / locale 上下文；恢复对话，不改变 Task 或 Attempt 事实 |
 | PR / Checks / Review / Merge state | GitHub 原生对象；Merge / Close 的最终决定由人持有 | 重新读取原生状态，保存关联和冲突，不从历史投影重建 |
 | Trace / Evaluation | Phoenix 等诊断系统 | 只保存关联 ID；不可用时不阻塞核心流程 |
 | Historical Projection | Symphoneer 应用数据目录中的 append-only JSONL 和 immutable artifact | 支持重放、查询和 UI，不覆盖原生事实 |
@@ -155,6 +159,7 @@ Runtime 仍保留独立检查与 immutable artifact 能力，供 Team 编排或�
 | Runtime Log | 操作系统的 Symphoneer Logs 目录下 `<project-id>/operator.jsonl` | project-scoped 操作、关联 ID、PID、耗时、outcome 和 error kind；不记录 Prompt、Token、源码或 Provider payload |
 | Cache / temporary data | 操作系统 Cache / temporary 目录 | 仅保存可重建内容；系统清理不能导致业务证据或未提交 Workspace 丢失 |
 | Credentials | 操作系统 Keychain 或等价凭据存储 | Runtime 按引用读取；不进入仓库、事件、artifact、日志或 Trace |
+| Assistant Session | Symphoneer application data 下的 `assistant/sessions.sqlite` | 保存官方完整消息与 Session metadata；只在 `message_end` 写入，不保存流式增量或待审批请求 |
 
 macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/projects/<project-id>/`、`~/Library/Logs/Symphoneer/` 与 `~/Library/Caches/Symphoneer/`；其他平台使用各自原生位置，不从仓库路径推导。`project-id` 是 Host 分配并持久化的不透明稳定身份。规范化项目路径和 Git common dir 只用于找回已有身份：符号链接和同一 clone 的 linked worktree 会命中同一项目，两个独立 clone 即使 remote 相同也保留为两个项目。
 
@@ -165,6 +170,8 @@ macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/proj
 ## 控制和安全
 
 - Web、CLI 和 MCP 复用同一个 Runtime、共享契约和授权判断。
+- Assistant 查询工具直接进入 RuntimeClient；变更工具先等待进程内人工审批，拒绝时不调用 Runtime，批准后仍执行 Runtime 自身的版本、冲突和状态校验。终止或进程重启使待审批请求失效。
+- Assistant API key 当前仅通过本地 `SYMPHONEER_ASSISTANT_API_KEY` 启动配置留在进程内存，不进入 Session SQLite、Runtime Log、Domain Event、Assistant 标准事件或 HTTP 响应。
 - refresh、dispatch、pause、retry 和 intervention response 必须带目标版本或前置条件、幂等键和 Host 确认。
 - MCP 不提供 Commit、Merge 或权限扩大。
 - Tracker、第三方页面、日志和 Agent 输出都是不可信输入，不能直接成为高优先级系统指令。

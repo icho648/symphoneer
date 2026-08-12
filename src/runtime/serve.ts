@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { PiAssistantService } from "../assistant/index.ts";
 import {
   ApplicationData,
   DesktopRuntimeHost,
@@ -47,6 +48,7 @@ export async function runServer(
     workspaceRoot: hostConfig.workspaceRoot,
   });
   const githubToken = await resolveGitHubToken();
+  const assistant = new PiAssistantService({ dataDir: hostConfig.dataDir });
   const runtime = new DesktopRuntimeHost({
     applicationData,
     ...(process.env.SYMPHONEER_RUNTIME_ID ? { runtimeId: process.env.SYMPHONEER_RUNTIME_ID } : {}),
@@ -103,6 +105,7 @@ export async function runServer(
     },
     removeProject: (projectId) => runtime.removeProject(projectId),
     openCodexThread,
+    assistantHandler: assistant.handle,
     ...(hostConfig.uiDistDir ? { uiDistDir: hostConfig.uiDistDir } : {}),
   });
   const stopped = Promise.withResolvers<void>();
@@ -110,11 +113,18 @@ export async function runServer(
   const stop = () => {
     if (stopping) return;
     stopping = true;
-    void server.close().then(stopped.resolve, stopped.reject);
+    void assistant
+      .close()
+      .then(() => server.close())
+      .then(stopped.resolve, stopped.reject);
   };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
   const endpoint = await server.listen();
+  assistant.connectRuntime({
+    baseUrl: endpoint.url,
+    ...(hostConfig.credentials.sessionToken ? { token: hostConfig.credentials.sessionToken } : {}),
+  });
   stdout.write(`Runtime running at ${endpoint.url} (pid ${process.pid})\n`);
   try {
     await stopped.promise;

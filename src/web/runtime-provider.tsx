@@ -1,3 +1,4 @@
+import { createHttpAssistantClient } from "@symphoneer/assistant-client";
 import {
   createHttpRuntimeClient,
   type DefaultRuntimeClient,
@@ -26,6 +27,13 @@ export function createBrowserRuntimeClient(): DefaultRuntimeClient {
     baseUrl,
     ...(token ? { token } : {}),
   });
+}
+
+export function createBrowserAssistantClient() {
+  const boot = window.__SYMPHONEER_RUNTIME__;
+  const baseUrl = boot?.baseUrl || window.location.origin;
+  const token = boot?.token || import.meta.env.VITE_RUNTIME_TOKEN || undefined;
+  return createHttpAssistantClient({ baseUrl, ...(token ? { token } : {}) });
 }
 
 export function RuntimeProvider({

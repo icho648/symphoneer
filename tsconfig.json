@@ -14,6 +14,8 @@
     "verbatimModuleSyntax": true
   },
   "include": [
+    "src/assistant/**/*.ts",
+    "src/assistant-client/**/*.ts",
     "src/contracts/**/*.ts",
     "src/runtime/**/*.ts",
     "src/runtime-client/**/*.ts",

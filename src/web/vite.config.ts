@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": root,
+        "@symphoneer/assistant-client": path.resolve(root, "../assistant-client/index.ts"),
         "@symphoneer/contracts": path.resolve(root, "../contracts/index.ts"),
         "@symphoneer/runtime-client": path.resolve(root, "../runtime-client/index.ts"),
         "@symphoneer/runtime-tools": path.resolve(root, "../runtime-tools/index.ts"),
