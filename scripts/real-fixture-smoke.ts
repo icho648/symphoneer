@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -63,6 +63,16 @@ export function fixtureOutcome(
     return attempt.status === "succeeded" ? "passed" : "failed";
   }
   return task?.dispatchable === false ? "failed" : null;
+}
+
+export function fixtureCleanupOutcome(cleanup: "released" | "retained"): {
+  status: "passed" | "failed";
+  failure: string | null;
+  archive: boolean;
+} {
+  return cleanup === "released"
+    ? { status: "passed", failure: null, archive: true }
+    : { status: "failed", failure: "fixture_cleanup_rejected", archive: false };
 }
 
 export async function runRealFixture(
@@ -203,7 +213,10 @@ export async function runRealFixture(
     await writeManifest(report);
     if (report.status === "passed" && report.workspace && report.taskId) {
       report.cleanup = await cleanupWorkspace(report, sourcePath, repository, workspaceRoot);
-      await archiveFixtureIssue(repository, token, issue.number);
+      const outcome = fixtureCleanupOutcome(report.cleanup);
+      report.status = outcome.status;
+      report.failure = outcome.failure;
+      if (outcome.archive) await archiveFixtureIssue(repository, token, issue.number);
       await writeManifest(report);
     } else {
       report.cleanup = "retained";
@@ -215,28 +228,29 @@ export async function runRealFixture(
   }
 }
 
-async function cleanupWorkspace(
+export async function cleanupWorkspace(
   report: RealFixtureSmokeReport,
   sourcePath: string,
   repository: string,
   workspaceRoot: string,
 ): Promise<"released" | "retained"> {
-  if (!report.workspace || !report.taskId) return "retained";
-  await rm(resolve(report.workspace.path, "node_modules"), { recursive: true, force: true });
-  await rm(resolve(report.workspace.path, "dist"), { recursive: true, force: true });
+  if (!report.workspace || !report.taskId || !report.attemptId) return "retained";
   const manager = new WorkspaceManager({
     root: workspaceRoot,
     driver: new GitWorktreeDriver({ repositoryPath: sourcePath, repository, baseRevision: "HEAD" }),
   });
   try {
-    await manager.remove({
-      schemaVersion: 2,
+    const workspace = {
+      schemaVersion: 2 as const,
       taskId: report.taskId,
       ownerAttemptId: null,
-      host: "local",
+      host: "local" as const,
       ...report.workspace,
-      state: "retained",
-    });
+      state: "retained" as const,
+    };
+    const recovered = await manager.recover(workspace, report.attemptId);
+    const retained = await manager.finish(recovered.workspace);
+    await manager.remove(retained.workspace, { discardChanges: true });
     return "released";
   } catch {
     return "retained";

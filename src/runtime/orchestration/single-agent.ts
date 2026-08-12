@@ -273,7 +273,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
 
   async handoff(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
     const run = this.#runs.get(input.attempt.id);
-    if (!run) return;
+    if (!run) throw new RuntimeError("conflict", "Attempt has no active Worker to hand off");
     run.handoffRequested = true;
     await run.settled.promise;
     if (input.log.projection.getAttempt(input.attempt.id)?.status !== "paused") {

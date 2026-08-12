@@ -20,6 +20,7 @@ import {
   DesktopRuntimeHost,
   ImmutableArtifactStore,
   JsonlEventStore,
+  RealSingleAgentOrchestration,
   RuntimeError,
   RuntimeHttpServer,
   RuntimeService,
@@ -655,6 +656,49 @@ test("Runtime delegates Codex handoff and deletes an Attempt only after orchestr
   );
   assert.equal(deleted.snapshot.tasks[0]?.workflowStatus, "ready");
   assert.equal(service.attemptDetail(attempt.id), null);
+});
+
+test("production handoff rejects an Attempt without an active Worker", async (t) => {
+  const root = await runtimeFixture(t);
+  const tracker: Tracker = {
+    kind: "github",
+    getTask: async () => ({ task, versionToken: null }),
+    listTasks: async () => ({ tasks: [], nextCursor: null }),
+  };
+  const orchestration = new RealSingleAgentOrchestration({
+    dataDir: root,
+    tracker,
+    workspaceRoot: resolve(root, "workspaces"),
+  });
+  const service = new RuntimeService({
+    dataDir: root,
+    tracker,
+    defaultOrchestration: orchestration,
+  });
+  await service.start();
+  await service.recordTask(task);
+  const paused: AttemptSnapshot = {
+    ...attempt,
+    status: "paused",
+    providerSession: { threadId: "thread-15", lastTurnId: "turn-15" },
+    updatedAt: "2026-08-04T08:02:00.000Z",
+  };
+  await service.recordAttempt(paused, {
+    workspace: { ...workspace, state: "retained", ownerAttemptId: null },
+  });
+
+  await assert.rejects(
+    service.execute({
+      kind: "handoff_attempt",
+      attemptId: paused.id,
+      idempotencyKey: "handoff-without-worker-15",
+      expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+      expectedAttemptUpdatedAt: paused.updatedAt,
+    }),
+    /active Worker/,
+  );
+  assert.equal(service.snapshot().attempts[0]?.controller, "symphoneer");
+  await service.stop();
 });
 
 test("Runtime hides Codex control and resumes input only after the external Turn is idle", async (t) => {
