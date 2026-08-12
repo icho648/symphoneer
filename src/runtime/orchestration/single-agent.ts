@@ -83,6 +83,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   readonly #runnerFactory: (workflow: ProjectProfile) => AgentRunner;
   readonly #operatorLog: OperatorLog;
   readonly #runs = new Map<string, ActiveRun>();
+  readonly #jobs = new Set<Promise<void>>();
   readonly #runningTasks = new Set<string>();
   readonly #interventions = new Map<
     string,
@@ -93,6 +94,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   #tickTail = Promise.resolve();
   readonly #retryTimers = new Map<string, NodeJS.Timeout>();
   #legacyWorkflowLogged = false;
+  #stopping = false;
 
   constructor(options: {
     dataDir: string;
@@ -148,6 +150,21 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     });
     this.#tickTail = tick.catch(() => undefined);
     return tick;
+  }
+
+  async stop(): Promise<void> {
+    this.#stopping = true;
+    this.#clearRetryTimers();
+    await this.#tickTail;
+    await Promise.all(
+      [...this.#runs.values()].map((run) =>
+        run.stopping || run.attempt.finishedAt !== null
+          ? run.settled.promise
+          : this.#pause(run, true),
+      ),
+    );
+    await Promise.allSettled([...this.#jobs]);
+    this.#clearRetryTimers();
   }
 
   async listModels() {
@@ -235,13 +252,14 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
     }
     this.#runningTasks.add(task.id);
-    void this.#continue(input.attempt, task, input.prompt, input.log, {
-      ...(input.model ? { model: input.model } : {}),
-      ...(input.sandbox ? { sandbox: input.sandbox } : {}),
-      ...(input.effort ? { effort: input.effort } : {}),
-    }).finally(() => {
-      this.#runningTasks.delete(task.id);
-    });
+    this.#trackJob(
+      task.id,
+      this.#continue(input.attempt, task, input.prompt, input.log, {
+        ...(input.model ? { model: input.model } : {}),
+        ...(input.sandbox ? { sandbox: input.sandbox } : {}),
+        ...(input.effort ? { effort: input.effort } : {}),
+      }),
+    );
   }
 
   async sync(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<ExecutionSession | null> {
@@ -287,9 +305,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     });
     const started = Promise.withResolvers<void>();
     this.#runningTasks.add(task.id);
-    void this.#continue(input.attempt, task, prompt, input.log, {}, true, started).finally(() => {
-      this.#runningTasks.delete(task.id);
-    });
+    this.#trackJob(
+      task.id,
+      this.#continue(input.attempt, task, prompt, input.log, {}, true, started),
+    );
     await started.promise;
   }
 
@@ -311,9 +330,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     }
     const locator = locateTask(task);
     this.#runningTasks.add(task.id);
-    void this.#run(task, locator, log, startReason, settings, forceRetry).finally(() => {
-      this.#runningTasks.delete(task.id);
-    });
+    this.#trackJob(task.id, this.#run(task, locator, log, startReason, settings, forceRetry));
   }
 
   async #tick(tasks: readonly TaskSummary[], log: EventLog): Promise<void> {
@@ -322,8 +339,12 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     const scheduler = this.#ensureScheduler(workflow, log);
     scheduler.updatePolicy(corePolicy(workflow));
     const observedAt = this.#timestamp();
+    const reconciliationTasks = new Map(tasks.map((task) => [task.id, task]));
+    for (const run of this.#runs.values()) {
+      if (!run.stopping) reconciliationTasks.set(run.task.id, run.task);
+    }
     const reconciliation = scheduler.reconcile({
-      tasks,
+      tasks: [...reconciliationTasks.values()],
       observedAt,
       idempotencyKey: `single-agent:reconcile:${observedAt}:${log.lastSequence}`,
     });
@@ -507,7 +528,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       this.#runs.set(attemptId, run);
       await this.#recordAttempt(run);
 
+      if (await this.#stopRunIfNeeded(run)) return;
+
       await runCommand("pnpm", ["install", "--frozen-lockfile"], run.workspace.path);
+      if (await this.#stopRunIfNeeded(run)) return;
       await this.#setStatus(run, "building_prompt");
       const prompt = await renderPrompt(workflow, {
         issue: JSON.parse(JSON.stringify(live.task)) as Record<string, unknown>,
@@ -518,8 +542,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         attemptId,
         task: live.task,
         workspace: run.workspace,
+        ...(workflow.config.codex.model ? { model: workflow.config.codex.model } : {}),
         ...settings,
       });
+      if (await this.#stopRunIfNeeded(run)) return;
       await this.#operator({
         operation: "worker.open",
         outcome: "succeeded",
@@ -616,12 +642,15 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       };
       this.#runs.set(attempt.id, run);
       await this.#recordAttempt(run);
+      if (await this.#stopRunIfNeeded(run)) return;
       run.worker = await this.#runnerFactory(workflow).openWorker({
         attemptId: attempt.id,
         task: live.task,
         workspace: run.workspace,
+        ...(workflow.config.codex.model ? { model: workflow.config.codex.model } : {}),
         ...settings,
       });
+      if (await this.#stopRunIfNeeded(run)) return;
       await this.#operator({
         operation: "worker.open",
         outcome: "succeeded",
@@ -1099,6 +1128,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   }
 
   #scheduleTick(log: EventLog, taskId: string, dueAtMs: number): void {
+    if (this.#stopping) return;
     clearTimeout(this.#retryTimers.get(taskId));
     const timer = setTimeout(
       () => {
@@ -1109,6 +1139,28 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     );
     timer.unref();
     this.#retryTimers.set(taskId, timer);
+  }
+
+  #trackJob(taskId: string, job: Promise<void>): void {
+    const tracked = job.finally(() => {
+      this.#runningTasks.delete(taskId);
+    });
+    this.#jobs.add(tracked);
+    void tracked.then(
+      () => this.#jobs.delete(tracked),
+      () => this.#jobs.delete(tracked),
+    );
+  }
+
+  #clearRetryTimers(): void {
+    for (const timer of this.#retryTimers.values()) clearTimeout(timer);
+    this.#retryTimers.clear();
+  }
+
+  async #stopRunIfNeeded(run: ActiveRun): Promise<boolean> {
+    if (!this.#stopping) return false;
+    if (!run.stopping) await this.#pause(run, true);
+    return true;
   }
 
   #operator(record: Omit<OperatorRecord, "occurredAt">): Promise<void> {
@@ -1268,12 +1320,14 @@ async function runCommand(command: string, args: string[], cwd: string): Promise
       maxBuffer: 8 * 1024 * 1024,
     });
   } catch (error) {
-    const failure = error as { code?: unknown; stderr?: unknown };
+    const failure = error as { code?: unknown; stderr?: unknown; stdout?: unknown };
     const stderr = typeof failure.stderr === "string" ? failure.stderr.trim().slice(-800) : "";
+    const stdout = typeof failure.stdout === "string" ? failure.stdout.trim().slice(-800) : "";
+    const detail = stderr || stdout;
     throw new Error(
       `${command} ${args[0] ?? "command"} failed${
         failure.code === undefined ? "" : ` with code ${String(failure.code)}`
-      }${stderr ? `: ${stderr}` : ""}`,
+      }${detail ? `: ${detail}` : ""}`,
     );
   }
 }

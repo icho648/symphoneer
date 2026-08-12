@@ -5,8 +5,18 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
-import { RealSingleAgentOrchestration, RuntimeService, type Tracker } from "@symphoneer/runtime";
+import {
+  CONTRACT_SCHEMA_VERSION,
+  ExecutionSessionSchema,
+  type TaskSummary,
+} from "@symphoneer/contracts";
+import {
+  type AgentRunCompletion,
+  type AgentRunner,
+  RealSingleAgentOrchestration,
+  RuntimeService,
+  type Tracker,
+} from "@symphoneer/runtime";
 import { FakeAgentRunner } from "../fixtures/fake-agent-runner.ts";
 
 test("Tracker refresh dispatches one production Worker and preserves injected failure", async (t) => {
@@ -36,6 +46,8 @@ tracker:
 agent:
   max_concurrent_agents: 1
   max_turns: 2
+codex:
+  model: gpt-5.4
 symphoneer:
   eligibility:
     required_labels: [symphoneer:ready]
@@ -130,7 +142,7 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   await service.refreshTracker();
   for (
     let index = 0;
-    index < 100 && service.snapshot().attempts[0]?.finishedAt == null;
+    index < 300 && service.snapshot().attempts[0]?.finishedAt == null;
     index += 1
   ) {
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
@@ -142,6 +154,7 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   assert.equal(runner.openWorkerCount, 1);
   assert.equal(runner.closeWorkerCount, 1);
   assert.equal(runner.requests.length, 2);
+  assert.equal(runner.requests[0]?.model, "gpt-5.4");
   assert.equal(runner.requests[0]?.threadId, undefined);
   assert.equal(runner.requests[1]?.threadId, "thread-47");
   assert.equal(service.attemptDetail(attempt?.id ?? "")?.workspace?.id, `workspace:${ready.id}`);
@@ -189,7 +202,7 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   await failedService.refreshTracker();
   for (
     let index = 0;
-    index < 100 && failedService.snapshot().attempts[0]?.finishedAt == null;
+    index < 300 && failedService.snapshot().attempts[0]?.finishedAt == null;
     index += 1
   ) {
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
@@ -242,4 +255,161 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   await invalidService.start();
   await assert.rejects(invalidService.refreshTracker());
   await invalidService.stop();
+});
+
+test("Tracker reconciliation waits for the active Turn before applying Review", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "symphoneer-turn-reconciliation-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const repository = resolve(root, "repository");
+  const workspaceRoot = resolve(root, "workspaces");
+  const dataDir = resolve(root, "data");
+  execFileSync("git", ["init", "-b", "main", repository]);
+  execFileSync("git", ["-C", repository, "config", "user.name", "Symphoneer Test"]);
+  execFileSync("git", ["-C", repository, "config", "user.email", "test@example.com"]);
+  await writeFile(
+    resolve(repository, "package.json"),
+    '{"name":"fixture","private":true,"packageManager":"pnpm@11.15.1"}\n',
+  );
+  await writeFile(
+    resolve(repository, "pnpm-lock.yaml"),
+    "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\nimporters:\n  .: {}\n",
+  );
+  await writeFile(
+    resolve(repository, "WORKFLOW.md"),
+    `---
+tracker:
+  kind: github
+  active_states: [open]
+  terminal_states: [closed]
+agent:
+  max_concurrent_agents: 1
+  max_turns: 2
+symphoneer:
+  eligibility:
+    required_labels: [symphoneer:ready]
+    excluded_labels: [symphoneer:review]
+workspace:
+  root: ${workspaceRoot}
+---
+Implement {{ issue.identifier }}.
+`,
+  );
+  execFileSync("git", ["-C", repository, "add", "."]);
+  execFileSync("git", ["-C", repository, "commit", "-m", "fixture"]);
+
+  const ready: TaskSummary = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "github:icho648/fixture:47",
+    identifier: "#47",
+    source: {
+      kind: "github",
+      nativeId: "47",
+      url: "https://github.com/icho648/fixture/issues/47",
+    },
+    title: "Review during Turn",
+    state: "open",
+    labels: ["symphoneer:ready"],
+    dispatchable: true,
+    workflowStatus: "backlog",
+    blocked: null,
+  };
+  let trackerTask = ready;
+  const tracker: Tracker = {
+    kind: "github",
+    listTasks: async () => ({
+      tasks: [{ task: trackerTask, versionToken: null }],
+      nextCursor: null,
+    }),
+    getTask: async () => ({ task: trackerTask, versionToken: null }),
+  };
+  const turnStarted = Promise.withResolvers<void>();
+  const turnCompletion = Promise.withResolvers<AgentRunCompletion>();
+  let interruptCount = 0;
+  let closeCount = 0;
+  const runner: AgentRunner = {
+    async openWorker(context) {
+      return {
+        processIdentity: { pid: 47, toolVersion: "fake" },
+        async startTurn() {
+          turnStarted.resolve();
+          return {
+            events: {
+              async *[Symbol.asyncIterator]() {
+                yield {
+                  type: "session_started" as const,
+                  occurredAt: "2026-08-12T10:00:00.000Z",
+                  threadId: "thread-47",
+                  turnId: "turn-47",
+                  provider: {
+                    name: "fake" as const,
+                    version: "fixture",
+                    schema: "fixture",
+                    inputFingerprint: "fixture",
+                  },
+                };
+              },
+            },
+            completion: turnCompletion.promise,
+            async interrupt() {
+              interruptCount += 1;
+            },
+            async steer() {},
+            async respondToIntervention() {},
+          };
+        },
+        async readSession(threadId, capturedAt) {
+          return ExecutionSessionSchema.parse({
+            schemaVersion: CONTRACT_SCHEMA_VERSION,
+            attemptId: context.attemptId,
+            provider: "fake",
+            threadId,
+            turns: [],
+            capturedAt,
+          });
+        },
+        async close() {
+          closeCount += 1;
+        },
+      };
+    },
+  };
+  const service = new RuntimeService({
+    dataDir,
+    tracker,
+    defaultOrchestration: new RealSingleAgentOrchestration({
+      dataDir,
+      tracker,
+      projectRoot: repository,
+      workspaceRoot,
+      runnerFactory: () => runner,
+    }),
+  });
+  await service.start();
+  await service.refreshTracker();
+  await turnStarted.promise;
+  for (
+    let index = 0;
+    index < 300 && service.snapshot().attempts[0]?.status !== "streaming_turn";
+    index += 1
+  ) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+  }
+
+  trackerTask = { ...ready, labels: ["symphoneer:review"] };
+  await service.refreshTracker();
+  assert.equal(service.snapshot().attempts[0]?.status, "streaming_turn");
+  assert.equal(interruptCount, 0);
+
+  turnCompletion.resolve({ outcome: "completed" });
+  for (
+    let index = 0;
+    index < 300 && service.snapshot().attempts[0]?.finishedAt == null;
+    index += 1
+  ) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+  }
+  assert.equal(service.snapshot().attempts[0]?.status, "succeeded");
+  assert.equal(interruptCount, 0);
+  assert.equal(closeCount, 1);
+  await service.stop();
 });

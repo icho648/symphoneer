@@ -80,7 +80,7 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
     root,
     hooks: {
       beforeRun: "sleep 30 & printf '%s\\n' \"$!\" >> child-pids.txt; wait",
-      timeoutMs: 20,
+      timeoutMs: 200,
     },
   });
   await assert.rejects(

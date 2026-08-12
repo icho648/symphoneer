@@ -12,6 +12,7 @@ import type { InterventionResponse } from "../executor/agent-runner.ts";
 import type { EventLog } from "../service/event-log.ts";
 
 export interface OrchestrationMode {
+  stop?(): Promise<void>;
   tick?(input: { tasks: readonly TaskSummary[]; log: EventLog }): Promise<void>;
   listModels?(): Promise<CodexModel[]>;
   start(input: {

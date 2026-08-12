@@ -72,6 +72,16 @@ export class WorkspaceManager {
     const canonicalPath = await this.#registry.canonicalPath(input.path);
     return this.#exclusive(input, canonicalPath, async () => {
       await this.#registry.assertCanonicalPath(input);
+      if (!this.#registry.get(input.id)) {
+        this.#registry.assertPath(input);
+        if (await this.#registry.getByPath(input.path)) {
+          throw new WorkspaceError(
+            "workspace_identity_mismatch",
+            `Workspace ${input.id} conflicts with the managed path`,
+          );
+        }
+        await this.#registry.register(observedWorkspace(input, await this.#driver.recover(input)));
+      }
       const workspace = await this.#registry.require(input);
       if (workspace.state !== "ready" && workspace.state !== "reserved") {
         throw new WorkspaceError(

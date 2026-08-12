@@ -131,6 +131,7 @@ export class RuntimeService {
 
   async stop(): Promise<void> {
     await this.#trackerSynchronizer?.stop();
+    await this.#defaultOrchestration?.stop?.();
     this.#log.markOffline();
   }
 

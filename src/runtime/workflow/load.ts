@@ -99,6 +99,7 @@ export async function loadProjectProfile(
       },
       codex: {
         command: raw.codex.command,
+        model: raw.codex.model,
         approvalPolicy: raw.codex.approval_policy,
         threadSandbox: raw.codex.thread_sandbox,
         turnSandboxPolicy: raw.codex.turn_sandbox_policy,
