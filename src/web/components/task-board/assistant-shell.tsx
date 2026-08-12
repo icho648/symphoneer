@@ -26,7 +26,6 @@ export function AssistantShell() {
   const [detail, setDetail] = useState<AssistantSession | null>(null);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [error, setError] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AssistantSessionSummary[]>([]);
   const [status, setStatus] = useState<AssistantStatus | null>(null);
@@ -77,8 +76,6 @@ export function AssistantShell() {
         if (nextStatus.state === "ready") await refreshSessions();
       } catch {
         if (!disposed) setError(assistant.requestFailed);
-      } finally {
-        if (!disposed) setLoaded(true);
       }
     })();
     return () => {
@@ -278,7 +275,6 @@ export function AssistantShell() {
           />
         ) : (
           <div className="assistant-unavailable">
-            <p>{loaded ? error || statusText : assistant.loading}</p>
             <textarea disabled placeholder={assistant.inputPlaceholder} rows={2} />
           </div>
         )}
