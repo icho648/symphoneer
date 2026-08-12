@@ -69,6 +69,7 @@ test("ApplicationData resolves paths once and keeps stable project identity acro
     artifactsRoot: join(dataDir, "projects", alpha.id),
     checkpointPath: join(dataDir, "projects", alpha.id, "orchestration", "checkpoints.sqlite"),
     workspaceRoot: join(root, "workspaces", alpha.id),
+    operatorLogPath: join(root, "logs", alpha.id, "operator.jsonl"),
   });
 
   await rename(bravoRoot, movedBravoRoot);

@@ -19,16 +19,26 @@ export async function loadProjectProfile(
     supportedTrackerKinds?: readonly string[];
   } = {},
 ) {
-  const workflowPath = resolve(
-    options.cwd ?? process.cwd(),
-    options.path ?? ".symphoneer/WORKFLOW.md",
-  );
-  let source: string;
-  try {
-    source = await readFile(workflowPath, "utf8");
-  } catch (error) {
+  const cwd = options.cwd ?? process.cwd();
+  const paths = options.path
+    ? [resolve(cwd, options.path)]
+    : [resolve(cwd, "WORKFLOW.md"), resolve(cwd, ".symphoneer/WORKFLOW.md")];
+  let workflowPath = paths[0] as string;
+  let source: string | undefined;
+  let readError: unknown;
+  for (const candidate of paths) {
+    workflowPath = candidate;
+    try {
+      source = await readFile(candidate, "utf8");
+      break;
+    } catch (error) {
+      readError = error;
+      if (options.path || candidate === paths.at(-1) || !isMissingFile(error)) break;
+    }
+  }
+  if (source === undefined) {
     throw new WorkflowError("missing_workflow_file", `Cannot read ${workflowPath}`, {
-      cause: error,
+      cause: readError,
     });
   }
 
@@ -55,6 +65,7 @@ export async function loadProjectProfile(
 
   return {
     path: workflowPath,
+    location: workflowPath === resolve(cwd, "WORKFLOW.md") ? "root" : "legacy",
     promptTemplate: definition.promptTemplate,
     config: {
       tracker: {
@@ -88,6 +99,7 @@ export async function loadProjectProfile(
       },
       codex: {
         command: raw.codex.command,
+        model: raw.codex.model,
         approvalPolicy: raw.codex.approval_policy,
         threadSandbox: raw.codex.thread_sandbox,
         turnSandboxPolicy: raw.codex.turn_sandbox_policy,
@@ -109,6 +121,10 @@ export async function loadProjectProfile(
       },
     },
   };
+}
+
+function isMissingFile(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 /** @deprecated Prefer loadProjectProfile */

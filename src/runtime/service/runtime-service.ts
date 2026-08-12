@@ -131,6 +131,7 @@ export class RuntimeService {
 
   async stop(): Promise<void> {
     await this.#trackerSynchronizer?.stop();
+    await this.#defaultOrchestration?.stop?.();
     this.#log.markOffline();
   }
 
@@ -269,6 +270,12 @@ export class RuntimeService {
     return new TrackerSynchronizer({
       log: this.#log,
       tracker,
+      ...(this.#defaultOrchestration?.tick
+        ? {
+            reconcile: (tasks) =>
+              this.#defaultOrchestration?.tick?.({ tasks, log: this.#log }) ?? Promise.resolve(),
+          }
+        : {}),
     });
   }
 

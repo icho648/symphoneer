@@ -6,9 +6,9 @@
 
 | 计划 | 状态 | 用途 | 事实源 |
 |---|---|---|---|
-| [symphoneer-v1.md](active/symphoneer-v1.md) | Active | V1 跨 Issue 协调索引 | 关联 GitHub Issue/PR/依赖与本地 Git |
+| [issue-47.md](active/issue-47.md) | Active | #47 本地恢复、备份与 Smoke 索引 | Issue #47、Draft PR 与本地 Git |
 
-当前没有 completed plan。计划完成或废弃后才创建 `completed/` 并移动文件。
+已完成的 V1 历史协调计划保存在 [symphoneer-v1.md](completed/symphoneer-v1.md)，不再作为当前进度入口。
 
 ## 何时使用
 

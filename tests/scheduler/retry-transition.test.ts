@@ -47,7 +47,7 @@ test("RetryQueued transitions atomically enforce due time, refresh state, slots,
     {
       kind: "released",
       reason: "terminal",
-      cleanupWorkspaceIds: ["workspace:attempt-50-1"],
+      cleanupWorkspaceIds: ["workspace:50"],
     },
   );
   assert.equal(early.snapshot().workspaces[0]?.state, "retained");

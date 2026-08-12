@@ -57,8 +57,8 @@ export class WorkspaceHookRunner {
         if (child.pid == null) return;
         try {
           process.kill(-child.pid, "SIGKILL");
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "ESRCH") child.kill("SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
         }
       }, this.#timeoutMs);
       const finish = (error?: WorkspaceError) => {

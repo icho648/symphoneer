@@ -15,6 +15,6 @@
 
 ## 工程落点
 
-可执行工程规则只维护在根 [`../../AGENTS.md`](../../AGENTS.md)，当前物理证据见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)，具体实施状态与检查结果见 [`../plans/active/symphoneer-v1.md`](../plans/active/symphoneer-v1.md)。这些入口落实本文件原则，但不反向改写原则。
+可执行工程规则只维护在根 [`../../AGENTS.md`](../../AGENTS.md)，当前物理证据见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)，具体实施状态与检查结果以关联 Issue / PR 为准；本地恢复入口见 [`../plans/active/issue-47.md`](../plans/active/issue-47.md)。这些入口落实本文件原则，但不反向改写原则。
 
-对象权威见 [`system-boundaries.md`](system-boundaries.md)，用户流程见 [`../product-specs/manual-delivery-flow.md`](../product-specs/manual-delivery-flow.md)。真实 Adapter、Git worktree 隔离、Runtime、CI 和 Smoke 在匹配证据出现前保持 `Not verified`。
+对象权威见 [`system-boundaries.md`](system-boundaries.md)，用户流程见 [`../product-specs/delivery-flow.md`](../product-specs/delivery-flow.md)。真实 Adapter、Git worktree 隔离、Runtime、CI 和 Smoke 在匹配证据出现前保持 `Not verified`。

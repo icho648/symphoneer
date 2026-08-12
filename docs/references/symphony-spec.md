@@ -2,7 +2,7 @@
 
 > External source status: Fixed source rechecked 2026-08-03
 > Project adoption: TypeScript Symphony Core Conformance 以固定 SPEC 为基线
-> Implementation evidence: Partial — deterministic Core and local directory Workspace lifecycle; real tracker, Git worktree isolation and app-server remain Not verified
+> Implementation evidence: Partial — production tick wiring, deterministic Scheduler replay/retry/reconciliation and Git Workspace lifecycle; real Tracker/App Server Smoke remains `Not verified`
 
 ## 固定来源
 
@@ -37,7 +37,7 @@
 
 - 固定快照以 Linear 为当前 Tracker 合同；GitHub Issues 是 Symphoneer 的 V1 产品决定，不是从该 SPEC 自动继承的已实现能力。
 - Symphoneer Read Model、Verification、ReviewDecision 和 Human Handoff 超出最小 Scheduler/Runner 的职责，其事实源边界由 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 固化。
-- Symphoneer 将 repository-owned contract 放在 `.symphoneer/WORKFLOW.md`，并已在 Issue #13 验证解析与模板行为；该项目内路径选择不冒充 Runtime 已存在的证据。
+- Symphoneer 将 repository-owned contract 放在仓库根 `WORKFLOW.md`；根文件缺失时兼容旧 `.symphoneer/WORKFLOW.md` 并记录弃用。配置在每次生产 tick reload，失败时保留 last-known-good；活跃 Worker 使用启动快照。
 - 为适配安装软件的存储责任，Symphoneer Loader 接受 Host 显式注入的绝对 Workspace 根目录并令其优先于 repository 配置；未注入时仍遵守固定 SPEC 的 repository 值、环境变量和系统临时目录缺省。未来 Runtime 必须从操作系统应用数据位置提供该 Host 设置，当前真实安装路径仍为 `Not verified`。
 
-项目采用与当前实现证据分别见 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 和 [`../plans/active/symphoneer-v1.md`](../plans/active/symphoneer-v1.md)。真实 Tracker、进程重启恢复、Git worktree 隔离与脏目录保护、App Server 协议和安全姿态仍为 `Not verified`。
+项目采用与当前实现边界见 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md)，Issue #47 本地恢复入口见 [`../plans/active/issue-47.md`](../plans/active/issue-47.md)。真实 Tracker、App Server、Desktop Host 和安全姿态仍为 `Not verified`。

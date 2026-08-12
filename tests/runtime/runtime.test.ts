@@ -20,6 +20,7 @@ import {
   DesktopRuntimeHost,
   ImmutableArtifactStore,
   JsonlEventStore,
+  RealSingleAgentOrchestration,
   RuntimeError,
   RuntimeHttpServer,
   RuntimeService,
@@ -577,6 +578,8 @@ test("Runtime projects the complete WorkflowStatus lifecycle and preserves block
     failure: null,
   };
   await service.recordAttempt(succeededAttempt);
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+  await service.recordTask({ ...task, labels: ["symphoneer:review"] });
   assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
 
   await service.execute({
@@ -655,6 +658,49 @@ test("Runtime delegates Codex handoff and deletes an Attempt only after orchestr
   assert.equal(service.attemptDetail(attempt.id), null);
 });
 
+test("production handoff rejects an Attempt without an active Worker", async (t) => {
+  const root = await runtimeFixture(t);
+  const tracker: Tracker = {
+    kind: "github",
+    getTask: async () => ({ task, versionToken: null }),
+    listTasks: async () => ({ tasks: [], nextCursor: null }),
+  };
+  const orchestration = new RealSingleAgentOrchestration({
+    dataDir: root,
+    tracker,
+    workspaceRoot: resolve(root, "workspaces"),
+  });
+  const service = new RuntimeService({
+    dataDir: root,
+    tracker,
+    defaultOrchestration: orchestration,
+  });
+  await service.start();
+  await service.recordTask(task);
+  const paused: AttemptSnapshot = {
+    ...attempt,
+    status: "paused",
+    providerSession: { threadId: "thread-15", lastTurnId: "turn-15" },
+    updatedAt: "2026-08-04T08:02:00.000Z",
+  };
+  await service.recordAttempt(paused, {
+    workspace: { ...workspace, state: "retained", ownerAttemptId: null },
+  });
+
+  await assert.rejects(
+    service.execute({
+      kind: "handoff_attempt",
+      attemptId: paused.id,
+      idempotencyKey: "handoff-without-worker-15",
+      expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+      expectedAttemptUpdatedAt: paused.updatedAt,
+    }),
+    /active Worker/,
+  );
+  assert.equal(service.snapshot().attempts[0]?.controller, "symphoneer");
+  await service.stop();
+});
+
 test("Runtime hides Codex control and resumes input only after the external Turn is idle", async (t) => {
   const root = await runtimeFixture(t);
   const operations: string[] = [];
@@ -680,6 +726,9 @@ test("Runtime hides Codex control and resumes input only after the external Turn
       },
       handoff: async () => {
         operations.push("handoff");
+      },
+      returnControl: async () => {
+        operations.push("return");
       },
       sync: async () => {
         operations.push(`sync:${turnStatus}`);
@@ -717,12 +766,30 @@ test("Runtime hides Codex control and resumes input only after the external Turn
       expectedEventSequence: handedOff.snapshot.runtime.lastEventSequence,
       expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
     }),
+    /Return to Automation/,
+  );
+
+  await assert.rejects(
+    service.execute({
+      kind: "return_attempt_control",
+      attemptId: paused.id,
+      idempotencyKey: "return-busy-attempt-15",
+      expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+      expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+    }),
     /Codex is still processing this Attempt/,
   );
 
   turnStatus = "completed";
   capturedAt = "2026-08-04T08:03:01.000Z";
   const resumed = await service.execute({
+    kind: "return_attempt_control",
+    attemptId: paused.id,
+    idempotencyKey: "return-idle-attempt-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+  });
+  await service.execute({
     kind: "send_attempt_input",
     attemptId: paused.id,
     prompt: "Focus on the failing test.",
@@ -731,13 +798,14 @@ test("Runtime hides Codex control and resumes input only after the external Turn
     effort: "high",
     idempotencyKey: "input-idle-attempt-15",
     expectedEventSequence: service.snapshot().runtime.lastEventSequence,
-    expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+    expectedAttemptUpdatedAt: resumed.snapshot.attempts[0]?.updatedAt,
   });
 
   assert.deepEqual(operations, [
     "handoff",
     "sync:inProgress",
     "sync:completed",
+    "return",
     "input:Focus on the failing test.",
   ]);
   assert.equal(resumed.snapshot.attempts[0]?.controller, "symphoneer");

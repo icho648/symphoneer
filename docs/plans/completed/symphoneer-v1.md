@@ -1,11 +1,11 @@
 # Symphoneer V1 Coordination Plan
 
-> Plan status: Active  
+> Plan status: Completed
 > Decision status: Accepted  
 > Implementation evidence: Per-Issue and live; this coordination plan does not cache current Issue, PR, test, or Smoke status
 > Owner: Repository owner with Codex as implementation agent  
 > Created: 2026-08-01  
-> Last updated: 2026-08-03
+> Last updated: 2026-08-12
 > Canonical task source: GitHub Issues [#12](https://github.com/icho648/symphoneer/issues/12)–[#18](https://github.com/icho648/symphoneer/issues/18)
 
 本文件是 V1 的跨 Issue 协调索引，不是 GitHub Issue 的第二份实现规格。每个 Issue 自己承载目标、范围、非目标、依赖、验收和证据要求；本文件只保留跨 Issue 顺序、Review Gate、仓库级决定、本地证据和恢复入口。Issue 内容变化后，不在这里复制整段 Issue。
@@ -125,4 +125,4 @@ Issue-driven 增量的具体命令、工作目录、预期结果和失败标准�
 │              └─ #18 验收 / 关 Issue   (Gate D；依赖 #17 核心闭环证据)
 ```
 
-该图是预期依赖形状，不是当前状态快照，也不创建新的产品状态或调度语义。当前阻塞关系必须从 GitHub 原生依赖接口读取。对象权威、存储、Agent Runner 和人工控制边界分别以 [system-boundaries.md](../../design-docs/system-boundaries.md)、[github-issues.md](../../references/github-issues.md)、[codex-app-server.md](../../references/codex-app-server.md) 和 [manual-delivery-flow.md](../../product-specs/manual-delivery-flow.md) 为准。
+该图是历史协调形状，不创建新的产品状态或调度语义。对象权威、存储、Agent Runner 和人工控制边界分别以 [system-boundaries.md](../../design-docs/system-boundaries.md)、[github-issues.md](../../references/github-issues.md)、[codex-app-server.md](../../references/codex-app-server.md) 和 [delivery-flow.md](../../product-specs/delivery-flow.md) 为准。

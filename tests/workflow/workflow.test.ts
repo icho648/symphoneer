@@ -6,11 +6,12 @@ import test from "node:test";
 
 import { loadWorkflow, renderPrompt, WorkflowError } from "../../src/runtime/workflow/index.ts";
 
-test("the repository .symphoneer/WORKFLOW.md loads into a validated effective config", async () => {
+test("the repository root WORKFLOW.md loads into a validated effective config", async () => {
   const workspaceRoot = resolve(tmpdir(), "symphoneer-host-workspaces");
   const workflow = await loadWorkflow({ workspaceRoot });
 
-  assert.equal(workflow.path, resolve(".symphoneer/WORKFLOW.md"));
+  assert.equal(workflow.path, resolve("WORKFLOW.md"));
+  assert.equal(workflow.location, "root");
   assert.equal(workflow.config.tracker.kind, "github");
   assert.deepEqual(workflow.config.symphoneer.eligibility.requiredLabels, ["symphoneer:ready"]);
   assert.deepEqual(workflow.config.symphoneer.eligibility.excludedLabels, ["symphoneer:review"]);
@@ -120,6 +121,25 @@ hooks:
       error instanceof WorkflowError &&
       error.code === "workflow_validation_error" &&
       error.message.includes("absolute path"),
+  );
+});
+
+test("workflow loading falls back only when root WORKFLOW.md is absent", async (t) => {
+  const directory = await mkdtemp(resolve(tmpdir(), "symphoneer-workflow-fallback-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(resolve(directory, ".symphoneer"));
+  const valid =
+    "---\ntracker:\n  kind: github\n  active_states: [open]\n  terminal_states: [closed]\n---\nprompt\n";
+  await writeFile(resolve(directory, ".symphoneer", "WORKFLOW.md"), valid);
+
+  const legacy = await loadWorkflow({ cwd: directory });
+  assert.equal(legacy.path, resolve(directory, ".symphoneer", "WORKFLOW.md"));
+  assert.equal(legacy.location, "legacy");
+
+  await writeFile(resolve(directory, "WORKFLOW.md"), "---\n- invalid\n---\nprompt\n");
+  await assert.rejects(
+    loadWorkflow({ cwd: directory }),
+    (error) => error instanceof WorkflowError && error.code === "workflow_front_matter_not_a_map",
   );
 });
 

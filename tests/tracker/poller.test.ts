@@ -73,6 +73,32 @@ test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
   await service.stop();
 });
 
+test("Runtime runs one production orchestration tick after a full Tracker refresh", async (t) => {
+  const root = await dataDir(t);
+  const ticks: TaskSummary[][] = [];
+  const tracker: Tracker = {
+    kind: "github",
+    getTask: async () => ({ task, versionToken: null }),
+    listTasks: async () => ({ tasks: [{ task, versionToken: null }], nextCursor: null }),
+  };
+  const service = new RuntimeService({
+    dataDir: root,
+    tracker,
+    defaultOrchestration: {
+      start: async () => undefined,
+      tick: async ({ tasks }) => {
+        ticks.push([...tasks]);
+      },
+    },
+  });
+  await service.start();
+
+  await service.refreshTracker();
+
+  assert.deepEqual(ticks, [[task]]);
+  await service.stop();
+});
+
 test("TrackerSynchronizer coalesces overlapping refreshes", async (t) => {
   const root = await dataDir(t);
   const log = new EventLog({

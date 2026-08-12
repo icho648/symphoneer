@@ -9,33 +9,41 @@ export async function startCodexTurn(
   options: {
     approvalPolicy: "never" | "on-request" | "untrusted";
     sandbox: "danger-full-access" | "read-only" | "workspace-write";
+    activeThreadId?: string;
+    initialized?: boolean;
   },
 ): Promise<{ threadId: string; turnId: string }> {
-  await initializeCodexTransport(transport);
-  const threadResponse = await transport.request(
-    request.continuation ? "thread/resume" : "thread/start",
-    request.continuation
-      ? {
-          threadId: request.threadId,
-          cwd: request.workspace.path,
-          runtimeWorkspaceRoots: [request.workspace.path],
-          approvalPolicy: options.approvalPolicy,
-          ...(request.model ? { model: request.model } : {}),
-          ...(request.sandbox ? { sandbox: request.sandbox } : {}),
-          excludeTurns: true,
-        }
-      : {
-          cwd: request.workspace.path,
-          runtimeWorkspaceRoots: [request.workspace.path],
-          approvalPolicy: options.approvalPolicy,
-          ...(request.model ? { model: request.model } : {}),
-          sandbox: request.sandbox ?? options.sandbox,
-          // Codex Desktop supplies this default in its client wrapper. Raw app-server callers must
-          // send it or the desktop can read the Thread but rejects its route as an unowned session.
-          threadSource: "user",
-        },
-  );
-  const threadId = stringField(asRecord(threadResponse)?.thread, "id") ?? "";
+  if (!options.initialized) await initializeCodexTransport(transport);
+  let threadId = options.activeThreadId ?? "";
+  if (threadId && request.threadId && request.threadId !== threadId) {
+    throw new Error("Attempt Worker cannot switch Codex threads");
+  }
+  if (!threadId) {
+    const threadResponse = await transport.request(
+      request.continuation ? "thread/resume" : "thread/start",
+      request.continuation
+        ? {
+            threadId: request.threadId,
+            cwd: request.workspace.path,
+            runtimeWorkspaceRoots: [request.workspace.path],
+            approvalPolicy: options.approvalPolicy,
+            ...(request.model ? { model: request.model } : {}),
+            ...(request.sandbox ? { sandbox: request.sandbox } : {}),
+            excludeTurns: true,
+          }
+        : {
+            cwd: request.workspace.path,
+            runtimeWorkspaceRoots: [request.workspace.path],
+            approvalPolicy: options.approvalPolicy,
+            ...(request.model ? { model: request.model } : {}),
+            sandbox: request.sandbox ?? options.sandbox,
+            // Codex Desktop supplies this default in its client wrapper. Raw app-server callers must
+            // send it or the desktop can read the Thread but rejects its route as an unowned session.
+            threadSource: "user",
+          },
+    );
+    threadId = stringField(asRecord(threadResponse)?.thread, "id") ?? "";
+  }
   if (!threadId || (request.threadId && request.threadId !== threadId)) {
     throw new Error("Codex returned an invalid thread identity");
   }

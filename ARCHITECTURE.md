@@ -1,7 +1,7 @@
 # Architecture
 
 > Decision status: Accepted for the current repository shape  
-> Implementation evidence: Observed current repository; deterministic checks and a fake-Tracker browser flow cover the implemented UI path, while real fixture GitHub/Codex execution and MCP Host / Apps Host integration remain `Not verified`
+> Implementation evidence: Observed current repository; deterministic checks cover the production Tracker tick, Scheduler, per-Issue Workspace, Attempt Worker and UI path, while real fixture GitHub/Codex execution and MCP Host / Apps Host integration remain `Not verified`
 
 这是当前目录的物理 Codemap，不保存目标设计、工程规则或易变化的测试数量。
 
@@ -14,8 +14,8 @@ ARCHITECTURE.md              当前物理结构和依赖
 .nvmrc                       本地与 CI 共用的 Node 版本下界
 .github/
   workflows/check.yml        Pull Request / main 上的 `pnpm check` CI
+WORKFLOW.md                  进入 Git 的 ProjectProfile（repository-owned 配置与 Prompt）
 .symphoneer/
-  WORKFLOW.md                进入 Git 的 ProjectProfile（repository-owned 配置与 Prompt）
   orchestrations/            OrchestrationDefinition JSON IR（当前 PIR）
 package.json                 根依赖安装、共享工具和运行编排
 src/
@@ -86,6 +86,7 @@ src/
       helpers.ts              Attempt / Workspace / command 纯辅助
       recording.ts            Domain Event 记录 API
       commands.ts             受控命令形状校验与并发前置条件
+      operator-log.ts         project-scoped、脱敏的 operator JSONL
       runtime-service.ts      RuntimeService 编排入口
     http.ts                   loopback HTTP / SSE API 与静态 UI 入口
     protocol.ts               Runtime API 形状（`@symphoneer/runtime/protocol`）
@@ -143,10 +144,11 @@ docs/
   product-specs/             用户可观察行为与验收
   references/                外部契约和采用边界
   research/                  日期快照的按需入口
-  plans/active/              当前 V1 执行计划
+  plans/active/              当前 Issue 本地恢复计划
+  plans/completed/           已完成的历史协调计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 和 runtime-tools 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client`、`src/runtime-tools` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为对应的 `@symphoneer/*` package，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；本地 Orchestration checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。`.symphoneer/WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；本地 fake Tracker browser Smoke 覆盖任务创建、Ready、手动启动和状态刷新；真实 GitHub fixture/Codex Turn、MCP Host、MCP Apps Host 和真实安装目录发现仍为 `Not verified`。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 和 runtime-tools 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client`、`src/runtime-tools` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为对应的 `@symphoneer/*` package，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；本地 Orchestration checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。根 `WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）；根文件缺失时 loader 兼容旧 `.symphoneer/WORKFLOW.md` 并记录弃用操作。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；确定性 Fake Tracker 测试覆盖生产 tick 自动 dispatch 和同 Worker 多 Turn；真实 GitHub fixture/Codex Turn、MCP Host、MCP Apps Host 和真实安装目录发现仍为 `Not verified`。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
 
 ## 当前代码依赖
 
@@ -168,12 +170,12 @@ tests ────────> src/runtime + src/cli + src/web + src/mcp 的可
 - `src/cli` 是人用 CLI / TUI 访问面（当前仅 Runtime 查询命令），不是 Runtime / MCP 的进程入口。
 - `src/mcp` 是 Host 拉起的独立 STDIO 适配进程；只暴露查询与三种受控 Runtime 命令，不提供 Commit / Merge / dispatch，也不远程公开 loopback Runtime。
 - `src/web` 是 Vite React SPA；浏览器只通过 RuntimeClient 访问 Runtime，Task Board 只展示 Runtime 投影，Workspace 只在 Attempt detail 中展开。
-- `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一内存写入权威；幂等重放窗口有界。
+- `CoreScheduler` 是 Attempt 序号、claim、活跃 Attempt、Workspace owner、活跃 Turn、retry 与 reconciliation 的单一写入权威；Runtime 从持久化 Attempt / Workspace 投影重放状态，幂等窗口仍有界。
 - `WorkspaceManager` 通过小型 driver seam 管理身份、所有权和 lifecycle hook；默认目录 driver 保留 #13 的准备行为，但只能非递归删除空目录且不支持重启恢复；Git driver 使用无 `--force` 的原生 worktree 操作。
-- `.symphoneer/WORKFLOW.md` 按 ProjectProfile 解析；`.symphoneer/orchestrations/*.json` 是 OrchestrationDefinition JSON IR；TeamRun 绑定 definition id / version / hash。Runtime 数据目录和 Web endpoint 由 Host / 环境注入，因此不证明操作系统应用目录发现、动态 reload 或真实执行。
+- 根 `WORKFLOW.md` 按 ProjectProfile 解析；旧 `.symphoneer/WORKFLOW.md` 只作缺失回退；`.symphoneer/orchestrations/*.json` 是 OrchestrationDefinition JSON IR。每次 tick 尝试 reload，活跃 Worker 保留启动快照；Host poll cadence 的动态重注册尚未实现。
 - `CodexAppServerAdapter` 根据本机 `codex-cli 0.146.0` 生成的 v2 Schema 实现协议子集；确定性 transcript test 与 Fake 均不升级为真实兼容证据。
 - Scheduler 当前按 `dispatch / attempt / retry` 行为聚类；Runtime 公开导出由对应 Module 的 `index.ts` 提供。
 
 ## 设计与计划入口
 
-产品、架构、规格、外部契约和 Research 路由见 [`docs/AGENTS.md`](docs/AGENTS.md)；当前实施顺序、证据和恢复状态见 [`docs/plans/active/symphoneer-v1.md`](docs/plans/active/symphoneer-v1.md)。目标设计不能从本 Codemap 的目录树反推。
+产品、架构、规格、外部契约和 Research 路由见 [`docs/AGENTS.md`](docs/AGENTS.md)；当前范围与验收读关联 Issue / PR，本地恢复入口见 [`docs/plans/active/issue-47.md`](docs/plans/active/issue-47.md)。目标设计不能从本 Codemap 的目录树反推。

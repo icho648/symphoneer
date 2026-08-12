@@ -49,6 +49,7 @@ export const RawWorkflowConfigSchema = z
     codex: z
       .object({
         command: z.string().trim().min(1).default("codex app-server"),
+        model: z.string().trim().min(1).optional(),
         approval_policy: z.unknown().optional(),
         thread_sandbox: z.unknown().optional(),
         turn_sandbox_policy: z.unknown().optional(),

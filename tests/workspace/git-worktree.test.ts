@@ -49,7 +49,9 @@ test("Git worktree lifecycle creates, recovers, retains, and safely releases", a
     }).trim(),
     "codex/issue-14",
   );
-  const finished = await manager.finish(prepared.workspace);
+  const finished = await new WorkspaceManager({ root: fixture.workspaceRoot, driver }).finish(
+    prepared.workspace,
+  );
   assert.equal(finished.workspace.state, "retained");
   const beforeRunMarker = resolve(fixture.base, "before-run-must-not-run");
   const cleanupAfterRestart = new WorkspaceManager({

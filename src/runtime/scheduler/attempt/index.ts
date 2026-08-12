@@ -19,7 +19,12 @@ export { attachTurn } from "./turn.ts";
 
 export function pauseAttempt(
   state: SchedulerState,
-  request: { attemptId: string; pausedAt: string; workspace: WorkspaceReference },
+  request: {
+    attemptId: string;
+    pausedAt: string;
+    workspace: WorkspaceReference;
+    controller?: AttemptSnapshot["controller"];
+  },
 ): { attempt: AttemptSnapshot; workspace: WorkspaceReference } {
   const attempt = state.attempts.get(request.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${request.attemptId} does not exist`);
@@ -33,6 +38,7 @@ export function pauseAttempt(
   }
   const paused = AttemptSnapshotSchema.parse({
     ...attempt,
+    controller: request.controller ?? attempt.controller,
     status: "paused",
     activeTurn: null,
     updatedAt: pausedAt,
@@ -51,6 +57,36 @@ export function pauseAttempt(
   return { attempt: paused, workspace };
 }
 
+export function deleteAttempt(state: SchedulerState, attemptId: string): boolean {
+  const attempt = state.attempts.get(attemptId);
+  if (!attempt) return false;
+  if (state.running.get(attempt.taskId)?.attemptId === attempt.id) {
+    throw new CoreError(
+      "invalid_transition",
+      `Attempt ${attempt.id} must be paused before deletion`,
+    );
+  }
+  if (state.claims.get(attempt.taskId) === attempt.id) {
+    state.claims.delete(attempt.taskId);
+    state.retries.delete(attempt.taskId);
+  }
+  for (const [path, ownerAttemptId] of state.workspaceOwners) {
+    if (ownerAttemptId === attempt.id) state.workspaceOwners.delete(path);
+  }
+  for (const [turnId, turn] of state.activeTurns) {
+    if (turn.attemptId === attempt.id) state.activeTurns.delete(turnId);
+  }
+  for (const [threadId, ownerAttemptId] of state.activeThreads) {
+    if (ownerAttemptId === attempt.id) state.activeThreads.delete(threadId);
+  }
+  for (const [threadId, ownerAttemptId] of state.pausedThreads) {
+    if (ownerAttemptId === attempt.id) state.pausedThreads.delete(threadId);
+  }
+  state.pausedFailureRetries.delete(attempt.id);
+  state.attempts.delete(attempt.id);
+  return true;
+}
+
 export function resumePausedAttempt(
   state: SchedulerState,
   policy: CorePolicy,
@@ -59,6 +95,7 @@ export function resumePausedAttempt(
     task: TaskSummary;
     workspace: WorkspaceReference;
     resumedAt: string;
+    takeControl?: boolean;
   },
 ): AttemptSnapshot {
   const attempt = state.attempts.get(request.attemptId);
@@ -77,6 +114,12 @@ export function resumePausedAttempt(
     !sameStableWorkspaceIdentity(knownWorkspace, request.workspace)
   ) {
     throw new CoreError("invalid_transition", `Attempt ${attempt.id} cannot resume`);
+  }
+  if (attempt.controller === "codex" && request.takeControl !== true) {
+    throw new CoreError(
+      "invalid_transition",
+      `Attempt ${attempt.id} requires explicit control return`,
+    );
   }
   const eligibility = evaluateEligibility(request.task, policy);
   if (!eligibility.eligible) {
@@ -101,6 +144,7 @@ export function resumePausedAttempt(
   }
   const resumed = AttemptSnapshotSchema.parse({
     ...attempt,
+    controller: "symphoneer",
     status: "launching_agent",
     updatedAt: resumedAt,
   });

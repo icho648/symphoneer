@@ -4,7 +4,7 @@ import {
   type TeamProcessEvent,
   TeamProcessEventSchema,
 } from "@symphoneer/contracts";
-import type { AgentRunEvent, AgentRunner } from "../executor/agent-runner.ts";
+import type { AgentRunCompletion, AgentRunEvent, AgentRunner } from "../executor/agent-runner.ts";
 import type {
   FakeAgentSessionRequest,
   FakeAgentSessionResult,
@@ -20,17 +20,23 @@ export class AgentRunnerTeamAdapter implements TeamAgentRunner {
   }
 
   async run(request: FakeAgentSessionRequest): Promise<FakeAgentSessionResult> {
-    const handle = await this.#runner.startOrContinue({
+    const worker = await this.#runner.openWorker({
       attemptId: request.attemptId,
       task: request.task,
       workspace: request.workspace,
-      prompt: request.prompt,
-      continuation: request.continuation,
-      ...(request.threadId ? { threadId: request.threadId } : {}),
     });
     const sourceEvents: AgentRunEvent[] = [];
-    for await (const event of handle.events) sourceEvents.push(event);
-    const completion = await handle.completion;
+    let completion: AgentRunCompletion;
+    try {
+      const handle = await worker.startTurn({
+        prompt: request.prompt,
+        ...(request.threadId ? { threadId: request.threadId } : {}),
+      });
+      for await (const event of handle.events) sourceEvents.push(event);
+      completion = await handle.completion;
+    } finally {
+      await worker.close();
+    }
     const session = sourceEvents.find(
       (event): event is Extract<AgentRunEvent, { type: "session_started" }> =>
         event.type === "session_started",

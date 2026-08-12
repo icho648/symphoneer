@@ -1,14 +1,14 @@
 # Symphoneer
 
-> 一个计划中的、以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台。
+> 一个以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台。
 
 ## 项目状态
 
-Symphoneer 仍处于早期开发，尚未提供可运行发行版。当前工作范围与验收以 [GitHub Issues](https://github.com/icho648/symphoneer/issues) 为准，跨 Issue 的实施顺序、进度和恢复信息见 [active plan](docs/plans/active/symphoneer-v1.md)；README 不复制易漂移的当前阶段。
+Symphoneer 仍处于早期开发，仓库已提供可运行的 Runtime、Web、CLI 与 MCP 开发入口，但尚无发行版。当前工作范围与验收以 [GitHub Issues](https://github.com/icho648/symphoneer/issues) 为准；Issue #47 的本地恢复信息见 [active plan](docs/plans/active/issue-47.md)。确定性测试覆盖自动调度主线；真实 GitHub/Codex/Desktop Host Smoke 在获得匹配证据前仍为 `Not verified`。
 
 ## 仓库入口
 
-- Repository contract：[`.symphoneer/WORKFLOW.md`](.symphoneer/WORKFLOW.md)
+- Repository contract：[`WORKFLOW.md`](WORKFLOW.md)（缺失时只读兼容 `.symphoneer/WORKFLOW.md`）
 - 版本化边界 Schema：[`src/contracts/index.ts`](src/contracts/index.ts)
 - Runtime Core / Workflow / Scheduler / Workspace：[`src/runtime/index.ts`](src/runtime/index.ts)
 - Executor：[`src/runtime/executor/index.ts`](src/runtime/executor/index.ts)
@@ -42,7 +42,7 @@ cwd = "/absolute/path/to/symphoneer"
 - 文档总入口和事实源：[`docs/AGENTS.md`](docs/AGENTS.md)
 - 调研快照入口：[`docs/research/AGENTS.md`](docs/research/AGENTS.md)
 - Plan 规则与状态：[`docs/plans/AGENTS.md`](docs/plans/AGENTS.md)
-- 当前开发计划：[`docs/plans/active/symphoneer-v1.md`](docs/plans/active/symphoneer-v1.md)
+- 当前本地恢复计划：[`docs/plans/active/issue-47.md`](docs/plans/active/issue-47.md)
 
 ## 已确认边界
 
@@ -55,6 +55,8 @@ cwd = "/absolute/path/to/symphoneer"
 - Codex App Server 是唯一 V1 生产 Agent Adapter；Claude Agent SDK、OpenCode Server 和 Electron 仅保留后续评估入口。
 - Web Dashboard 是主操作面，MCP 提供查询和受控操作；Electron 后置。
 - Phoenix 只在 Symphony 交付闭环完成后作为非阻塞诊断扩展。
-- 先形成一条可观察、可判定的人工基线，再决定自动化范围。
+- Tracker 全量同步后的生产 tick 自动 reconcile、retry 和 dispatch；同一 Attempt 的顺序 Turn 复用一个 Worker / Thread。
+- Workspace 按 Issue 稳定复用，Attempt 只持有可变租约；Tracker 终态对账才请求安全清理。
+- `symphoneer:review` 是进入 Review 的 Tracker 事实；Turn 或 Attempt 成功不自动表示验收完成。
 
 所有真实运行、兼容性、质量和效率仍为 `Not verified`。

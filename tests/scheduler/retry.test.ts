@@ -4,6 +4,45 @@ import test from "node:test";
 import { CoreError, CoreScheduler, retryDelayMs } from "../../src/runtime/scheduler/index.ts";
 import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
 
+test("scheduler restores persisted terminal history into the deterministic retry queue", () => {
+  const scheduler = new CoreScheduler(policy);
+  const owned = workspace("24", "attempt-24-1");
+  const retainedWorkspace = retained(owned);
+  scheduler.restore({
+    tasks: [task("24")],
+    attempts: [
+      {
+        schemaVersion: 2,
+        id: "attempt-24-1",
+        taskId: "24",
+        sequence: 1,
+        startReason: "dispatch",
+        status: "failed",
+        controller: "symphoneer",
+        workspaceId: owned.id,
+        activeTurn: null,
+        providerSession: null,
+        startedAt: "2026-08-02T12:00:00.000Z",
+        updatedAt: "2026-08-02T12:00:02.000Z",
+        finishedAt: "2026-08-02T12:00:02.000Z",
+        failure: "runner failed",
+      },
+    ],
+    workspaces: [retainedWorkspace],
+  });
+
+  assert.deepEqual(scheduler.dueRetries(Date.parse("2026-08-02T12:00:12.000Z")), [
+    {
+      taskId: "24",
+      identifier: "#24",
+      attempt: 1,
+      kind: "failure",
+      dueAtMs: Date.parse("2026-08-02T12:00:12.000Z"),
+      error: "runner failed",
+    },
+  ]);
+});
+
 test("the scheduler owns Attempt sequence, retry provenance, and consecutive backoff", () => {
   const scheduler = new CoreScheduler(policy);
   for (const startReason of ["retry", "continuation"] as const) {
@@ -168,7 +207,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
     "reserved",
   );
   const beforeInvalidSuccess = scheduler.snapshot();
-  assert.equal(
+  assert.throws(() =>
     scheduler.finishAttempt({
       attemptId: "attempt-30-1",
       status: "failed",
@@ -176,8 +215,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
       workspace: retained(workspace("30", "attempt-30-1")),
       error: "runner failed",
       idempotencyKey: "finish-30-1-late-while-isolated",
-    }).attempt.id,
-    "attempt-30-1",
+    }),
   );
   assert.throws(() =>
     scheduler.finishAttempt({
@@ -199,7 +237,7 @@ test("worker outcomes schedule one deterministic retry and release active owners
   });
   assert.equal(continued.retry?.kind, "continuation");
   assert.equal(continued.retry?.dueAtMs, Date.parse("2026-08-02T12:00:21.000Z"));
-  assert.equal(
+  assert.throws(() =>
     scheduler.finishAttempt({
       attemptId: "attempt-30-1",
       status: "failed",
@@ -207,7 +245,6 @@ test("worker outcomes schedule one deterministic retry and release active owners
       workspace: retained(workspace("30", "attempt-30-1")),
       error: "runner failed",
       idempotencyKey: "finish-30-1-late",
-    }).attempt.id,
-    "attempt-30-1",
+    }),
   );
 });
