@@ -162,7 +162,6 @@ export async function main(): Promise<void> {
     SYMPHONEER_RUNTIME_PORT: runtimePort,
     SYMPHONEER_RUNTIME_URL: runtimeUrl,
     SYMPHONEER_RUNTIME_TOKEN: sessionToken,
-    VITE_RUNTIME_TOKEN: sessionToken,
     SYMPHONEER_WEB_HOST: webHost,
     SYMPHONEER_WEB_PORT: webPort,
   };

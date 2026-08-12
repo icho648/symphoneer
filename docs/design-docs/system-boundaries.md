@@ -1,7 +1,7 @@
 # System Boundaries
 
 > Decision status: Accepted  
-> Implementation evidence: Partial — contract v2, production tick wiring, deterministic Core/Worker and Pi Faux Provider tests, Git worktree and Verification temp-repository checks; external compatibility and real Assistant Provider remain `Not verified`
+> Implementation evidence: Partial — contract v2, production tick wiring, deterministic Core/Worker and Pi Faux Provider tests, Git worktree and Verification temp-repository checks, plus a local DeepSeek Smoke covering real Provider calls, `runtime_health`, restart recovery and credential scanning; other external compatibility remains `Not verified`
 
 本文件定义对象、权威、证据和控制边界；不定义数据库 Schema，也不声称对象已经实现。
 

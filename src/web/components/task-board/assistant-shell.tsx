@@ -28,6 +28,7 @@ export function AssistantShell() {
   const [error, setError] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AssistantSessionSummary[]>([]);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const [status, setStatus] = useState<AssistantStatus | null>(null);
   const [renameDraft, setRenameDraft] = useState<string | null>(null);
   const creating = useRef(false);
@@ -38,6 +39,7 @@ export function AssistantShell() {
   const refreshSessions = useCallback(async () => {
     const next = await client.listSessions();
     setSessions(next);
+    setSessionsLoaded(true);
     setSessionId((current) =>
       current && next.some((session) => session.id === current) ? current : (next[0]?.id ?? null),
     );
@@ -82,6 +84,12 @@ export function AssistantShell() {
       disposed = true;
     };
   }, [assistant.requestFailed, client, refreshSessions]);
+
+  useEffect(() => {
+    if (status?.state === "ready" && sessionsLoaded && sessions.length === 0 && !sessionId) {
+      void createSession();
+    }
+  }, [createSession, sessionId, sessions.length, sessionsLoaded, status]);
 
   useEffect(() => {
     let disposed = false;

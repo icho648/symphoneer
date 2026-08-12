@@ -24,9 +24,6 @@ export default defineConfig(({ mode }) => {
         "@symphoneer/runtime-tools": path.resolve(root, "../runtime-tools/index.ts"),
       },
     },
-    define: {
-      "import.meta.env.VITE_RUNTIME_TOKEN": JSON.stringify(token),
-    },
     server: {
       host: env.SYMPHONEER_WEB_HOST ?? "127.0.0.1",
       port: Number(env.SYMPHONEER_WEB_PORT ?? 3000),
