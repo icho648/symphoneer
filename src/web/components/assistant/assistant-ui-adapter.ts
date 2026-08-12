@@ -7,12 +7,13 @@ import type {
 } from "@assistant-ui/react";
 import type { AssistantClient, AssistantMessage } from "@symphoneer/assistant-client";
 
-type AssistantRunClient = Pick<AssistantClient, "run">;
+type AssistantRunClient = Pick<AssistantClient, "abort" | "run">;
 
 export function createAssistantUiChatModelAdapter(
   client: AssistantRunClient,
   sessionId: string,
   onRunFinished?: () => void,
+  onRunError?: (message: string) => void,
 ): ChatModelAdapter {
   return {
     async *run({ messages, abortSignal }) {
@@ -20,9 +21,11 @@ export function createAssistantUiChatModelAdapter(
       const content: ThreadAssistantMessagePart[] = [];
       const tools = new Map<string, number>();
       let text = "";
+      const abort = () => void client.abort(sessionId).catch(() => {});
+      abortSignal.addEventListener("abort", abort, { once: true });
 
       try {
-        for await (const event of client.run(sessionId, prompt, { signal: abortSignal })) {
+        for await (const event of client.run(sessionId, prompt)) {
           if (event.type === "text_delta") {
             text += event.delta;
             const part = { type: "text" as const, text };
@@ -58,7 +61,16 @@ export function createAssistantUiChatModelAdapter(
               isError: event.isError,
             }));
           } else if (event.type === "error") {
-            throw new Error(event.message);
+            text += `${text ? "\n\n" : ""}${event.message}`;
+            const part = { type: "text" as const, text };
+            if (content[0]?.type === "text") content[0] = part;
+            else content.unshift(part);
+            onRunError?.(event.message);
+            yield {
+              content: [...content],
+              status: { type: "incomplete", reason: "error", error: event.message },
+            };
+            return;
           } else if (event.type === "aborted") {
             yield { content: [...content], status: { type: "incomplete", reason: "cancelled" } };
             return;
@@ -75,6 +87,7 @@ export function createAssistantUiChatModelAdapter(
           }
         }
       } finally {
+        abortSignal.removeEventListener("abort", abort);
         onRunFinished?.();
       }
     },

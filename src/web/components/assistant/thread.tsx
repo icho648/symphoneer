@@ -98,9 +98,9 @@ export function DeliveryAssistantThread({
           {({ message }) =>
             message.role === "user" ? (
               <UserMessage />
-            ) : (
+            ) : message.content.length > 0 ? (
               <AssistantMessage assistant={assistant} client={client} sessionId={sessionId} />
-            )
+            ) : null
           }
         </ThreadPrimitive.Messages>
 

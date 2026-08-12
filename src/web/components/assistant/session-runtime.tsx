@@ -12,6 +12,7 @@ import { DeliveryAssistantThread } from "./thread.tsx";
 export function AssistantSessionRuntime({
   client,
   dictionary,
+  onRunError,
   onRunFinished,
   selectedAttempt,
   selectedTask,
@@ -19,14 +20,15 @@ export function AssistantSessionRuntime({
 }: {
   client: AssistantClient;
   dictionary: Dictionary;
+  onRunError: (message: string) => void;
   onRunFinished: () => void;
   selectedAttempt: AttemptSnapshot | null;
   selectedTask: TaskSummary | null;
   session: AssistantSession;
 }) {
   const adapter = useMemo(
-    () => createAssistantUiChatModelAdapter(client, session.id, onRunFinished),
-    [client, onRunFinished, session.id],
+    () => createAssistantUiChatModelAdapter(client, session.id, onRunFinished, onRunError),
+    [client, onRunError, onRunFinished, session.id],
   );
   const initialMessages = useMemo(
     () => toAssistantUiMessages(session.messages),

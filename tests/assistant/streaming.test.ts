@@ -34,6 +34,7 @@ test("normalized Assistant events project to cumulative assistant-ui text and to
     { type: "completed" },
   ];
   const client = {
+    abort: async () => {},
     run: async function* () {
       yield* events;
     },
@@ -79,6 +80,84 @@ test("normalized Assistant events project to cumulative assistant-ui text and to
       isError: false,
     },
   ]);
+});
+
+test("assistant-ui cancellation calls the Assistant abort endpoint", async () => {
+  const abortGate = Promise.withResolvers<void>();
+  let abortCalls = 0;
+  const client = {
+    abort: async () => {
+      abortCalls += 1;
+      abortGate.resolve();
+    },
+    run: async function* () {
+      yield { type: "text_delta" as const, delta: "partial" };
+      await Promise.race([abortGate.promise, new Promise((resolve) => setTimeout(resolve, 25))]);
+      yield { type: abortCalls === 1 ? ("aborted" as const) : ("completed" as const) };
+    },
+  };
+  const controller = new AbortController();
+  const adapter = createAssistantUiChatModelAdapter(client, "session-1");
+  const updates = [];
+  for await (const update of adapter.run({
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: [{ type: "text", text: "Stop" }],
+        createdAt: new Date(),
+        attachments: [],
+        metadata: {},
+      },
+    ],
+    abortSignal: controller.signal,
+  } as never) as AsyncIterable<{ status?: unknown }>) {
+    updates.push(update);
+    if (updates.length === 1) controller.abort();
+  }
+
+  assert.equal(abortCalls, 1);
+  assert.deepEqual(updates.at(-1)?.status, { type: "incomplete", reason: "cancelled" });
+});
+
+test("assistant-ui keeps provider failures visible", async () => {
+  let reported = "";
+  const client = {
+    abort: async () => {},
+    run: async function* () {
+      yield { type: "error" as const, message: "Provider authentication failed" };
+    },
+  };
+  const adapter = createAssistantUiChatModelAdapter(client, "session-1", undefined, (message) => {
+    reported = message;
+  });
+  const updates = [];
+
+  for await (const update of adapter.run({
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: [{ type: "text", text: "Check provider" }],
+        createdAt: new Date(),
+        attachments: [],
+        metadata: {},
+      },
+    ],
+    abortSignal: new AbortController().signal,
+  } as never) as AsyncIterable<{ content?: readonly unknown[]; status?: unknown }>) {
+    updates.push(update);
+  }
+
+  assert.equal(reported, "Provider authentication failed");
+  assert.deepEqual(updates.at(-1), {
+    content: [{ type: "text", text: "Provider authentication failed" }],
+    status: {
+      type: "incomplete",
+      reason: "error",
+      error: "Provider authentication failed",
+    },
+  });
 });
 
 test("persisted Assistant messages restore text and tool results without Pi types", () => {

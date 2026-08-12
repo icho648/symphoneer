@@ -24,11 +24,13 @@ export function AssistantShell() {
     );
   const client = useMemo(() => createBrowserAssistantClient(), []);
   const [detail, setDetail] = useState<AssistantSession | null>(null);
+  const [deleteArmed, setDeleteArmed] = useState(false);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AssistantSessionSummary[]>([]);
   const [status, setStatus] = useState<AssistantStatus | null>(null);
+  const [renameDraft, setRenameDraft] = useState<string | null>(null);
   const creating = useRef(false);
   const assistant = dictionary.board.assistant;
   const projectionVersion = snapshot?.projectionVersion ?? 1;
@@ -54,6 +56,8 @@ export function AssistantShell() {
         ...(selectedTask ? { taskId: selectedTask.id } : {}),
         ...(selectedAttempt ? { attemptId: selectedAttempt.id } : {}),
       });
+      setDeleteArmed(false);
+      setRenameDraft(null);
       setSessionId(created.id);
       await refreshSessions();
     } catch (reason) {
@@ -83,12 +87,6 @@ export function AssistantShell() {
   }, [assistant.unavailable, client, refreshSessions]);
 
   useEffect(() => {
-    if (loaded && status?.state === "ready" && snapshot && sessions.length === 0 && !sessionId) {
-      void createSession();
-    }
-  }, [createSession, loaded, sessionId, sessions.length, snapshot, status]);
-
-  useEffect(() => {
     let disposed = false;
     if (!sessionId) {
       setDetail(null);
@@ -110,22 +108,24 @@ export function AssistantShell() {
   }, [assistant.unavailable, client, sessionId]);
 
   const renameSession = async () => {
-    if (!sessionId) return;
-    const name = window.prompt(assistant.renameSession, detail?.name ?? "");
+    if (!sessionId || renameDraft === null) return;
+    const name = renameDraft.trim();
     if (!name) return;
     try {
       await client.renameSession(sessionId, name);
       await refreshSessions();
       setDetail(await client.openSession(sessionId));
+      setRenameDraft(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : assistant.unavailable);
     }
   };
   const deleteSession = async () => {
-    if (!sessionId || !window.confirm(assistant.deleteConfirm)) return;
+    if (!sessionId) return;
     try {
       await client.deleteSession(sessionId);
       setDetail(null);
+      setDeleteArmed(false);
       await refreshSessions();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : assistant.unavailable);
@@ -203,7 +203,11 @@ export function AssistantShell() {
             <select
               aria-label={assistant.history}
               value={sessionId ?? ""}
-              onChange={(event) => setSessionId(event.target.value || null)}
+              onChange={(event) => {
+                setDeleteArmed(false);
+                setRenameDraft(null);
+                setSessionId(event.target.value || null);
+              }}
             >
               {sessions.map((session) => (
                 <option key={session.id} value={session.id}>
@@ -214,12 +218,50 @@ export function AssistantShell() {
             <button type="button" onClick={() => void createSession()}>
               {assistant.newSession}
             </button>
-            <button disabled={!sessionId} type="button" onClick={() => void renameSession()}>
-              {assistant.renameSession}
-            </button>
-            <button disabled={!sessionId} type="button" onClick={() => void deleteSession()}>
-              {assistant.deleteSession}
-            </button>
+            {renameDraft === null && !deleteArmed ? (
+              <>
+                <button
+                  disabled={!sessionId}
+                  type="button"
+                  onClick={() => setRenameDraft(detail?.name ?? "")}
+                >
+                  {assistant.renameSession}
+                </button>
+                <button disabled={!sessionId} type="button" onClick={() => setDeleteArmed(true)}>
+                  {assistant.deleteSession}
+                </button>
+              </>
+            ) : null}
+            {renameDraft !== null ? (
+              <>
+                <input
+                  aria-label={assistant.sessionName}
+                  value={renameDraft}
+                  onChange={(event) => setRenameDraft(event.target.value)}
+                />
+                <button
+                  disabled={!renameDraft.trim()}
+                  type="button"
+                  onClick={() => void renameSession()}
+                >
+                  {assistant.save}
+                </button>
+                <button type="button" onClick={() => setRenameDraft(null)}>
+                  {assistant.cancel}
+                </button>
+              </>
+            ) : null}
+            {deleteArmed ? (
+              <>
+                <span className="assistant-delete-confirm">{assistant.deleteConfirm}</span>
+                <button type="button" onClick={() => void deleteSession()}>
+                  {assistant.confirmDelete}
+                </button>
+                <button type="button" onClick={() => setDeleteArmed(false)}>
+                  {assistant.cancel}
+                </button>
+              </>
+            ) : null}
           </div>
         ) : null}
 
@@ -228,6 +270,7 @@ export function AssistantShell() {
             key={detail.id}
             client={client}
             dictionary={dictionary}
+            onRunError={setError}
             onRunFinished={refreshSessions}
             selectedAttempt={sessionAttempt}
             selectedTask={sessionTask}
