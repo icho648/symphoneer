@@ -135,8 +135,12 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     });
   }
 
-  async respond(input: { requestRef: string; decision: InterventionResponse }): Promise<void> {
-    const pending = this.#interventions.get(input.requestRef);
+  async respond(input: {
+    interventionId: string;
+    requestRef: string;
+    decision: InterventionResponse;
+  }): Promise<void> {
+    const pending = this.#interventions.get(input.interventionId);
     if (!pending) throw new RuntimeError("not_found", "Provider intervention is no longer active");
     await pending.handle.respondToIntervention(input.requestRef, {
       ...input.decision,
@@ -151,7 +155,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
           }
         : {}),
     });
-    this.#interventions.delete(input.requestRef);
+    this.#interventions.delete(input.interventionId);
   }
 
   async pause(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
@@ -485,7 +489,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         resolution: null,
       });
       await recordIntervention(run.log, intervention);
-      this.#interventions.set(event.requestRef, {
+      this.#interventions.set(intervention.id, {
         handle,
         questionIds: event.questionIds,
       });

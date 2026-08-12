@@ -27,7 +27,6 @@ export function ExecutionComposer() {
     loadCodexModels,
     task,
     sendCommand,
-    setTaskStatus,
     startWorkflow,
   } = useWorkbench(
     useShallow((state) => ({
@@ -39,7 +38,6 @@ export function ExecutionComposer() {
       loadCodexModels: state.loadCodexModels,
       task: selectSelectedTask(state),
       sendCommand: state.sendCommand,
-      setTaskStatus: state.setTaskStatus,
       startWorkflow: state.startWorkflow,
     })),
   );
@@ -196,7 +194,17 @@ export function ExecutionComposer() {
           </Button>
         )}
         {task.workflowStatus === "in_review" && (
-          <Button size="xs" type="button" onClick={() => void setTaskStatus(task, "done")}>
+          <Button
+            disabled={connection === "offline" || busy || !detail}
+            size="xs"
+            type="button"
+            onClick={() =>
+              void run({
+                kind: "record_review",
+                evidenceIds: detail?.verifications.map((verification) => verification.id) ?? [],
+              })
+            }
+          >
             {dictionary.taskCard.markDone}
           </Button>
         )}

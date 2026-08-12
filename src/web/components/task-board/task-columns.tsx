@@ -385,15 +385,6 @@ function TaskCard({
           >
             {task.dispatchable ? dictionary.workflow.start : dictionary.taskCard.dispatchBlocked}
           </Button>
-        ) : task.workflowStatus === "in_review" ? (
-          <Button
-            className="task-card-action"
-            size="xs"
-            type="button"
-            onClick={() => void setTaskStatus(task, "done")}
-          >
-            {dictionary.taskCard.markDone}
-          </Button>
         ) : null}
       </div>
     </article>

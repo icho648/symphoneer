@@ -18,6 +18,7 @@ export type CommandIntent =
       decision: "approved" | "rejected" | "answered" | "canceled";
       response?: string;
     }
+  | { kind: "record_review"; evidenceIds: string[] }
   | ({ kind: "start_run"; mode: "single-agent"; task: TaskSummary } & CodexRunSettings);
 
 export function requiresAttempt(intent: CommandIntent): boolean {
@@ -27,6 +28,7 @@ export function requiresAttempt(intent: CommandIntent): boolean {
     "handoff_attempt",
     "send_attempt_input",
     "delete_attempt",
+    "record_review",
   ].includes(intent.kind);
 }
 
@@ -59,6 +61,17 @@ export function buildCommand(
       };
     case "respond_intervention":
       return { ...intent, ...common, decidedBy: "local-human" };
+    case "record_review":
+      if (!attempt) return null;
+      return {
+        ...intent,
+        ...common,
+        attemptId: attempt.id,
+        expectedAttemptUpdatedAt: attempt.updatedAt,
+        decision: "merge_close",
+        decidedBy: "local-human",
+        nextAction: null,
+      };
     case "enable_task_dispatch":
       if (!task) return null;
       return { ...intent, ...common, taskId: task.id };

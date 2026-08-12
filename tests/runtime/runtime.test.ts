@@ -410,6 +410,53 @@ test("Runtime records a human ReviewDecision through the public command", async 
   assert.equal(repeated.eventSequence, accepted.eventSequence);
 });
 
+test("Runtime routes and persists an intervention answer by its global identity", async (t) => {
+  const root = await runtimeFixture(t);
+  const responses: unknown[] = [];
+  const service = new RuntimeService({
+    dataDir: root,
+    defaultOrchestration: {
+      async start() {},
+      async respond(input) {
+        responses.push(input);
+      },
+    },
+  });
+  await service.start();
+  await service.recordTask(task);
+  await service.recordAttempt(attempt);
+  await service.recordIntervention({
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "intervention-15",
+    attemptId: attempt.id,
+    requestRef: "number:1",
+    kind: "input",
+    state: "pending",
+    prompt: "Which scope should be used?",
+    createdAt: attempt.updatedAt,
+    resolution: null,
+  });
+
+  const accepted = await service.execute({
+    kind: "respond_intervention",
+    idempotencyKey: "intervention-answer-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    interventionId: "intervention-15",
+    decidedBy: "local-human",
+    decision: "answered",
+    response: "Only src/**",
+  });
+
+  assert.deepEqual(responses, [
+    {
+      interventionId: "intervention-15",
+      requestRef: "number:1",
+      decision: { decision: "answered", response: "Only src/**" },
+    },
+  ]);
+  assert.equal(accepted.snapshot.interventions[0]?.resolution?.response, "Only src/**");
+});
+
 test("Runtime persists the local WorkflowStatus through an idempotent public command", async (t) => {
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:workflow-status");

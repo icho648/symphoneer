@@ -18,7 +18,11 @@ export interface OrchestrationMode {
     command: Extract<RuntimeCommand, { kind: "start_run" }>;
     log: EventLog;
   }): Promise<void>;
-  respond?(input: { requestRef: string; decision: InterventionResponse }): Promise<void>;
+  respond?(input: {
+    interventionId: string;
+    requestRef: string;
+    decision: InterventionResponse;
+  }): Promise<void>;
   review?(input: { review: ReviewDecision; log: EventLog }): Promise<void>;
   pause?(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void>;
   retry?(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void>;

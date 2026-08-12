@@ -446,6 +446,7 @@ async function respondToIntervention(
     throw new RuntimeError("conflict", "Intervention is already resolved");
   }
   await orchestration?.respond?.({
+    interventionId: current.id,
     requestRef: current.requestRef,
     decision: {
       decision: command.decision,
@@ -462,6 +463,7 @@ async function respondToIntervention(
             decidedBy: command.decidedBy,
             decidedAt: now().toISOString(),
             decision: command.decision,
+            ...(command.response === undefined ? {} : { response: command.response }),
           },
         });
   return log.commit({

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { TaskSummary } from "@symphoneer/contracts";
+import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
 import {
   compareExecutionPriority,
   taskBelongsToProject,
   taskNeedsAttention,
 } from "../../src/web/lib/task-column.ts";
+import { buildCommand } from "../../src/web/stores/runtime-commands.ts";
 
 const task = (overrides: Partial<TaskSummary> = {}): TaskSummary =>
   ({
@@ -56,4 +57,42 @@ test("execution queue prioritizes attention, running, ready, backlog, then done"
   assert.equal(taskNeedsAttention(tasks[0] as TaskSummary), true);
   assert.equal(taskNeedsAttention(task({ workflowStatus: "in_review" })), true);
   assert.equal(taskNeedsAttention(task({ workflowStatus: "ready" })), false);
+});
+
+test("task board records a human decision instead of only moving the card to done", () => {
+  const attempt = {
+    schemaVersion: 2,
+    id: "attempt-1",
+    taskId: "task-1",
+    sequence: 1,
+    startReason: "dispatch",
+    status: "succeeded",
+    controller: "symphoneer",
+    workspaceId: "workspace-1",
+    providerSession: null,
+    startedAt: "2026-08-12T08:00:00.000Z",
+    updatedAt: "2026-08-12T08:01:00.000Z",
+    finishedAt: "2026-08-12T08:01:00.000Z",
+    failure: null,
+  } as AttemptSnapshot;
+
+  assert.deepEqual(
+    buildCommand(
+      { kind: "record_review", evidenceIds: ["verification-1"] },
+      { expectedEventSequence: 12, idempotencyKey: "review-1" },
+      attempt,
+      task({ workflowStatus: "in_review" }),
+    ),
+    {
+      kind: "record_review",
+      evidenceIds: ["verification-1"],
+      expectedEventSequence: 12,
+      idempotencyKey: "review-1",
+      attemptId: attempt.id,
+      expectedAttemptUpdatedAt: attempt.updatedAt,
+      decision: "merge_close",
+      decidedBy: "local-human",
+      nextAction: null,
+    },
+  );
 });
