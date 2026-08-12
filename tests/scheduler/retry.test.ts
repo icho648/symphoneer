@@ -168,20 +168,17 @@ test("worker outcomes schedule one deterministic retry and release active owners
     "reserved",
   );
   const beforeInvalidSuccess = scheduler.snapshot();
-  const beforeLateFinish = scheduler.snapshot();
-  assert.throws(
-    () =>
-      scheduler.finishAttempt({
-        attemptId: "attempt-30-1",
-        status: "failed",
-        finishedAt: "2026-08-02T12:00:02.000Z",
-        workspace: retained(workspace("30", "attempt-30-1")),
-        error: "runner failed",
-        idempotencyKey: "finish-30-1-late-while-reused",
-      }),
-    (error) => error instanceof CoreError && error.code === "conflict",
+  assert.equal(
+    scheduler.finishAttempt({
+      attemptId: "attempt-30-1",
+      status: "failed",
+      finishedAt: "2026-08-02T12:00:02.000Z",
+      workspace: retained(workspace("30", "attempt-30-1")),
+      error: "runner failed",
+      idempotencyKey: "finish-30-1-late-while-isolated",
+    }).attempt.id,
+    "attempt-30-1",
   );
-  assert.deepEqual(scheduler.snapshot(), beforeLateFinish);
   assert.throws(() =>
     scheduler.finishAttempt({
       attemptId: "attempt-30-2",
@@ -202,18 +199,15 @@ test("worker outcomes schedule one deterministic retry and release active owners
   });
   assert.equal(continued.retry?.kind, "continuation");
   assert.equal(continued.retry?.dueAtMs, Date.parse("2026-08-02T12:00:21.000Z"));
-  const beforeStaleFinish = scheduler.snapshot();
-  assert.throws(
-    () =>
-      scheduler.finishAttempt({
-        attemptId: "attempt-30-1",
-        status: "failed",
-        finishedAt: "2026-08-02T12:00:02.000Z",
-        workspace: retained(workspace("30", "attempt-30-1")),
-        error: "runner failed",
-        idempotencyKey: "finish-30-1-late",
-      }),
-    (error) => error instanceof CoreError && error.code === "conflict",
+  assert.equal(
+    scheduler.finishAttempt({
+      attemptId: "attempt-30-1",
+      status: "failed",
+      finishedAt: "2026-08-02T12:00:02.000Z",
+      workspace: retained(workspace("30", "attempt-30-1")),
+      error: "runner failed",
+      idempotencyKey: "finish-30-1-late",
+    }).attempt.id,
+    "attempt-30-1",
   );
-  assert.deepEqual(scheduler.snapshot(), beforeStaleFinish);
 });

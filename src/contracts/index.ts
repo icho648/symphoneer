@@ -1,3 +1,17 @@
+export type {
+  ActivityOccurrence,
+  ActivityPayload,
+  ExecutionActivity,
+  ExecutionSession,
+} from "./activity.ts";
+export {
+  ActivityOccurrenceSchema,
+  ActivityPayloadSchema,
+  ExecutionActivitySchema,
+  ExecutionSessionItemSchema,
+  ExecutionSessionSchema,
+  ExecutionSessionTurnSchema,
+} from "./activity.ts";
 export type { ApiError, DomainEventEnvelope } from "./event.ts";
 export { ApiErrorSchema, DomainEventEnvelopeSchema } from "./event.ts";
 export type { AttemptSnapshot, WorkspaceReference } from "./execution.ts";
@@ -23,6 +37,9 @@ export {
   OrchestrationNodeSchema,
 } from "./orchestration.ts";
 export type {
+  CodexModel,
+  CodexReasoningEffort,
+  CodexSandbox,
   RuntimeAttemptDetail,
   RuntimeCommand,
   RuntimeCommandResult,
@@ -30,9 +47,16 @@ export type {
   RuntimeEvent,
   RuntimeHealth,
   RuntimeProcess,
+  RuntimeProject,
+  RuntimeProjectConfig,
+  RuntimeProjectPathSelection,
+  RuntimeRepositoryCandidate,
   RuntimeSnapshot,
 } from "./runtime.ts";
 export {
+  CodexModelSchema,
+  CodexReasoningEffortSchema,
+  CodexSandboxSchema,
   RuntimeAttemptDetailSchema,
   RuntimeCommandResultSchema,
   RuntimeCommandSchema,
@@ -40,6 +64,10 @@ export {
   RuntimeEventSchema,
   RuntimeHealthSchema,
   RuntimeProcessSchema,
+  RuntimeProjectConfigSchema,
+  RuntimeProjectPathSelectionSchema,
+  RuntimeProjectSchema,
+  RuntimeRepositoryCandidateSchema,
   RuntimeSnapshotSchema,
 } from "./runtime.ts";
 export type { JsonValue } from "./shared.ts";
@@ -49,11 +77,19 @@ export {
   PROJECTION_SCHEMA_VERSION,
   ProjectionVersionSchema,
 } from "./shared.ts";
-export type { EligibilityReason, EligibilityResult, TaskSummary } from "./task.ts";
+export type {
+  BlockedTask,
+  EligibilityReason,
+  EligibilityResult,
+  TaskSummary,
+  WorkflowStatus,
+} from "./task.ts";
 export {
+  BlockedTaskSchema,
   EligibilityReasonSchema,
   EligibilityResultSchema,
   TaskSummarySchema,
+  WorkflowStatusSchema,
 } from "./task.ts";
 export type {
   AgentRunSnapshot,

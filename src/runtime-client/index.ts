@@ -1,11 +1,19 @@
+export type { RuntimeProject } from "@symphoneer/contracts";
 export type {
+  DeleteAttemptInput,
+  HandoffAttemptInput,
   PauseAttemptInput,
+  RefreshTrackerInput,
   RespondInterventionInput,
   RetryAttemptInput,
+  ReturnAttemptControlInput,
   RuntimeSubscription,
   RuntimeSubscriptionEvent,
   RuntimeSubscriptionInput,
-  StartTeamRunInput,
+  SendAttemptInput,
+  SetTaskStatusInput,
+  StartRunInput,
+  SyncAttemptSessionInput,
 } from "./client.ts";
 export {
   createHttpRuntimeClient,

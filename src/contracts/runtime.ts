@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ExecutionActivitySchema, ExecutionSessionSchema } from "./activity.ts";
 import { DomainEventEnvelopeSchema } from "./event.ts";
 import { AttemptSnapshotSchema, WorkspaceReferenceSchema } from "./execution.ts";
 import { InterventionSchema, ReviewDecisionSchema } from "./human.ts";
@@ -9,7 +10,7 @@ import {
   PROJECTION_SCHEMA_VERSION,
   Timestamp,
 } from "./shared.ts";
-import { TaskSummarySchema } from "./task.ts";
+import { TaskSummarySchema, WorkflowStatusSchema } from "./task.ts";
 import {
   AgentRunSnapshotSchema,
   FakeTeamScenarioSchema,
@@ -48,6 +49,38 @@ export const RuntimeHealthSchema = z.object({
 
 export type RuntimeHealth = z.infer<typeof RuntimeHealthSchema>;
 
+export const RuntimeProjectConfigSchema = z.object({
+  trackerKind: NonEmptyString,
+  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+  projectRoot: NonEmptyString.optional(),
+  gitCommonDir: NonEmptyString.optional(),
+  workspaceRoot: NonEmptyString,
+  repositorySource: z.enum(["workflow", "selected"]).optional(),
+});
+
+export type RuntimeProjectConfig = z.infer<typeof RuntimeProjectConfigSchema>;
+
+export const RuntimeProjectSchema = RuntimeProjectConfigSchema.extend({
+  id: NonEmptyString,
+});
+
+export type RuntimeProject = z.infer<typeof RuntimeProjectSchema>;
+
+export const RuntimeRepositoryCandidateSchema = z.object({
+  trackerKind: z.literal("github"),
+  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+  remote: NonEmptyString,
+});
+
+export type RuntimeRepositoryCandidate = z.infer<typeof RuntimeRepositoryCandidateSchema>;
+
+export const RuntimeProjectPathSelectionSchema = z.object({
+  path: NonEmptyString.nullable(),
+  repositories: z.array(RuntimeRepositoryCandidateSchema),
+});
+
+export type RuntimeProjectPathSelection = z.infer<typeof RuntimeProjectPathSelectionSchema>;
+
 export const RuntimeSnapshotSchema = z.object({
   schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
   projectionVersion: z.literal(PROJECTION_SCHEMA_VERSION),
@@ -74,6 +107,8 @@ export const RuntimeAttemptDetailSchema = z.object({
   teamRuns: z.array(TeamRunSnapshotSchema),
   agentRuns: z.array(AgentRunSnapshotSchema),
   teamEvents: z.array(TeamProcessEventSchema),
+  activities: z.array(ExecutionActivitySchema).default([]),
+  session: ExecutionSessionSchema.nullable().default(null),
 });
 
 export type RuntimeAttemptDetail = z.infer<typeof RuntimeAttemptDetailSchema>;
@@ -87,8 +122,31 @@ export type RuntimeEvent = z.infer<typeof RuntimeEventSchema>;
 
 const RuntimeCommandBaseSchema = z.object({
   idempotencyKey: NonEmptyString,
+  projectId: NonEmptyString.optional(),
   expectedEventSequence: z.int().nonnegative().optional(),
 });
+
+export const RuntimeStartModeSchema = z.enum(["single-agent", "team"]);
+export type RuntimeStartMode = z.infer<typeof RuntimeStartModeSchema>;
+export const CodexSandboxSchema = z.enum(["danger-full-access", "read-only", "workspace-write"]);
+export type CodexSandbox = z.infer<typeof CodexSandboxSchema>;
+export const CodexReasoningEffortSchema = NonEmptyString;
+export type CodexReasoningEffort = z.infer<typeof CodexReasoningEffortSchema>;
+export const CodexModelSchema = z.object({
+  id: NonEmptyString,
+  model: NonEmptyString,
+  displayName: NonEmptyString,
+  description: z.string(),
+  isDefault: z.boolean(),
+  defaultReasoningEffort: CodexReasoningEffortSchema,
+  supportedReasoningEfforts: z.array(
+    z.object({
+      reasoningEffort: CodexReasoningEffortSchema,
+      description: z.string(),
+    }),
+  ),
+});
+export type CodexModel = z.infer<typeof CodexModelSchema>;
 
 export const RuntimeCommandSchema = z.discriminatedUnion("kind", [
   RuntimeCommandBaseSchema.extend({
@@ -102,6 +160,36 @@ export const RuntimeCommandSchema = z.discriminatedUnion("kind", [
     expectedAttemptUpdatedAt: Timestamp.optional(),
   }),
   RuntimeCommandBaseSchema.extend({
+    kind: z.literal("handoff_attempt"),
+    attemptId: NonEmptyString,
+    expectedAttemptUpdatedAt: Timestamp.optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("send_attempt_input"),
+    attemptId: NonEmptyString,
+    expectedAttemptUpdatedAt: Timestamp.optional(),
+    prompt: NonEmptyString,
+    model: NonEmptyString.optional(),
+    sandbox: CodexSandboxSchema.optional(),
+    effort: CodexReasoningEffortSchema.optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("sync_attempt_session"),
+    attemptId: NonEmptyString,
+    expectedAttemptUpdatedAt: Timestamp.optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("return_attempt_control"),
+    attemptId: NonEmptyString,
+    expectedAttemptUpdatedAt: Timestamp.optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("delete_attempt"),
+    attemptId: NonEmptyString,
+    expectedAttemptUpdatedAt: Timestamp.optional(),
+    confirmDiscard: z.literal(true),
+  }),
+  RuntimeCommandBaseSchema.extend({
     kind: z.literal("respond_intervention"),
     interventionId: NonEmptyString,
     decidedBy: NonEmptyString,
@@ -109,12 +197,37 @@ export const RuntimeCommandSchema = z.discriminatedUnion("kind", [
     response: z.string().optional(),
   }),
   RuntimeCommandBaseSchema.extend({
-    kind: z.literal("start_team_run"),
+    kind: z.literal("set_task_status"),
+    taskId: NonEmptyString,
+    workflowStatus: WorkflowStatusSchema,
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("enable_task_dispatch"),
+    taskId: NonEmptyString,
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("refresh_tracker"),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("record_review"),
+    attemptId: NonEmptyString,
+    expectedAttemptUpdatedAt: Timestamp.optional(),
+    decision: z.enum(["merge_close", "continue", "follow_up", "takeover"]),
+    decidedBy: NonEmptyString,
+    evidenceIds: z.array(NonEmptyString),
+    nextAction: NonEmptyString.nullable().optional(),
+  }),
+  RuntimeCommandBaseSchema.extend({
+    kind: z.literal("start_run"),
+    mode: RuntimeStartModeSchema,
     task: TaskSummarySchema,
     workspace: WorkspaceReferenceSchema.optional(),
     attemptId: NonEmptyString.optional(),
     teamRunId: NonEmptyString.optional(),
     scenario: FakeTeamScenarioSchema.optional(),
+    model: NonEmptyString.optional(),
+    sandbox: CodexSandboxSchema.optional(),
+    effort: CodexReasoningEffortSchema.optional(),
   }),
   RuntimeCommandBaseSchema.extend({
     kind: z.literal("approve_plan"),

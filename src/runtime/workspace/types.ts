@@ -24,7 +24,10 @@ export interface WorkspaceDriver {
   recover(workspace: WorkspaceReference): Promise<WorkspaceObservation>;
   assertReady(workspace: WorkspaceReference): Promise<WorkspaceObservation>;
   assertRemovable(workspace: WorkspaceReference): Promise<"absent" | "present">;
-  remove(workspace: WorkspaceReference): Promise<"removed" | "already_absent">;
+  remove(
+    workspace: WorkspaceReference,
+    options?: { discardChanges?: boolean },
+  ): Promise<"removed" | "already_absent">;
 }
 
 export interface WorkspaceHooks {

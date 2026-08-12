@@ -1,7 +1,12 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { URL } from "node:url";
 
-import { ApiErrorSchema, CONTRACT_SCHEMA_VERSION } from "@symphoneer/contracts";
+import {
+  ApiErrorSchema,
+  CONTRACT_SCHEMA_VERSION,
+  type RuntimeProject,
+  RuntimeProjectSchema,
+} from "@symphoneer/contracts";
 import { RuntimeError } from "./errors.ts";
 import {
   assertAllowedOrigin,
@@ -10,7 +15,7 @@ import {
   isApiPath,
   tryServeStaticUi,
 } from "./host/index.ts";
-import type { RuntimeService } from "./service/index.ts";
+import type { RuntimeControlPlane } from "./service/index.ts";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -19,23 +24,35 @@ export interface RuntimeHttpServerOptions {
   port?: number;
   uiDistDir?: string;
   sessionToken?: string;
+  projects?: () => Promise<RuntimeProject[]>;
+  addProject?: () => Promise<RuntimeProject>;
+  removeProject?: (projectId: string) => Promise<RuntimeProject[]>;
+  openCodexThread?: (threadId: string) => Promise<void>;
 }
 
 export class RuntimeHttpServer {
-  readonly #service: RuntimeService;
+  readonly #service: RuntimeControlPlane;
   readonly #host: RuntimeHttpServerOptions["host"];
   readonly #port: number;
   readonly #uiDistDir: string | undefined;
   readonly #sessionToken: string | undefined;
+  readonly #projects: RuntimeHttpServerOptions["projects"];
+  readonly #addProject: RuntimeHttpServerOptions["addProject"];
+  readonly #removeProject: RuntimeHttpServerOptions["removeProject"];
+  readonly #openCodexThread: RuntimeHttpServerOptions["openCodexThread"];
   readonly #server: Server;
   readonly #streams = new Set<ServerResponse>();
 
-  constructor(service: RuntimeService, options: RuntimeHttpServerOptions = {}) {
+  constructor(service: RuntimeControlPlane, options: RuntimeHttpServerOptions = {}) {
     this.#service = service;
     this.#host = options.host ?? "127.0.0.1";
     this.#port = options.port ?? 0;
     this.#uiDistDir = options.uiDistDir;
     this.#sessionToken = options.sessionToken;
+    this.#projects = options.projects;
+    this.#addProject = options.addProject;
+    this.#removeProject = options.removeProject;
+    this.#openCodexThread = options.openCodexThread;
     this.#server = createServer((request, response) => {
       void this.#handle(request, response);
     });
@@ -73,6 +90,7 @@ export class RuntimeHttpServer {
       stream.destroy();
     }
     this.#streams.clear();
+    await this.#service.stop();
     if (!this.#server.listening) return;
     this.#server.closeAllConnections();
     await new Promise<void>((resolve, reject) => {
@@ -98,7 +116,38 @@ export class RuntimeHttpServer {
         sendJson(response, 200, await this.#service.execute(body));
         return;
       }
-      response.setHeader("Allow", "GET, POST");
+      if (request.method === "POST" && url.pathname === "/v1/projects") {
+        if (!this.#addProject) {
+          throw new RuntimeError("unsupported", "Adding projects is not available");
+        }
+        sendJson(response, 200, RuntimeProjectSchema.parse(await this.#addProject()));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/v1/host/codex-thread") {
+        if (!this.#openCodexThread) {
+          throw new RuntimeError("unsupported", "Opening Codex is not available");
+        }
+        const body = await readJson(request);
+        await this.#openCodexThread(readCodexThreadId(body));
+        sendJson(response, 200, { opened: true });
+        return;
+      }
+      if (request.method === "DELETE" && url.pathname.startsWith("/v1/projects/")) {
+        if (!this.#removeProject) {
+          throw new RuntimeError("unsupported", "Removing projects is not available");
+        }
+        const projectId = decodeURIComponent(url.pathname.slice("/v1/projects/".length));
+        if (!projectId) throw new RuntimeError("invalid_request", "Project ID is required");
+        sendJson(
+          response,
+          200,
+          (await this.#removeProject(projectId)).map((project) =>
+            RuntimeProjectSchema.parse(project),
+          ),
+        );
+        return;
+      }
+      response.setHeader("Allow", "GET, POST, DELETE");
       sendError(response, 405, "invalid_request", "Method is not supported");
     } catch (error) {
       const { status, code, message } = toHttpError(error);
@@ -114,6 +163,26 @@ export class RuntimeHttpServer {
     if (url.pathname === "/v1/snapshot") {
       response.setHeader("Cache-Control", "no-store");
       sendJson(response, 200, this.#service.snapshot());
+      return;
+    }
+    if (url.pathname === "/v1/projects") {
+      if (!this.#projects) {
+        throw new RuntimeError("unsupported", "Project listing is not available");
+      }
+      sendJson(
+        response,
+        200,
+        (await this.#projects()).map((project) => RuntimeProjectSchema.parse(project)),
+      );
+      return;
+    }
+    if (url.pathname === "/v1/codex/models") {
+      response.setHeader("Cache-Control", "no-store");
+      sendJson(
+        response,
+        200,
+        await this.#service.listModels(url.searchParams.get("projectId") ?? undefined),
+      );
       return;
     }
     if (url.pathname === "/v1/events") {
@@ -182,6 +251,17 @@ export class RuntimeHttpServer {
   }
 }
 
+function readCodexThreadId(body: unknown): string {
+  if (!body || typeof body !== "object") {
+    throw new RuntimeError("invalid_request", "Codex Thread ID is required");
+  }
+  const threadId = (body as { threadId?: unknown }).threadId;
+  if (typeof threadId !== "string" || !threadId.trim()) {
+    throw new RuntimeError("invalid_request", "Codex Thread ID is required");
+  }
+  return threadId.trim();
+}
+
 async function readJson(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -246,5 +326,9 @@ function toHttpError(error: unknown): { status: number; code: string; message: s
               : 500;
     return { status, code: error.code, message: error.message };
   }
-  return { status: 500, code: "runtime_error", message: "Runtime request failed" };
+  return {
+    status: 500,
+    code: "runtime_error",
+    message: error instanceof Error && error.message ? error.message : "Runtime request failed",
+  };
 }

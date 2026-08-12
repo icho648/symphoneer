@@ -79,12 +79,12 @@ function approvalDetails(
   method: "item/commandExecution/requestApproval" | "item/fileChange/requestApproval",
   params: unknown,
 ): InterventionDetails {
-  const reason = safeInterventionText(stringField(params, "reason"));
+  const reason = safeProviderText(stringField(params, "reason"));
   if (method === "item/commandExecution/requestApproval") {
     return {
       action: "command",
-      command: safeInterventionText(stringField(params, "command")) ?? "<command unavailable>",
-      cwd: safeInterventionText(stringField(params, "cwd")),
+      command: safeProviderText(stringField(params, "command")) ?? "<command unavailable>",
+      cwd: safeProviderText(stringField(params, "cwd")),
       reason,
     };
   }
@@ -95,7 +95,7 @@ function approvalDetails(
   };
 }
 
-function safeInterventionText(value: string | null): string | null {
+export function safeProviderText(value: string | null, maxLength = 512): string | null {
   if (value === null) return null;
   const redacted = value
     .replace(/(\b(?:cookie|set-cookie)\s*:\s*)[^\r\n]*/gi, "$1<redacted>")
@@ -109,7 +109,9 @@ function safeInterventionText(value: string | null): string | null {
       /((?:(?:[A-Za-z][A-Za-z\d_-]*(?:key|token|secret|password|credential|cookie|authorization)[A-Za-z\d_-]*)|api[_-]?key|token|secret|password|credential|cookie|authorization|set-cookie)\s*[=:]\s*)(?:[A-Za-z]+\s+)?(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s]+)/gi,
       "$1<redacted>",
     );
-  return redacted.length > 512 ? `${redacted.slice(0, 509)}...` : redacted;
+  return redacted.length > maxLength
+    ? `${redacted.slice(0, Math.max(0, maxLength - 3))}...`
+    : redacted;
 }
 
 function parseInterventionQuestion(value: unknown): InterventionQuestion | null {

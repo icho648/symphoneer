@@ -10,6 +10,7 @@ import type {
 export class FakeAgentRunner implements AgentRunner {
   readonly requests: AgentRunRequest[] = [];
   readonly responses: Array<{ requestRef: string; decision: InterventionResponse }> = [];
+  readonly steers: string[] = [];
   interruptCount = 0;
   readonly #plans: Array<{
     events: readonly AgentRunEvent[];
@@ -35,6 +36,9 @@ export class FakeAgentRunner implements AgentRunner {
       completion: Promise.resolve(structuredClone(plan.completion)),
       async interrupt() {
         runner.interruptCount += 1;
+      },
+      async steer(prompt) {
+        runner.steers.push(prompt);
       },
       async respondToIntervention(requestRef, decision) {
         runner.responses.push({ requestRef, decision: structuredClone(decision) });

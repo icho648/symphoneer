@@ -10,10 +10,10 @@
 ```text
 pnpm dev / future Electron Main
 ├─ Node.js + TypeScript Runtime
-│  ├─ Scheduler
-│  ├─ Attempt / Workspace / Verification
-│  ├─ Tracker Adapter
-│  ├─ Agent Runner
+│  ├─ DesktopRuntimeHost（应用级项目目录与聚合 API）
+│  │  └─ PollingCoordinator（单一时钟、退避与全局轮询并发）
+│  ├─ ProjectRuntime A（一个 WORKFLOW / Tracker Sync / Scheduler）
+│  ├─ ProjectRuntime B（一个 WORKFLOW / Tracker Sync / Scheduler）
 │  ├─ loopback HTTP / SSE
 │  └─ optional static Vite UI (standalone)
 └─ Vite Dev Server (development only)
@@ -23,34 +23,35 @@ Browser → Vite SPA / static UI → RuntimeClient → Runtime
 CLI ──────────────────────────────────────────→ Runtime
 ```
 
-本文后续的 Runtime 指 Symphoneer Runtime 进程；`src/runtime` 是其中遵循固定 Symphony SPEC 的核心 Module。
+本文后续的 Runtime 指 Symphoneer Runtime 进程。`RuntimeService` 是遵循固定 Symphony SPEC 的单项目核心：一份 WORKFLOW、一个 Tracker scope、一套 Tracker 同步 / Scheduler / Attempt 状态。`DesktopRuntimeHost` 是 Symphoneer 的应用级扩展，负责项目登记、生命周期、聚合查询、命令路由和统一轮询 cadence，但不跨项目合并 Symphony 调度状态。
 
 - Runtime 是由 launcher（`scripts/dev.ts` / `pnpm dev`）持有生命周期的长期前台进程：输出 stdout / stderr，不自行 daemonize，不创建 PID 文件或后台 `start / stop / status` 系统。launcher 是产品级 Host 入口，纳入根 TypeScript 检查，而不是未被类型覆盖的旁路脚本。
 - `pnpm dev` 发现目标地址已有健康 Runtime 时，将其视为外部管理进程并复用；launcher 退出时只停止自己启动的 Runtime 和 Web 子进程。显式设置 `SYMPHONEER_DATA_DIR` 时不复用未知数据目录的现有 Runtime。
 - 开发模式下 Runtime 与 Vite 分进程；Standalone 模式由 Runtime 同源托管 Vite 静态 UI，不再常驻第二个 Node Web Server。关闭浏览器或重启 Vite 不改变 Attempt；明确退出父 launcher 时才向自己启动的子进程转发停止信号。
 - CLI 和 Web 都是 Runtime 的客户端，只经 RuntimeClient / RuntimeTransport 通信，不复制 Scheduler 或业务状态机。loopback Host / Origin / session token 已落地；完整浏览器 Smoke 仍待验证。
+- 一个操作系统进程可以承载多个项目 Runtime；应用级 PollingCoordinator 统一计时、退避并串行调用项目同步回调，每个项目仍拥有独立 Tracker scope、EventLog、artifact、checkpoint、Workspace 根和 Symphony 调度状态。V1 不为每个项目创建额外 OS 进程，也不实现跨项目依赖调度。
 - Electron 不是 V1 前提；未来如采用，按其[进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)由 Main 启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口通信。
 
 ## 对象关系
 
 ```text
-Tracker Task / GitHub Issue
+Tracker Task（V1 由 GitHub Issue 实现）
   └── Attempt：一次执行尝试
       ├── Workspace：实际工作目录和 Git checkout
       ├── Codex Thread / Turn / Item：Agent 运行上下文与事件
-      ├── Verification：项目原生检查结果
+      ├── Activity / Artifact：执行活动和 Agent 产生的检查、diff 等记录
       └── ReviewDecision：人工决定
       └── Orchestration Run / TeamRun：LangGraph 编排状态与人工门控
 ```
 
 | 对象 | 权威来源 | Symphoneer 责任 |
 |---|---|---|
-| Task | GitHub Issue 的身份、意图、状态、标签和协作记录 | 按原生 ID 投影、筛选和对账，不创建第二套 Task 真相 |
+| Task | Tracker 的身份、意图、状态、标签和协作记录 | 按 Tracker 原生 ID 投影、筛选和对账，不创建第二套 Task 真相；GitHub Issue 只是 V1 的一种 Tracker Task |
 | Attempt | Symphoneer Runtime 中 Symphony Core 的一次执行生命周期 | 分配稳定 ID，保存开始原因、状态、来源和历史转换 |
 | Workspace | Symphoneer Runtime 中 Symphony Core 的路径、分支、宿主机、所有权和回收规则 | 保存引用，检测竞争所有者、脏目录和来源不一致 |
 | Thread / Turn / Item | Codex App Server | 保存原生 ID 和必要事件，不把 Turn 完成当成验收 |
 | Diff / Commit / Branch | Git | 保存版本引用，不伪造变更真相 |
-| Verification | 项目原生检查及其 artifact | 独立运行、记录命令、退出状态、版本和输出引用 |
+| Check Artifact | Codex / Git / 项目原生工具 | 保存 Agent 执行中产生的检查、diff 和输出引用；不作为 Single Agent 的固定独立阶段 |
 | Orchestration Run / checkpoint | Runtime 应用数据目录中的 LangGraph SQLite checkpoint | 保存可恢复的编排状态；对外查询仍以 Domain Event 投影为准 |
 | Orchestration Definition | 仓库 `.symphoneer/orchestrations/*.json`（JSON IR） | 项目拥有的编排定义；TeamRun 绑定 id / version / hash |
 | ReviewDecision | 人 | 记录决定、依据、责任人和下一动作 |
@@ -82,7 +83,7 @@ RunHandle
 - `Attempt` 是 Symphoneer 业务对象；`threadId`、`turnId` 和未来 Provider 的 Session ID 只是运行引用，不能成为核心状态机的身份。
 - Codex Adapter 保留原生 Thread / Turn / Item 事件，并只向 Scheduler 提炼开始、介入、完成和失败所需语义。
 - `pause` 调用当前 `RunHandle.interrupt()`，保留 Workspace 和 Session 引用并停止自动继续；它不冻结 Runtime 进程，也不保证任意 Provider 都能无损恢复。
-- `completion` 落定表示该 Turn 的 Provider 进程已经停止；超时和中断也必须等到停止后才落定，否则 Verification、保留和重试会与仍在写入的 Agent 争用同一 checkout。
+- `completion` 落定表示该 Turn 的 Provider 进程已经停止；超时和中断也必须等到停止后才落定，否则人工审查、保留和重试会与仍在写入的 Agent 争用同一 checkout。
 - 不预建 Provider factory、通用事件全集或 capability 注册表。第二个生产 Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
 - 工具权限或白名单不能冒充文件系统、网络 sandbox 或宿主审批。每个生产 Adapter 未来必须通过共享契约测试和一条真实 Smoke；Fake 只验证本项目逻辑。
 
@@ -92,9 +93,11 @@ Scheduler 与投影调用方只依赖一个小的 Tracker Interface；V1 的真�
 
 ```text
 getTask(nativeId, options?) → TaskSnapshot{ task, versionToken }
+listTasks(options?) → TrackerTaskPage
 ```
 
 - `Task` 权威仍在 Tracker；Symphoneer 只按原生身份投影、筛选和对账，不创建第二套 Task 真相。
+- Web、CLI 和 MCP 的任务操作先进入 Runtime，再由注入的 Tracker 执行；Tracker 变更后重新读取状态，再写入本地投影。
 - GitHub Adapter 把 Issue 收成 `TaskSummary`，并把 ETag 等并发标记收成不透明的 `versionToken`。
 - 不预建 Tracker factory 或通用字段全集。第二个生产 Tracker Adapter 获得明确采用决定后再提炼公共能力；能力缺失必须明确返回 `unsupported`。
 - Fake 只验证本项目对 Tracker 端口的依赖；真实 GitHub 兼容性仍由匹配 Smoke 证明。
@@ -115,19 +118,19 @@ getTask(nativeId, options?) → TaskSnapshot{ task, versionToken }
 |---|---|---|
 | Runtime Log | 结构化运行诊断；关联 Task、Attempt、Workspace 和 Provider 引用 | 可轮转；只证明某条诊断被记录 |
 | Domain Event | Task 投影、Attempt 和 Workspace 等业务状态变化 | append-only、带稳定 ID 和 Schema 版本，可重放查询投影 |
-| Verification Artifact | 命令、工具版本、精确代码版本、退出状态和必要输出 | immutable；只证明对应检查在绑定版本上的结果 |
+| Check Artifact | Agent 活动中的命令、精确代码版本、退出状态和必要输出 | immutable；只证明对应检查在绑定版本上的结果 |
 | Trace | Phoenix 等系统中的调试与评估副本 | 可选、可丢失，不参与调度或验收判定 |
 
-1. `Agent Statement`、Codex Turn 完成和 Runtime Log 不是独立验证器。
-2. `Verification` 必须运行 `.symphoneer/WORKFLOW.md` 声明的项目检查，并绑定精确版本和 artifact。
+1. `Agent Statement`、Codex Turn 完成和 Runtime Log 不能替代人工 ReviewDecision。
+2. Agent 执行中的检查结果、diff 和命令输出作为活动与 artifact 保存；Single Agent 不再追加固定的独立 Verification 节点。
 3. GitHub、Git、Runtime、Codex 和 Phoenix 的原生事实不由历史投影覆盖。
-4. 缺少匹配证据时显示 `Not verified`，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
+4. 缺少匹配证据时明确显示证据缺口，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
 
 JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
 
-### Verification 的容纳边界
+### 可选独立检查的容纳边界
 
-Verification 运行仓库自己声明的检查，因此它防的是「把 Agent 或 Turn 的成功声明当成验收」，不是防一个主动伪造证据的检查进程。Runtime 只承担三件可以自己保证的事：检查在独立进程组中启动并在观察前被容纳；artifact 一次性原子发布，既不覆盖已有证据也不因失败留下占位；检查前后的 Git HEAD 与 Workspace 状态绑定进同一条证据。
+Runtime 仍保留独立检查与 immutable artifact 能力，供 Team 编排或未来明确配置的 Gate 使用，但它不是默认 Single Agent 的固定生命周期节点。启用时，Runtime 只承担三件可以自己保证的事：检查在独立进程组中启动并在观察前被容纳；artifact 一次性原子发布，既不覆盖已有证据也不因失败留下占位；检查前后的 Git HEAD 与 Workspace 状态绑定进同一条证据。
 
 脱离进程组的后台进程、同一 OS 身份对历史 artifact 的改写，以及仓库自带 Git 配置的滥用，都需要 OS 级 sandbox、job/cgroup 或独立存储身份才能真正阻止。Agent 自己的 Turn 同样拥有该身份的文件系统权限，所以这些属于安装 Host 的隔离责任，V1 不承担，也不用 in-process 的路径隐藏、进程表轮询或启发式扫描假装承担。同理，进入记录边界的 Provider 文本按最小化和脱敏处理，但脱敏是尽力而为的模式匹配，不能替代「不写入原始 Provider payload」这条硬边界。
 
@@ -138,14 +141,16 @@ Verification 运行仓库自己声明的检查，因此它防的是「把 Agent 
 | 数据类别 | 所有者与默认位置 | 责任 |
 |---|---|---|
 | Repository contract | 目标仓库 `.symphoneer/`，进入 Git | `WORKFLOW.md`、Prompt 和后续团队共享策略；可审查、可版本化 |
-| Project-scoped runtime data | Symphoneer application data 下的 `projects/<project-id>/` | Domain Event、Verification Artifact、Workspace 与恢复所需元数据；由 Runtime 创建、保留和回收 |
+| Project registry | Symphoneer application data 下的 `projects/index.json` | 仅保存稳定、不透明的 `project-id` 列表；项目路径是查找键，不是身份 |
+| Project-scoped runtime data | Symphoneer application data 下的 `projects/<project-id>/` | 配置、Domain Event、Verification Artifact、checkpoint 与恢复元数据；由 Runtime 创建和保留 |
+| Workspace | Host 注入的 Workspace 根下 `/<project-id>/` | Attempt Git worktree 与未提交工作；不作为 cache，也不随项目从目录中移除而删除 |
 | Runtime Log | 操作系统的 Symphoneer Logs 目录 | 跨项目诊断、轮转、保留期和脱敏；日志记录携带 project / Task / Attempt 关联 ID |
 | Cache / temporary data | 操作系统 Cache / temporary 目录 | 仅保存可重建内容；系统清理不能导致业务证据或未提交 Workspace 丢失 |
 | Credentials | 操作系统 Keychain 或等价凭据存储 | Runtime 按引用读取；不进入仓库、事件、artifact、日志或 Trace |
 
-macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/projects/<project-id>/`、`~/Library/Logs/Symphoneer/` 与 `~/Library/Caches/Symphoneer/`；其他平台使用各自原生位置，不从仓库路径推导。`project-id` 是 Runtime 分配或登记的稳定身份，不能只用可能冲突的仓库 basename。
+macOS 安装版的目标映射是 `~/Library/Application Support/Symphoneer/projects/<project-id>/`、`~/Library/Logs/Symphoneer/` 与 `~/Library/Caches/Symphoneer/`；其他平台使用各自原生位置，不从仓库路径推导。`project-id` 是 Host 分配并持久化的不透明稳定身份。规范化项目路径和 Git common dir 只用于找回已有身份：符号链接和同一 clone 的 linked worktree 会命中同一项目，两个独立 clone 即使 remote 相同也保留为两个项目。
 
-固定 Symphony SPEC 仍允许 repository contract 声明 `workspace.root`，并在未声明时回落到系统临时目录。Symphoneer 的安装 Host 必须用更高优先级的应用设置注入已解析的绝对 Workspace 根目录；因此进入 Git 的 `.symphoneer/WORKFLOW.md` 不声明机器存储位置，仓库配置也不能越过 Host 选择任意写入位置。操作系统目录发现、真实 Runtime 持久化、轮转和恢复仍为 `Not verified`。
+固定 Symphony SPEC 仍允许 repository contract 声明 `workspace.root`，并在未声明时回落到系统临时目录。Symphoneer 的安装 Host 必须用更高优先级的应用设置注入已解析的绝对 Workspace 根目录；因此进入 Git 的 `.symphoneer/WORKFLOW.md` 不声明机器存储位置，仓库配置也不能越过 Host 选择任意写入位置。当前 Runtime 已支持显式 application data / logs / cache / workspace 根和跨重启项目恢复；Electron `app.getPath()` 适配、安装包目录映射和真实应用重启 Smoke 仍为 `Not verified`。
 
 凭据、Token、API key、Cookie、签名 URL、认证头、私有源码全文、原始 Provider payload 和未经脱敏的错误原因不得写入 Runtime Log、Domain Event、Verification Artifact 或 Phoenix；Verification、Agent 和 Provider 输出进入任何记录边界前必须最小化并脱敏。
 

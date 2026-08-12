@@ -1,23 +1,32 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
+import { promisify } from "node:util";
 
 import {
   type AttemptSnapshot,
   CONTRACT_SCHEMA_VERSION,
+  type ExecutionActivity,
+  type ExecutionSession,
   type TaskSummary,
   type VerificationResult,
   type WorkspaceReference,
 } from "@symphoneer/contracts";
 import {
+  ApplicationData,
+  DesktopRuntimeHost,
   ImmutableArtifactStore,
   JsonlEventStore,
   RuntimeError,
   RuntimeHttpServer,
   RuntimeService,
 } from "@symphoneer/runtime";
+import type { Tracker } from "../../src/runtime/tracker/tracker.ts";
+
+const execFileAsync = promisify(execFile);
 
 const task: TaskSummary = {
   schemaVersion: CONTRACT_SCHEMA_VERSION,
@@ -32,6 +41,8 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
 };
 
 const workspace: WorkspaceReference = {
@@ -55,6 +66,7 @@ const attempt: AttemptSnapshot = {
   sequence: 1,
   startReason: "dispatch",
   status: "preparing_workspace",
+  controller: "symphoneer",
   workspaceId: workspace.id,
   providerSession: null,
   startedAt: "2026-08-04T08:00:00.000Z",
@@ -101,12 +113,49 @@ test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Veri
   await service.start();
   await service.recordTask(task);
   await service.recordAttempt(attempt, { workspace });
+  const activity: ExecutionActivity = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "activity:attempt-15:message-1",
+    attemptId: attempt.id,
+    itemId: "message-1",
+    kind: "message",
+    status: "completed",
+    title: "Agent message",
+    content: "Implemented and verified the change.",
+    details: {},
+    occurredAt: "2026-08-04T08:00:30.000Z",
+  };
+  await service.recordExecutionActivity(activity);
+  const session: ExecutionSession = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    attemptId: attempt.id,
+    provider: "codex-app-server",
+    threadId: "thread-15",
+    turns: [
+      {
+        id: "turn-15",
+        status: "completed",
+        items: [
+          {
+            id: "user-15",
+            type: "userMessage",
+            status: null,
+            data: { id: "user-15", type: "userMessage", text: "Implement #15" },
+          },
+        ],
+      },
+    ],
+    capturedAt: "2026-08-04T08:00:31.000Z",
+  };
+  await service.recordExecutionSession(session);
   const recorded = await service.recordVerification(verification, { artifact: "check output" });
 
   assert.equal(service.health().process.status, "running");
   assert.equal(service.health().process.pid, process.pid);
   assert.equal(service.snapshot().tasks[0]?.id, task.id);
   assert.equal(service.attemptDetail(attempt.id)?.workspace?.branch, workspace.branch);
+  assert.equal(service.attemptDetail(attempt.id)?.activities[0]?.content, activity.content);
+  assert.equal(service.attemptDetail(attempt.id)?.session?.turns[0]?.items[0]?.type, "userMessage");
   assert.match(
     service.snapshot().verifications[0]?.artifactRef ?? "",
     /^artifacts\/[a-f0-9]{64}\.json$/,
@@ -126,7 +175,61 @@ test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Veri
   assert.equal(snapshot.tasks[0]?.identifier, "#15");
   assert.equal(snapshot.attempts[0]?.status, "preparing_workspace");
   assert.equal(restarted.attemptDetail(attempt.id)?.workspace?.path, workspace.path);
+  assert.equal(restarted.attemptDetail(attempt.id)?.activities[0]?.id, activity.id);
+  assert.deepEqual(restarted.attemptDetail(attempt.id)?.session, session);
   assert.equal(snapshot.verifications[0]?.status, "passed");
+});
+
+test("Runtime imports a missing Codex session once and persists the complete record", async (t) => {
+  const root = await runtimeFixture(t);
+  const initial = runtime(root, "runtime:activity-history-initial");
+  const historicalAttempt: AttemptSnapshot = {
+    ...attempt,
+    providerSession: { threadId: "thread-history", lastTurnId: "turn-history" },
+  };
+  await initial.start();
+  await initial.recordTask(task);
+  await initial.recordAttempt(historicalAttempt, { workspace });
+  await initial.stop();
+
+  let reads = 0;
+  const restoredSession: ExecutionSession = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    attemptId: historicalAttempt.id,
+    provider: "codex-app-server",
+    threadId: "thread-history",
+    turns: [
+      {
+        id: "turn-history",
+        status: "completed",
+        items: [
+          {
+            id: "user-history",
+            type: "userMessage",
+            status: null,
+            data: { id: "user-history", type: "userMessage", text: "Persist the session" },
+          },
+        ],
+      },
+    ],
+    capturedAt: "2026-08-04T08:00:00.001Z",
+  };
+  const restored = new RuntimeService({
+    dataDir: root,
+    sessionHistory: async (candidate) => {
+      reads += 1;
+      assert.equal(candidate.id, historicalAttempt.id);
+      return restoredSession;
+    },
+  });
+  await restored.start();
+  assert.equal(reads, 1);
+  assert.equal(restored.attemptDetail(historicalAttempt.id)?.session?.turns.length, 1);
+  await restored.stop();
+
+  const replayed = runtime(root, "runtime:activity-history-replayed");
+  await replayed.start();
+  assert.deepEqual(replayed.attemptDetail(historicalAttempt.id)?.session, restoredSession);
 });
 
 test("Runtime commands are durable, idempotent, and do not fake Provider state", async (t) => {
@@ -150,6 +253,461 @@ test("Runtime commands are durable, idempotent, and do not fake Provider state",
   assert.equal(repeated.eventSequence, accepted.eventSequence);
   assert.equal(accepted.snapshot.attempts[0]?.status, "preparing_workspace");
   assert.equal(accepted.snapshot.runtime.lastEventSequence, expectedEventSequence + 1);
+});
+
+test("DesktopRuntimeHost keeps one isolated Symphony runtime per project", async (t) => {
+  const root = await runtimeFixture(t);
+  const alphaRoot = resolve(root, "repositories", "alpha");
+  const bravoRoot = resolve(root, "repositories", "bravo");
+  await initializeRepository(alphaRoot);
+  await initializeRepository(bravoRoot);
+  const projectTask = (project: string, nativeId: string): TaskSummary => ({
+    ...task,
+    id: `github:${project}:${nativeId}`,
+    identifier: `#${nativeId}`,
+    source: {
+      kind: "github",
+      nativeId,
+      url: `https://github.com/${project}/issues/${nativeId}`,
+    },
+    title: `${project} task`,
+  });
+  const taskA = projectTask("alpha/repo", "1");
+  const taskB = projectTask("bravo/repo", "2");
+  let projectACalls = 0;
+  let projectBCalls = 0;
+  let activePolls = 0;
+  let peakPolls = 0;
+  const tracker = (current: TaskSummary, count: () => void): Tracker => ({
+    kind: "github",
+    getTask: async () => ({ task: current, versionToken: null }),
+    listTasks: async () => {
+      count();
+      activePolls += 1;
+      peakPolls = Math.max(peakPolls, activePolls);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      activePolls -= 1;
+      return { tasks: [{ task: current, versionToken: null }], nextCursor: null };
+    },
+  });
+  let allocated = 0;
+  const applicationData = new ApplicationData({
+    dataDir: resolve(root, "data"),
+    cacheDir: resolve(root, "cache"),
+    logDir: resolve(root, "logs"),
+    workspaceRoot: resolve(root, "workspaces"),
+    idFactory: () => `project-${++allocated}`,
+  });
+  await applicationData.registerProject({
+    trackerKind: "github",
+    repository: "alpha/repo",
+    projectRoot: alphaRoot,
+  });
+  const service = new DesktopRuntimeHost({
+    applicationData,
+    createRuntime: ({ project, layout }) => ({
+      runtime: new RuntimeService({
+        dataDir: layout.root,
+        tracker:
+          project.repository === "alpha/repo"
+            ? tracker(taskA, () => projectACalls++)
+            : tracker(taskB, () => projectBCalls++),
+      }),
+      pollingIntervalMs: 1_000,
+    }),
+  });
+
+  await service.start();
+  assert.equal(projectACalls, 1);
+  assert.deepEqual(
+    service.snapshot().tasks.map((candidate) => candidate.id),
+    [taskA.id],
+  );
+
+  const bravo = await service.addProject({
+    trackerKind: "github",
+    repository: "bravo/repo",
+    projectRoot: bravoRoot,
+  });
+  assert.equal(projectBCalls, 1);
+  assert.deepEqual(
+    service.snapshot().tasks.map((candidate) => [candidate.projectId, candidate.id]),
+    [
+      ["project-1", taskA.id],
+      [bravo.id, taskB.id],
+    ],
+  );
+  assert.notEqual(
+    applicationData.project("project-1").root,
+    applicationData.project(bravo.id).root,
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  assert.equal(projectACalls, 2);
+  assert.equal(projectBCalls, 2);
+  assert.equal(peakPolls, 1);
+
+  await service.removeProject("project-1");
+  assert.deepEqual(
+    service.snapshot().tasks.map((candidate) => candidate.id),
+    [taskB.id],
+  );
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  assert.equal(projectACalls, 2);
+  assert.equal(projectBCalls, 3);
+  await service.stop();
+
+  const restarted = new DesktopRuntimeHost({
+    applicationData: new ApplicationData({
+      dataDir: resolve(root, "data"),
+      cacheDir: resolve(root, "cache"),
+      logDir: resolve(root, "logs"),
+      workspaceRoot: resolve(root, "workspaces"),
+    }),
+    createRuntime: ({ layout }) => ({ runtime: new RuntimeService({ dataDir: layout.root }) }),
+  });
+  await restarted.start();
+  assert.deepEqual(
+    (await restarted.listProjects()).map((project) => project.id),
+    [bravo.id],
+  );
+  assert.deepEqual(
+    restarted.snapshot().tasks.map((candidate) => candidate.id),
+    [taskB.id],
+  );
+  await restarted.stop();
+});
+
+test("Runtime records a human ReviewDecision through the public command", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:review-command");
+  await service.start();
+  await service.recordTask({ ...task, workflowStatus: "in_review" });
+  const reviewedAttempt: AttemptSnapshot = {
+    ...attempt,
+    status: "succeeded",
+    finishedAt: attempt.updatedAt,
+  };
+  await service.recordAttempt(reviewedAttempt);
+  const command = {
+    kind: "record_review" as const,
+    idempotencyKey: "review-command-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: reviewedAttempt.updatedAt,
+    attemptId: attempt.id,
+    decision: "merge_close" as const,
+    decidedBy: "human",
+    evidenceIds: ["verification:attempt-15:pnpm-check"],
+    nextAction: null,
+  };
+
+  const accepted = await service.execute(command);
+  const repeated = await service.execute(command);
+
+  assert.equal(accepted.accepted, true);
+  assert.equal(accepted.snapshot.reviews[0]?.decision, "merge_close");
+  assert.equal(accepted.snapshot.reviews[0]?.evidenceIds[0], command.evidenceIds[0]);
+  assert.equal(repeated.eventSequence, accepted.eventSequence);
+});
+
+test("Runtime persists the local WorkflowStatus through an idempotent public command", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:workflow-status");
+  await service.start();
+  await service.recordTask(task);
+
+  const command = {
+    kind: "set_task_status" as const,
+    idempotencyKey: "task-status-ready-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    taskId: task.id,
+    workflowStatus: "ready" as const,
+  };
+  const accepted = await service.execute(command);
+  const repeated = await service.execute(command);
+
+  assert.equal(accepted.snapshot.tasks[0]?.workflowStatus, "ready");
+  assert.equal(accepted.snapshot.tasks[0]?.blocked, null);
+  assert.equal(repeated.eventSequence, accepted.eventSequence);
+
+  const restarted = runtime(root, "runtime:workflow-status-restarted");
+  await restarted.start();
+  assert.equal(restarted.snapshot().tasks[0]?.workflowStatus, "ready");
+});
+
+test("Runtime enables dispatch through the Tracker and immediately updates its projection", async (t) => {
+  const root = await runtimeFixture(t);
+  const blockedTask = {
+    ...task,
+    labels: [],
+    dispatchable: false,
+    workflowStatus: "backlog" as const,
+  };
+  let enableCalls = 0;
+  const tracker: Tracker = {
+    kind: "fake",
+    getTask: async () => ({ task: blockedTask, versionToken: '"task-v1"' }),
+    enableTaskDispatch: async () => {
+      enableCalls += 1;
+      return {
+        task: { ...blockedTask, labels: ["symphoneer:ready"], dispatchable: true },
+        versionToken: '"task-v2"',
+      };
+    },
+  };
+  const service = new RuntimeService({ dataDir: root, tracker });
+  await service.start();
+  await service.recordTask(blockedTask);
+
+  const command = {
+    kind: "enable_task_dispatch" as const,
+    taskId: blockedTask.id,
+    idempotencyKey: "enable-task-dispatch-15",
+  };
+  const accepted = await service.execute(command);
+  const repeated = await service.execute(command);
+
+  assert.equal(enableCalls, 1);
+  assert.equal(accepted.snapshot.tasks[0]?.dispatchable, true);
+  assert.deepEqual(accepted.snapshot.tasks[0]?.labels, ["symphoneer:ready"]);
+  assert.equal(repeated.eventSequence, accepted.eventSequence);
+});
+
+test("Runtime projects the complete WorkflowStatus lifecycle and preserves blocked markers", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:workflow-lifecycle");
+  await service.start();
+  await service.recordTask({ ...task, workflowStatus: "backlog" });
+  await service.recordAttempt(attempt);
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+
+  await service.recordVerification(verification, { artifact: "passed" });
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+
+  const succeededAttempt: AttemptSnapshot = {
+    ...attempt,
+    status: "succeeded",
+    updatedAt: "2026-08-04T08:01:02.000Z",
+    finishedAt: "2026-08-04T08:01:02.000Z",
+    failure: null,
+  };
+  await service.recordAttempt(succeededAttempt);
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+
+  await service.execute({
+    kind: "record_review",
+    idempotencyKey: "review-lifecycle-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: succeededAttempt.updatedAt,
+    attemptId: attempt.id,
+    decision: "merge_close",
+    decidedBy: "local-human",
+    evidenceIds: [verification.id],
+    nextAction: null,
+  });
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "done");
+
+  const failed = {
+    ...attempt,
+    status: "failed" as const,
+    updatedAt: "2026-08-04T08:01:03.000Z",
+    finishedAt: "2026-08-04T08:01:03.000Z",
+    failure: "timeout",
+  };
+  await service.recordAttempt(failed);
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "done");
+  assert.equal(service.snapshot().tasks[0]?.blocked?.reason, "timeout");
+});
+
+test("Runtime delegates Codex handoff and deletes an Attempt only after orchestration cleanup", async (t) => {
+  const root = await runtimeFixture(t);
+  const operations: string[] = [];
+  const service = new RuntimeService({
+    dataDir: root,
+    runtimeId: "runtime:attempt-lifecycle",
+    defaultOrchestration: {
+      start: async () => undefined,
+      handoff: async ({ attempt: current }) => {
+        operations.push(`handoff:${current.id}`);
+      },
+      delete: async ({ attempt: current }) => {
+        operations.push(`delete:${current.id}`);
+      },
+    },
+  });
+  await service.start();
+  await service.recordTask(task);
+  const handoffAttempt: AttemptSnapshot = {
+    ...attempt,
+    status: "succeeded",
+    providerSession: { threadId: "thread-15", lastTurnId: "turn-15" },
+    finishedAt: attempt.updatedAt,
+  };
+  await service.recordAttempt(handoffAttempt, { workspace });
+
+  const handedOff = await service.execute({
+    kind: "handoff_attempt",
+    idempotencyKey: "handoff-attempt-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: handoffAttempt.updatedAt,
+    attemptId: attempt.id,
+  });
+  const deleted = await service.execute({
+    kind: "delete_attempt",
+    idempotencyKey: "delete-attempt-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+    attemptId: attempt.id,
+    confirmDiscard: true,
+  });
+
+  assert.deepEqual(operations, [`handoff:${attempt.id}`, `delete:${attempt.id}`]);
+  assert.equal(
+    deleted.snapshot.attempts.some((item) => item.id === attempt.id),
+    false,
+  );
+  assert.equal(service.attemptDetail(attempt.id), null);
+});
+
+test("Runtime hides Codex control and resumes input only after the external Turn is idle", async (t) => {
+  const root = await runtimeFixture(t);
+  const operations: string[] = [];
+  let inputSettings: unknown;
+  let turnStatus = "inProgress";
+  let capturedAt = "2026-08-04T08:03:00.000Z";
+  const session = (): ExecutionSession => ({
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    attemptId: attempt.id,
+    provider: "codex-app-server",
+    threadId: "thread-15",
+    turns: [{ id: "turn-15", status: turnStatus, items: [] }],
+    capturedAt,
+  });
+  const service = new RuntimeService({
+    dataDir: root,
+    runtimeId: "runtime:codex-control",
+    defaultOrchestration: {
+      start: async () => undefined,
+      input: async ({ effort, model, prompt, sandbox }) => {
+        operations.push(`input:${prompt}`);
+        inputSettings = { effort, model, sandbox };
+      },
+      handoff: async () => {
+        operations.push("handoff");
+      },
+      sync: async () => {
+        operations.push(`sync:${turnStatus}`);
+        return session();
+      },
+    },
+  });
+  await service.start();
+  await service.recordTask(task);
+  const paused: AttemptSnapshot = {
+    ...attempt,
+    status: "paused",
+    providerSession: { threadId: "thread-15", lastTurnId: "turn-15" },
+    updatedAt: "2026-08-04T08:02:00.000Z",
+  };
+  await service.recordAttempt(paused, {
+    workspace: { ...workspace, state: "retained", ownerAttemptId: null },
+  });
+
+  const handedOff = await service.execute({
+    kind: "handoff_attempt",
+    attemptId: paused.id,
+    idempotencyKey: "handoff-control-attempt-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: paused.updatedAt,
+  });
+  assert.equal(handedOff.snapshot.attempts[0]?.controller, "codex");
+
+  await assert.rejects(
+    service.execute({
+      kind: "send_attempt_input",
+      attemptId: paused.id,
+      prompt: "Focus on the failing test.",
+      idempotencyKey: "input-busy-attempt-15",
+      expectedEventSequence: handedOff.snapshot.runtime.lastEventSequence,
+      expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+    }),
+    /Codex is still processing this Attempt/,
+  );
+
+  turnStatus = "completed";
+  capturedAt = "2026-08-04T08:03:01.000Z";
+  const resumed = await service.execute({
+    kind: "send_attempt_input",
+    attemptId: paused.id,
+    prompt: "Focus on the failing test.",
+    model: "gpt-5.6-codex",
+    sandbox: "workspace-write",
+    effort: "high",
+    idempotencyKey: "input-idle-attempt-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+  });
+
+  assert.deepEqual(operations, [
+    "handoff",
+    "sync:inProgress",
+    "sync:completed",
+    "input:Focus on the failing test.",
+  ]);
+  assert.equal(resumed.snapshot.attempts[0]?.controller, "symphoneer");
+  assert.deepEqual(inputSettings, {
+    effort: "high",
+    model: "gpt-5.6-codex",
+    sandbox: "workspace-write",
+  });
+  assert.deepEqual(service.attemptDetail(paused.id)?.session, session());
+});
+
+test("Runtime blocks timed-out Attempts without changing their WorkflowStatus", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:workflow-timeout");
+  await service.start();
+  await service.recordTask(task);
+  await service.recordAttempt(attempt);
+  const timedOut = {
+    ...attempt,
+    status: "timed_out" as const,
+    updatedAt: "2026-08-04T08:01:04.000Z",
+    finishedAt: "2026-08-04T08:01:04.000Z",
+    failure: "agent timeout",
+  };
+  await service.recordAttempt(timedOut);
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+  assert.equal(service.snapshot().tasks[0]?.blocked?.reason, "agent timeout");
+});
+
+test("Runtime starts the default orchestration mode from the public workflow command", async (t) => {
+  const root = await runtimeFixture(t);
+  const startedTasks: TaskSummary[] = [];
+  const service = new RuntimeService({
+    dataDir: root,
+    runtimeId: "runtime:default-orchestration",
+    defaultOrchestration: {
+      start: async ({ task: requestedTask }) => {
+        startedTasks.push(requestedTask);
+      },
+    },
+  });
+  await service.start();
+  const backlogTask = { ...task, workflowStatus: "backlog" as const };
+  await service.recordTask(backlogTask);
+
+  const accepted = await service.execute({
+    kind: "start_run",
+    mode: "single-agent",
+    idempotencyKey: "start-orchestration-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    task: backlogTask,
+  });
+
+  assert.equal(accepted.accepted, true);
+  assert.equal(startedTasks[0]?.id, backlogTask.id);
+  assert.equal(accepted.snapshot.runtime.lastEventSequence, 2);
 });
 
 test("Runtime commands serialize optimistic concurrency for the same snapshot", async (t) => {
@@ -215,6 +773,24 @@ test("Runtime accepts retry on finished Attempts but rejects pause", async (t) =
   });
   assert.equal(retried.accepted, true);
   assert.equal(retried.snapshot.runtime.lastEventSequence, expectedEventSequence + 1);
+
+  await service.recordAttempt({
+    ...attempt,
+    id: "attempt-active",
+    sequence: 2,
+    workspaceId: "workspace-active",
+    updatedAt: "2026-08-04T08:03:00.000Z",
+  });
+  await assert.rejects(
+    service.execute({
+      kind: "retry_attempt",
+      idempotencyKey: "retry-while-active",
+      expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+      expectedAttemptUpdatedAt: finishedAttempt.updatedAt,
+      attemptId: finishedAttempt.id,
+    }),
+    (error) => error instanceof RuntimeError && error.code === "conflict",
+  );
 });
 
 test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loopback", async (t) => {
@@ -294,3 +870,11 @@ test("JSONL replay fails closed for corrupt and unknown records", async (t) => {
     (error) => error instanceof RuntimeError && error.code === "unknown_event",
   );
 });
+
+async function initializeRepository(path: string): Promise<void> {
+  await mkdir(path, { recursive: true });
+  await execFileAsync("git", ["-C", path, "init", "--initial-branch=main"]);
+  await execFileAsync("git", ["-C", path, "config", "user.name", "Symphoneer Test"]);
+  await execFileAsync("git", ["-C", path, "config", "user.email", "test@symphoneer.local"]);
+  await execFileAsync("git", ["-C", path, "commit", "--allow-empty", "-m", "Initial"]);
+}

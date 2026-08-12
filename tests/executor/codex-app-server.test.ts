@@ -32,6 +32,8 @@ class FakeCodexTransport implements CodexTransport {
     | "foreign_completed"
     | "interactive"
     | "manual"
+    | "activity"
+    | "history"
     | "setup_failed"
     | "silent";
 
@@ -44,6 +46,8 @@ class FakeCodexTransport implements CodexTransport {
       | "foreign_completed"
       | "interactive"
       | "manual"
+      | "activity"
+      | "history"
       | "setup_failed"
       | "silent" = "interactive",
   ) {
@@ -63,13 +67,143 @@ class FakeCodexTransport implements CodexTransport {
       throw new Error("initialize failed");
     }
     if (method === "initialize") return { userAgent: this.toolVersion };
+    if (method === "model/list") {
+      return {
+        data: [
+          {
+            id: "gpt-5.6-codex",
+            model: "gpt-5.6-codex",
+            displayName: "GPT-5.6 Codex",
+            description: "Frontier coding model",
+            isDefault: true,
+            hidden: false,
+            defaultReasoningEffort: "high",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "medium", description: "Balanced" },
+              { reasoningEffort: "high", description: "Deeper reasoning" },
+            ],
+          },
+        ],
+        nextCursor: null,
+      };
+    }
+    if (method === "thread/read" && this.#mode === "history") {
+      return {
+        thread: {
+          id: this.#threadId,
+          turns: [
+            {
+              id: "turn-history",
+              status: "completed",
+              items: [
+                {
+                  type: "userMessage",
+                  id: "user-history",
+                  content: [{ type: "inputText", text: "Implement the issue." }],
+                },
+                {
+                  type: "commandExecution",
+                  id: "command-history",
+                  command: "pnpm check",
+                  status: "completed",
+                  aggregatedOutput: "all checks passed",
+                  exitCode: 0,
+                },
+                {
+                  type: "agentMessage",
+                  id: "message-history",
+                  text: "The change is complete.",
+                  status: "completed",
+                },
+              ],
+            },
+          ],
+        },
+      };
+    }
     if (method === "thread/start" || method === "thread/resume") {
       const requested = stringField(params, "threadId");
       if (requested) this.#threadId = requested;
       return { thread: { id: this.#threadId } };
     }
     if (method === "turn/start") {
-      if (this.#mode === "failed") queueMicrotask(() => this.#complete("failed"));
+      if (this.#mode === "activity") {
+        queueMicrotask(() => {
+          const emit = (method: string, params: Record<string, unknown>) =>
+            this.#controller.enqueue({
+              kind: "notification",
+              method,
+              params: { threadId: this.#threadId, turnId: this.#turnId, ...params },
+            });
+          emit("turn/plan/updated", {
+            explanation: "Implement and verify the focused change.",
+            plan: [
+              { step: "Update the counter", status: "completed" },
+              { step: "Run the focused check", status: "inProgress" },
+            ],
+          });
+          emit("item/completed", {
+            item: {
+              type: "userMessage",
+              id: "user-1",
+              content: [{ type: "text", text: "Implement the focused change." }],
+            },
+          });
+          emit("item/started", {
+            item: {
+              type: "commandExecution",
+              id: "command-1",
+              command: "pnpm check",
+              cwd: "/tmp/workspace",
+              status: "inProgress",
+            },
+          });
+          emit("item/completed", {
+            item: {
+              type: "commandExecution",
+              id: "command-1",
+              command: "pnpm check",
+              cwd: "/tmp/workspace",
+              status: "completed",
+              aggregatedOutput: "all checks passed",
+              exitCode: 0,
+              durationMs: 1200,
+            },
+          });
+          emit("item/completed", {
+            item: {
+              type: "fileChange",
+              id: "file-1",
+              status: "completed",
+              changes: [
+                { path: "src/counter.ts", kind: "update", diff: "+export const reset = () => 0" },
+              ],
+            },
+          });
+          emit("item/completed", {
+            item: {
+              type: "mcpToolCall",
+              id: "tool-1",
+              server: "github",
+              tool: "get_issue",
+              status: "completed",
+              arguments: { issue_number: 14 },
+              result: { content: [{ type: "text", text: "Issue loaded" }] },
+              error: null,
+              durationMs: 40,
+            },
+          });
+          emit("item/completed", {
+            item: {
+              type: "agentMessage",
+              id: "message-1",
+              text: "Implemented the focused change and verified it.",
+              phase: "final_answer",
+            },
+          });
+          this.#complete("completed");
+        });
+      } else if (this.#mode === "failed") queueMicrotask(() => this.#complete("failed"));
       else if (this.#mode === "colliding_ids") {
         queueMicrotask(() => {
           for (const id of [1, "1"] as const) {
@@ -137,6 +271,7 @@ class FakeCodexTransport implements CodexTransport {
       if (this.#mode !== "silent") queueMicrotask(() => this.#complete("interrupted"));
       return {};
     }
+    if (method === "turn/steer") return { turnId: this.#turnId };
     throw new Error(`Unexpected request ${method}`);
   }
 
@@ -227,6 +362,8 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
 };
 
 const workspace = createWorkspaceReference({
@@ -237,6 +374,33 @@ const workspace = createWorkspaceReference({
   repository: "icho648/symphoneer",
   branch: "codex/issue-14",
   host: "local",
+});
+
+test("Codex adapter lists the models and reasoning efforts advertised by App Server", async () => {
+  const transport = new FakeCodexTransport("thread-models", "manual");
+  const models = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+  }).listModels();
+
+  assert.deepEqual(models, [
+    {
+      id: "gpt-5.6-codex",
+      model: "gpt-5.6-codex",
+      displayName: "GPT-5.6 Codex",
+      description: "Frontier coding model",
+      isDefault: true,
+      defaultReasoningEffort: "high",
+      supportedReasoningEfforts: [
+        { reasoningEffort: "medium", description: "Balanced" },
+        { reasoningEffort: "high", description: "Deeper reasoning" },
+      ],
+    },
+  ]);
+  assert.deepEqual(
+    transport.requests.map(({ method }) => method),
+    ["initialize", "model/list"],
+  );
+  assert.equal(transport.closeCalls, 1);
 });
 
 test("Codex adapter maps v2 Thread, Turn, approvals, and input to the Agent Runner contract", async () => {
@@ -308,6 +472,54 @@ test("Codex adapter maps v2 Thread, Turn, approvals, and input to the Agent Runn
     transport.requests.map(({ method }) => method),
     ["initialize", "thread/start", "turn/start"],
   );
+  assert.equal(
+    (
+      transport.requests.find(({ method }) => method === "thread/start")?.params as {
+        threadSource?: unknown;
+      }
+    )?.threadSource,
+    "user",
+  );
+});
+
+test("Codex adapter applies the selected model, permission, and reasoning effort", async () => {
+  const transport = new FakeCodexTransport("thread-settings", "manual");
+  const handle = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+  }).startOrContinue({
+    attemptId: "attempt-settings",
+    task,
+    workspace,
+    prompt: "Implement with selected settings",
+    continuation: false,
+    model: "gpt-5.6-codex",
+    sandbox: "read-only",
+    effort: "high",
+  });
+
+  assert.equal(
+    (
+      transport.requests.find(({ method }) => method === "thread/start")?.params as {
+        model?: unknown;
+      }
+    )?.model,
+    "gpt-5.6-codex",
+  );
+  assert.equal(
+    (
+      transport.requests.find(({ method }) => method === "thread/start")?.params as {
+        sandbox?: unknown;
+      }
+    )?.sandbox,
+    "read-only",
+  );
+  const turnParams = transport.requests.find(({ method }) => method === "turn/start")?.params as {
+    effort?: unknown;
+    model?: unknown;
+  };
+  assert.equal(turnParams.effort, "high");
+  assert.equal(turnParams.model, "gpt-5.6-codex");
+  await handle.interrupt();
 });
 
 test("Codex adapter summarizes file-change approval details", async () => {
@@ -334,6 +546,85 @@ test("Codex adapter summarizes file-change approval details", async () => {
   assert.deepEqual(await handle.completion, { outcome: "completed" });
 });
 
+test("Codex adapter projects useful App Server items as bounded execution activities", async () => {
+  const transport = new FakeCodexTransport("thread-activity", "activity");
+  const handle = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+    now: () => new Date("2026-08-09T09:00:00.000Z"),
+  }).startOrContinue({
+    attemptId: "attempt-activity",
+    task,
+    workspace,
+    prompt: "Show useful execution activity",
+    continuation: false,
+  });
+  const events = [];
+  for await (const event of handle.events) events.push(event);
+  assert.deepEqual(await handle.completion, { outcome: "completed" });
+
+  const activities = events.filter((event) => event.type === "activity");
+  assert.deepEqual(
+    activities.map((event) => ({
+      kind: "kind" in event ? event.kind : null,
+      status: "status" in event ? event.status : null,
+    })),
+    [
+      { kind: "plan", status: "running" },
+      { kind: "message", status: "completed" },
+      { kind: "command", status: "running" },
+      { kind: "command", status: "completed" },
+      { kind: "file_change", status: "completed" },
+      { kind: "tool", status: "completed" },
+      { kind: "message", status: "completed" },
+    ],
+  );
+  const userMessage = activities.find(
+    (event) => "details" in event && event.kind === "message" && event.details.role === "user",
+  );
+  assert.equal(
+    "content" in (userMessage ?? {}) ? userMessage?.content : null,
+    "Implement the focused change.",
+  );
+  const command = activities.find(
+    (event) => "kind" in event && event.kind === "command" && event.status === "completed",
+  );
+  assert.deepEqual("details" in (command ?? {}) ? command?.details : null, {
+    command: "pnpm check",
+    cwd: "/tmp/workspace",
+    output: "all checks passed",
+    exitCode: 0,
+    durationMs: 1200,
+  });
+});
+
+test("Codex adapter reads a complete persisted Thread session without resuming execution", async () => {
+  const transport = new FakeCodexTransport("thread-history", "history");
+  const session = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+  }).readSession("thread-history", "attempt-history", "2026-08-09T09:00:00.000Z");
+
+  assert.equal(session?.threadId, "thread-history");
+  assert.equal(session?.turns[0]?.id, "turn-history");
+  assert.deepEqual(
+    session?.turns[0]?.items.map(({ id, type }) => ({ id, type })),
+    [
+      { id: "user-history", type: "userMessage" },
+      { id: "command-history", type: "commandExecution" },
+      { id: "message-history", type: "agentMessage" },
+    ],
+  );
+  assert.deepEqual(session?.turns[0]?.items[0]?.data, {
+    type: "userMessage",
+    id: "user-history",
+    content: [{ type: "inputText", text: "Implement the issue." }],
+  });
+  assert.deepEqual(
+    transport.requests.map(({ method }) => method),
+    ["initialize", "thread/read"],
+  );
+  assert.equal(transport.closeCalls, 1);
+});
+
 test("Codex continuation resumes the recorded Thread and interrupt pauses the Turn", async () => {
   const transport = new FakeCodexTransport("thread-resume");
   const runner = new CodexAppServerAdapter({ transportFactory: async () => transport });
@@ -344,6 +635,8 @@ test("Codex continuation resumes the recorded Thread and interrupt pauses the Tu
     prompt: "Continue #14",
     continuation: true,
     threadId: "thread-resume",
+    sandbox: "danger-full-access",
+    effort: "xhigh",
   });
   await handle.interrupt();
   assert.deepEqual(await handle.completion, { outcome: "interrupted" });
@@ -351,6 +644,47 @@ test("Codex continuation resumes the recorded Thread and interrupt pauses the Tu
     transport.requests.map(({ method }) => method),
     ["initialize", "thread/resume", "turn/start", "turn/interrupt"],
   );
+  assert.equal(
+    (
+      transport.requests.find(({ method }) => method === "thread/resume")?.params as {
+        sandbox?: unknown;
+      }
+    )?.sandbox,
+    "danger-full-access",
+  );
+  assert.equal(
+    (
+      transport.requests.find(({ method }) => method === "turn/start")?.params as {
+        effort?: unknown;
+      }
+    )?.effort,
+    "xhigh",
+  );
+});
+
+test("Codex active Turns accept a small steering message", async () => {
+  const transport = new FakeCodexTransport("thread-steer", "manual");
+  const handle = await new CodexAppServerAdapter({
+    transportFactory: async () => transport,
+  }).startOrContinue({
+    attemptId: "attempt-steer",
+    task,
+    workspace,
+    prompt: "Start the change",
+    continuation: false,
+  });
+
+  await handle.steer("Focus on the failing test first.");
+  assert.deepEqual(transport.requests.at(-1), {
+    method: "turn/steer",
+    params: {
+      threadId: "thread-steer",
+      expectedTurnId: "turn-14",
+      input: [{ type: "text", text: "Focus on the failing test first." }],
+    },
+  });
+  transport.complete("completed");
+  assert.deepEqual(await handle.completion, { outcome: "completed" });
 });
 
 test("Codex adapter exposes failed and timed-out Turns without Provider error payloads", async () => {
@@ -587,6 +921,16 @@ test("Codex stdio transport turns an input-pipe race into a process failure", as
     (error) => error instanceof CodexTransportError && error.code === "process_failed",
   );
   await transport.closed;
+});
+
+test("Codex stdio transport tolerates event consumer cancellation before process close", async () => {
+  const transport = await StdioCodexTransport.start({
+    command: process.execPath,
+    args: ["-e", "setInterval(() => {}, 1000)"],
+  });
+  const events = transport.messages[Symbol.asyncIterator]();
+  await events.return?.();
+  await transport.close();
 });
 
 test("Codex stdio transport ignores buffered JSONL after a protocol failure", async () => {

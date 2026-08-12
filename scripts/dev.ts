@@ -10,7 +10,11 @@ const runtimePort = process.env.SYMPHONEER_RUNTIME_PORT ?? "4318";
 const webHost = process.env.SYMPHONEER_WEB_HOST ?? "127.0.0.1";
 const webPort = process.env.SYMPHONEER_WEB_PORT ?? "3000";
 const runtimeUrl = process.env.SYMPHONEER_RUNTIME_URL ?? `http://${runtimeHost}:${runtimePort}`;
-const dataDir = process.env.SYMPHONEER_DATA_DIR ?? path.join(os.tmpdir(), "symphoneer-runtime");
+const dataDir =
+  process.env.SYMPHONEER_DATA_DIR ??
+  (process.platform === "darwin"
+    ? path.join(os.homedir(), "Library", "Application Support", "Symphoneer", "Development")
+    : path.join(os.homedir(), ".symphoneer", "development"));
 const canReuseRuntime = process.env.SYMPHONEER_DATA_DIR === undefined;
 
 const children = new Map<string, ChildProcess>();
@@ -165,7 +169,7 @@ export async function main(): Promise<void> {
   if (reuseHealthyRuntime) {
     process.stdout.write(`Runtime already healthy; reusing ${runtimeUrl}\n`);
   } else {
-    start("Runtime", ["runtime:serve"], sharedEnv);
+    start("Runtime", ["run", "runtime:dev"], sharedEnv);
   }
   start("Web", ["run", "web:dev"], sharedEnv);
 }

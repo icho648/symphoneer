@@ -33,7 +33,22 @@ export function commandMessage(command: RuntimeCommand): string {
   if (command.kind === "retry_attempt") {
     return "Retry requested; the Runtime coordinator will decide the next Attempt from current state.";
   }
-  if (command.kind === "start_team_run") return "Workflow started.";
+  if (command.kind === "handoff_attempt") {
+    return "Attempt paused and handed off to Codex.";
+  }
+  if (command.kind === "send_attempt_input") return "Input sent to the active Codex session.";
+  if (command.kind === "sync_attempt_session") return "Codex session history synchronized.";
+  if (command.kind === "return_attempt_control") {
+    return "Codex session synchronized and control returned to Symphoneer.";
+  }
+  if (command.kind === "delete_attempt") {
+    return "Attempt and its managed Workspace deleted.";
+  }
+  if (command.kind === "record_review") return "Human review decision recorded.";
+  if (command.kind === "set_task_status") return "Task workflow status updated.";
+  if (command.kind === "enable_task_dispatch") return "Task enabled for dispatch in the Tracker.";
+  if (command.kind === "refresh_tracker") return "Tracker projection refreshed.";
+  if (command.kind === "start_run") return "Orchestration started.";
   if (command.kind === "approve_plan") return "Workflow plan approved.";
   if (command.kind === "reject_plan") return "Workflow plan rejected.";
   if (command.kind === "revise_plan") return "Workflow plan revision requested.";

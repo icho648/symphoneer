@@ -1,7 +1,9 @@
 import type { AgentRunner, AgentRunRequest, RunHandle } from "../agent-runner.ts";
 
+import { storedExecutionSession } from "./activities.ts";
+import { listCodexModels } from "./models.ts";
 import { createRunHandle } from "./run-handle.ts";
-import { startCodexTurn } from "./session.ts";
+import { initializeCodexTransport, startCodexTurn } from "./session.ts";
 import type { CodexTransport } from "./transport.ts";
 import { StdioCodexTransport } from "./transport.ts";
 
@@ -73,6 +75,26 @@ export class CodexAppServerAdapter implements AgentRunner {
     } catch (error) {
       await transport.close().catch(() => undefined);
       throw error;
+    }
+  }
+
+  async listModels() {
+    const transport = await this.#transportFactory();
+    try {
+      return await listCodexModels(transport);
+    } finally {
+      await transport.close().catch(() => undefined);
+    }
+  }
+
+  async readSession(threadId: string, attemptId: string, capturedAt: string) {
+    const transport = await this.#transportFactory();
+    try {
+      await initializeCodexTransport(transport);
+      const response = await transport.request("thread/read", { threadId, includeTurns: true });
+      return storedExecutionSession(response, attemptId, capturedAt);
+    } finally {
+      await transport.close().catch(() => undefined);
     }
   }
 }

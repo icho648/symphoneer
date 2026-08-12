@@ -11,7 +11,28 @@ import { createAssistantAdapter, executeRuntimeTool } from "../../src/runtime-to
 test("headless RuntimeClient supports query, mutation, and subscription without React/MCP", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "symphoneer-headless-"));
   const token = "headless-token-abcdefghijklmnopqrst";
-  const service = new RuntimeService({ dataDir });
+  const service = new RuntimeService({
+    dataDir,
+    defaultOrchestration: {
+      async start() {},
+      async listModels() {
+        return [
+          {
+            id: "gpt-5.6-codex",
+            model: "gpt-5.6-codex",
+            displayName: "GPT-5.6 Codex",
+            description: "Frontier coding model",
+            isDefault: true,
+            defaultReasoningEffort: "high",
+            supportedReasoningEfforts: [
+              { reasoningEffort: "medium", description: "Balanced" },
+              { reasoningEffort: "high", description: "Deeper reasoning" },
+            ],
+          },
+        ];
+      },
+    },
+  });
   const server = new RuntimeHttpServer(service, { sessionToken: token });
   const endpoint = await server.listen();
   try {
@@ -20,6 +41,20 @@ test("headless RuntimeClient supports query, mutation, and subscription without 
     );
     const health = await client.health();
     assert.equal(health.status, "ok");
+    assert.deepEqual(await client.listModels(), [
+      {
+        id: "gpt-5.6-codex",
+        model: "gpt-5.6-codex",
+        displayName: "GPT-5.6 Codex",
+        description: "Frontier coding model",
+        isDefault: true,
+        defaultReasoningEffort: "high",
+        supportedReasoningEfforts: [
+          { reasoningEffort: "medium", description: "Balanced" },
+          { reasoningEffort: "high", description: "Deeper reasoning" },
+        ],
+      },
+    ]);
 
     const subscription = client.subscribe({ afterSequence: 0 });
     const first = await subscription.events[Symbol.asyncIterator]().next();

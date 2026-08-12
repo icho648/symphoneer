@@ -1,307 +1,215 @@
-import type {
-  AgentRunSnapshot,
-  AttemptSnapshot,
-  RuntimeAttemptDetail,
-  RuntimeSnapshot,
-  TaskSummary,
-  TeamRunSnapshot,
-} from "@symphoneer/contracts";
+import type { AttemptSnapshot, WorkflowStatus } from "@symphoneer/contracts";
+import { RotateCcw } from "lucide-react";
 import { useState } from "react";
-import { type Dictionary, interpolate, type Locale } from "../../i18n/index.ts";
+import { useShallow } from "zustand/react/shallow";
+import { Button } from "@/components/ui/button";
+import type { Dictionary } from "../../i18n/index.ts";
+import {
+  selectActiveAttempt,
+  selectSelectedAttempts,
+  selectSelectedTask,
+  useWorkbench,
+} from "../../stores/workbench.ts";
+import { ExecutionActivityFeed } from "./execution-activity";
 
-import { AttemptDetail } from "./attempt-detail";
-import { AttemptHistory } from "./attempt-history";
-import { ExecutorOutput } from "./executor-output";
-
-export type CommandIntent =
-  | { kind: "pause_attempt" }
-  | { kind: "retry_attempt" }
-  | { kind: "start_team_run"; task: TaskSummary }
-  | { kind: "approve_plan"; teamRunId: string; expectedTeamRevision: number }
-  | { kind: "revise_plan"; teamRunId: string; expectedTeamRevision: number }
-  | { kind: "reject_plan"; teamRunId: string; expectedTeamRevision: number }
-  | {
-      kind: "answer_team_input";
-      teamRunId: string;
-      expectedTeamRevision: number;
-      response: "approve" | "request_changes" | "stop";
-    }
-  | {
-      kind: "final_decision";
-      teamRunId: string;
-      expectedTeamRevision: number;
-      decision: "accept" | "stop";
-    }
-  | { kind: "stop_team_session"; teamRunId: string; expectedTeamRevision: number };
-
-export function TaskDetail({
-  dictionary,
-  detail,
-  activeAgentId,
-  activeRunId,
-  activeSessionId,
-  attempts,
-  latestAttempt,
-  locale,
-  onBack,
-  onCommand,
-  onSelectAgent,
-  onSelectAttempt,
-  onSelectRun,
-  onSelectSession,
-  selectedTask,
-  snapshot,
-}: {
-  activeAgentId: string | null;
-  activeRunId: string | null;
-  activeSessionId: string | null;
-  attempts: readonly AttemptSnapshot[];
-  dictionary: Dictionary;
-  detail: RuntimeAttemptDetail | null;
-  latestAttempt: AttemptSnapshot;
-  locale: Locale;
-  onBack: () => void;
-  onCommand: (command: CommandIntent) => void;
-  onSelectAgent: (agent: AgentRunSnapshot) => void;
-  onSelectAttempt: (attempt: AttemptSnapshot) => void;
-  onSelectRun: (run: TeamRunSnapshot) => void;
-  onSelectSession: (threadId: string) => void;
-  selectedTask: TaskSummary;
-  snapshot: RuntimeSnapshot | null;
-}) {
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const selectedRun =
-    detail?.teamRuns.find((run) => run.id === activeRunId) ??
-    latestWorkflow(detail?.teamRuns ?? []);
+export function TaskOverview() {
+  const { attempt, closeTask, connection, detail, dictionary, task, selectAttempt, sendCommand } =
+    useWorkbench(
+      useShallow((state) => ({
+        attempt: selectActiveAttempt(state),
+        closeTask: state.closeTask,
+        connection: state.connection,
+        detail: state.detail,
+        dictionary: state.dictionary,
+        task: selectSelectedTask(state),
+        selectAttempt: state.selectAttempt,
+        sendCommand: state.sendCommand,
+      })),
+    );
+  const attempts = useWorkbench(useShallow(selectSelectedAttempts));
+  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const [creatingAttempt, setCreatingAttempt] = useState(false);
+  if (!task) return null;
+  const hasActiveAttempt = attempts.some(
+    (item) => item.controller === "codex" || (item.finishedAt == null && item.status !== "paused"),
+  );
+  const workflow = detail?.teamRuns.at(-1);
+  const mode = workflow?.workflow ?? dictionary.taskCard.modes.single;
+  const currentNode = workflow
+    ? (dictionary.workflow.nodes[workflow.currentNode as keyof typeof dictionary.workflow.nodes] ??
+      workflow.currentNode)
+    : attempt
+      ? (dictionary.statuses[attempt.status] ?? attempt.status)
+      : dictionary.detail.notStarted;
 
   return (
-    <section className="attempt-view" id="attempt-view" aria-labelledby="attempt-view-title">
-      <header className="attempt-view-header">
-        <div className="flex min-w-0 items-start gap-3">
-          <button className="back-button" type="button" onClick={onBack}>
+    <section className="attempt-view" id="task-view" aria-labelledby="task-view-title">
+      <header className="task-view-header">
+        <div className="task-view-title-row">
+          <button className="back-button" type="button" onClick={closeTask}>
             <span aria-hidden="true">←</span>
             {dictionary.detail.backToTasks}
           </button>
-          <span className="attempt-view-divider" aria-hidden="true" />
-          <div className="min-w-0">
-            <nav className="attempt-breadcrumb" aria-label={dictionary.detail.breadcrumbTasks}>
-              <button type="button" onClick={onBack}>
-                {dictionary.detail.breadcrumbTasks}
-              </button>
-              <span aria-hidden="true">/</span>
-              <span>{selectedTask.identifier}</span>
-              <span aria-hidden="true">/</span>
-              <strong>
-                {dictionary.detail.breadcrumbAttempt}{" "}
-                {String(latestAttempt.sequence).padStart(2, "0")}
-              </strong>
-              {selectedRun && (
-                <>
-                  <span aria-hidden="true">/</span>
-                  <span>{dictionary.detail.breadcrumbRun}</span>
-                </>
+          <div className="task-view-actions">
+            <div className="attempt-picker">
+              <span>{dictionary.detail.attempts}</span>
+              <strong>{attempts.length}</strong>
+              {attempts.length > 0 ? (
+                <select
+                  aria-label={dictionary.detail.attempts}
+                  value={attempt?.id ?? ""}
+                  onChange={(event) => {
+                    const selected = attempts.find((item) => item.id === event.target.value);
+                    if (selected) selectAttempt(selected);
+                  }}
+                >
+                  {!attempt && <option value="">—</option>}
+                  {attempts.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      #{String(item.sequence).padStart(2, "0")} ·{" "}
+                      {dictionary.statuses[item.status] ?? item.status}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <em>{dictionary.detail.notStarted}</em>
               )}
-              {activeAgentId && (
-                <>
-                  <span aria-hidden="true">/</span>
-                  <span>{dictionary.detail.breadcrumbAgent}</span>
-                </>
-              )}
-              {activeSessionId && (
-                <>
-                  <span aria-hidden="true">/</span>
-                  <span>{dictionary.detail.breadcrumbSession}</span>
-                </>
-              )}
-            </nav>
-            <h1
-              className="truncate text-[20px] font-semibold tracking-[-0.03em]"
-              id="attempt-view-title"
-            >
-              {interpolate(dictionary.detail.selectedTask, { identifier: selectedTask.identifier })}{" "}
-              · {selectedTask.title}
-            </h1>
+            </div>
+            {attempts.length > 0 && (
+              <Button
+                disabled={connection === "offline" || hasActiveAttempt || creatingAttempt}
+                size="xs"
+                title={hasActiveAttempt ? dictionary.detail.activity.newAttemptBlocked : undefined}
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCreatingAttempt(true);
+                  void sendCommand({ kind: "retry_attempt" }).finally(() =>
+                    setCreatingAttempt(false),
+                  );
+                }}
+              >
+                <RotateCcw /> {dictionary.detail.activity.newAttempt}
+              </Button>
+            )}
+            <a className="macos-btn" href={task.source.url} target="_blank" rel="noreferrer">
+              {dictionary.detail.openGitHub}
+            </a>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2 max-[700px]:w-full max-[700px]:justify-between">
-          <span className={`macos-pill ${attemptStatusClass(latestAttempt.status)}`}>
-            {dictionary.statuses[latestAttempt.status] ?? latestAttempt.status}
-          </span>
-          <a
-            className="macos-btn macos-btn-primary"
-            href={selectedTask.source.url}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {dictionary.detail.openGitHub}
-          </a>
+
+        <div className="task-orchestration-strip">
+          <div className="task-orchestration-identity">
+            <strong>{mode}</strong>
+            <span>{currentNode}</span>
+          </div>
+          <OrchestrationProgress
+            attempt={attempt}
+            dictionary={dictionary}
+            workflowStatus={task.workflowStatus}
+          />
         </div>
       </header>
 
-      <div className={`attempt-view-grid ${historyOpen ? "history-is-open" : ""}`}>
-        <AttemptHistory
-          activeAgentId={activeAgentId}
-          activeRunId={activeRunId}
-          attempts={attempts}
-          currentAttemptId={latestAttempt.id}
-          detail={detail}
-          dictionary={dictionary}
-          locale={locale}
-          onSelectAgent={onSelectAgent}
-          onSelectAttempt={onSelectAttempt}
-          onSelectRun={onSelectRun}
-          onSelectSession={onSelectSession}
-          onToggle={() => setHistoryOpen((value) => !value)}
-          open={historyOpen}
-        />
-        <main className="attempt-main">
-          <div className="attempt-facts">
-            <Fact
-              label={dictionary.detail.tracker}
-              value={formatTracker(selectedTask.source.kind)}
-            />
-            <Fact
-              label={dictionary.detail.attempt}
-              value={`${dictionary.detail.attempt} ${String(latestAttempt.sequence).padStart(2, "0")}`}
-            />
-            <Fact
-              label={dictionary.detail.executor}
-              value={detail ? executorLabel(detail, dictionary) : "—"}
-            />
-            <Fact label={dictionary.detail.workflow} value={selectedRun?.workflow ?? "—"} />
-          </div>
-          <VerificationPanel
-            dictionary={dictionary}
-            latestAttempt={latestAttempt}
-            snapshot={snapshot}
-          />
-          {detail && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="macos-btn"
-                type="button"
-                onClick={() => onCommand({ kind: "pause_attempt" })}
-              >
-                {dictionary.detail.requestPause}
-              </button>
-              <button
-                className="macos-btn"
-                type="button"
-                onClick={() => onCommand({ kind: "retry_attempt" })}
-              >
-                {dictionary.detail.requestRetry}
-              </button>
+      <main className="task-detail-layout">
+        <section className="task-issue-pane" aria-labelledby="task-issue-title">
+          <header>
+            <div>
+              <p className="eyebrow-label">
+                {task.identifier} · {workflowStatusLabel(task.workflowStatus, dictionary)}
+              </p>
+              <h1 id="task-view-title">{task.title}</h1>
+              <p className="task-issue-source">GitHub · {task.state}</p>
             </div>
+            {task.labels.length > 0 && <span>{task.labels.join(" · ")}</span>}
+          </header>
+          <h2 id="task-issue-title">{dictionary.detail.issueDescription}</h2>
+          <pre className={bodyExpanded ? "is-expanded" : ""}>
+            {task.body || dictionary.detail.noDescription}
+          </pre>
+          {task.body && (
+            <button
+              className="task-body-toggle"
+              type="button"
+              onClick={() => setBodyExpanded(!bodyExpanded)}
+            >
+              {bodyExpanded ? dictionary.detail.collapseBody : dictionary.detail.expandBody}
+            </button>
           )}
-          {detail ? (
-            <AttemptDetail
-              activeAgentId={activeAgentId}
-              activeRunId={activeRunId}
-              detail={detail}
-              dictionary={dictionary}
-              locale={locale}
-              onCommand={onCommand}
-            />
-          ) : (
-            <div className="attempt-loading" aria-live="polite">
-              <span className="executor-empty-mark" aria-hidden="true">
-                ◌
-              </span>
-              <p>{dictionary.board.attemptUnavailable}</p>
-            </div>
+          {detail?.workspace && (
+            <dl className="task-workspace-summary">
+              <div>
+                <dt>{dictionary.attempt.workspace}</dt>
+                <dd>
+                  {task.identifier} · {dictionary.attempt.label} {detail.attempt.sequence}
+                </dd>
+              </div>
+              <div>
+                <dt>{dictionary.attempt.state}</dt>
+                <dd>{detail.workspace.state}</dd>
+              </div>
+              <div>
+                <dt>{dictionary.attempt.branch}</dt>
+                <dd title={detail.workspace.branch}>{detail.workspace.branch}</dd>
+              </div>
+            </dl>
           )}
-        </main>
-        {detail && (
-          <ExecutorOutput
-            activeAgentId={activeAgentId}
-            activeRunId={activeRunId}
-            detail={detail}
-            dictionary={dictionary}
-            locale={locale}
-          />
-        )}
-      </div>
+        </section>
+
+        <ExecutionActivityFeed />
+      </main>
     </section>
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="attempt-fact">
-      <small>{label}</small>
-      <strong className="truncate">{value}</strong>
-    </span>
-  );
-}
-
-function latestWorkflow(runs: readonly TeamRunSnapshot[]): TeamRunSnapshot | null {
-  return runs.reduce<TeamRunSnapshot | null>(
-    (latest, run) => (!latest || run.updatedAt > latest.updatedAt ? run : latest),
-    null,
-  );
-}
-
-function VerificationPanel({
+function OrchestrationProgress({
+  attempt,
   dictionary,
-  latestAttempt,
-  snapshot,
+  workflowStatus,
 }: {
+  attempt: AttemptSnapshot | null;
   dictionary: Dictionary;
-  latestAttempt: AttemptSnapshot;
-  snapshot: RuntimeSnapshot | null;
+  workflowStatus: WorkflowStatus;
 }) {
-  const verifications =
-    snapshot?.verifications.filter((item) => item.attemptId === latestAttempt.id) ?? [];
+  const states = orchestrationStates(attempt, workflowStatus);
+  const labels = [
+    dictionary.detail.executionSteps.workspace,
+    dictionary.detail.executionSteps.codex,
+    dictionary.detail.executionSteps.review,
+  ];
   return (
-    <section className="verification-strip" id="verification" aria-labelledby="verification-title">
-      <div>
-        <h2 className="text-[13px] font-semibold" id="verification-title">
-          {dictionary.detail.verification}
-        </h2>
-        <p className="mb-0 mt-0.5 text-[11px] text-faint">{dictionary.detail.independent}</p>
-      </div>
-      {verifications.length ? (
-        <div className="flex min-w-0 items-center gap-3">
-          {verifications.map((item) => (
-            <span className={`macos-pill ${verificationStatusClass(item.status)}`} key={item.id}>
-              {dictionary.statuses[item.status] ?? item.status}
-            </span>
-          ))}
-          <code className="truncate font-mono text-[11px] text-muted">
-            {verifications[verifications.length - 1]?.checkId}
-          </code>
-        </div>
-      ) : (
-        <span className="text-[11px] text-faint">{dictionary.detail.notVerified}</span>
-      )}
-    </section>
+    <ol className="task-orchestration-progress">
+      {labels.map((label, index) => (
+        <li className={`is-${states[index]}`} key={label}>
+          <span aria-hidden="true" />
+          <strong>{label}</strong>
+        </li>
+      ))}
+    </ol>
   );
 }
 
-function executorLabel(detail: RuntimeAttemptDetail, dictionary: Dictionary): string {
-  const workflow = detail.teamRuns[0];
-  if (!workflow) return "—";
-  return workflow.provider === "fake"
-    ? dictionary.workflow.fakeShort
-    : dictionary.workflow.codexShort;
+function orchestrationStates(
+  attempt: AttemptSnapshot | null,
+  workflowStatus: WorkflowStatus,
+): Array<"waiting" | "active" | "done" | "failed"> {
+  if (!attempt) return ["waiting", "waiting", "waiting"];
+  if (workflowStatus === "in_review") return ["done", "done", "active"];
+  if (workflowStatus === "done") return ["done", "done", "done"];
+  if (attempt.status === "preparing_workspace") return ["active", "waiting", "waiting"];
+  if (["failed", "timed_out", "stalled", "canceled_by_reconciliation"].includes(attempt.status))
+    return ["done", "failed", "waiting"];
+  if (attempt.status === "succeeded") return ["done", "done", "active"];
+  if (attempt.status === "paused") return ["done", "waiting", "waiting"];
+  return ["done", "active", "waiting"];
 }
 
-function formatTracker(kind: string): string {
-  if (kind === "github") return "GitHub";
-  return kind.charAt(0).toUpperCase() + kind.slice(1);
-}
-
-function verificationStatusClass(status: string): string {
-  if (status === "passed") return "bg-success/15 text-success";
-  if (status === "failed" || status === "timed_out") return "bg-danger/15 text-danger";
-  return "bg-panel-raised text-muted";
-}
-
-function attemptStatusClass(status: AttemptSnapshot["status"]): string {
-  if (status === "succeeded") return "bg-success/15 text-success";
-  if (status === "failed" || status === "timed_out" || status === "stalled") {
-    return "bg-danger/15 text-danger";
-  }
-  if (status === "paused") return "bg-amber/15 text-amber";
-  return "bg-panel-raised text-muted";
+function workflowStatusLabel(status: WorkflowStatus, dictionary: Dictionary): string {
+  return {
+    backlog: dictionary.columns.backlog.label,
+    ready: dictionary.columns.ready.label,
+    in_progress: dictionary.columns.inProgress.label,
+    in_review: dictionary.columns.inReview.label,
+    done: dictionary.columns.done.label,
+  }[status];
 }

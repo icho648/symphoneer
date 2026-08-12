@@ -5,6 +5,7 @@ export { WorkspaceManager } from "./manager.ts";
 export {
   canonicalizeWorkspaceReference,
   createWorkspaceReference,
+  workspaceAttemptKey,
   workspaceKey,
 } from "./reference.ts";
 export type {

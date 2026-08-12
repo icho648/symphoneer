@@ -38,6 +38,8 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
 };
 
 const workspace: WorkspaceReference = {
@@ -61,6 +63,7 @@ const attempt: AttemptSnapshot = {
   sequence: 1,
   startReason: "dispatch",
   status: "preparing_workspace",
+  controller: "symphoneer",
   workspaceId: workspace.id,
   providerSession: null,
   startedAt: "2026-08-05T09:00:00.000Z",

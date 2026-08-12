@@ -19,7 +19,8 @@
     "paths": {
       "@/*": ["./*"],
       "@symphoneer/contracts": ["../contracts/index.ts"],
-      "@symphoneer/runtime-client": ["../runtime-client/index.ts"]
+      "@symphoneer/runtime-client": ["../runtime-client/index.ts"],
+      "@symphoneer/runtime-tools": ["../runtime-tools/index.ts"]
     }
   },
   "include": ["./**/*.ts", "./**/*.tsx", "./vite-env.d.ts"],

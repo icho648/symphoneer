@@ -4,6 +4,7 @@ import type { TaskSnapshot, Tracker } from "../../src/runtime/tracker/tracker.ts
 import { TrackerError } from "../../src/runtime/tracker/tracker.ts";
 
 export class FakeTracker implements Tracker {
+  readonly kind = "fake";
   readonly requests: string[] = [];
   readonly #tasks: Map<string, TaskSnapshot>;
 

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
+import {
+  CONTRACT_SCHEMA_VERSION,
+  type TaskSummary,
+  TaskSummarySchema,
+} from "@symphoneer/contracts";
 import type { Tracker } from "../../src/runtime/tracker/tracker.ts";
 import { TrackerError } from "../../src/runtime/tracker/tracker.ts";
 import { FakeTracker } from "../fixtures/fake-tracker.ts";
@@ -19,6 +23,8 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
+  workflowStatus: "ready",
+  blocked: null,
   createdAt: "2026-08-03T12:00:00Z",
   updatedAt: "2026-08-03T12:00:01Z",
 };
@@ -39,4 +45,16 @@ test("the deterministic Fake satisfies the Tracker public contract", async () =>
     tracker.getTask("99"),
     (error) => error instanceof TrackerError && error.code === "not_found",
   );
+});
+
+test("TaskSummary defaults the local WorkflowStatus for legacy Tracker payloads", () => {
+  const parsed = TaskSummarySchema.parse({
+    ...task,
+    workflowStatus: undefined,
+    blocked: undefined,
+  });
+
+  assert.equal(parsed.workflowStatus, "backlog");
+  assert.equal(parsed.blocked, null);
+  assert.equal(parsed.state, "open");
 });

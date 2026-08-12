@@ -6,15 +6,14 @@ import test from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
 import {
+  createWorkspaceReference,
   WorkspaceError,
   WorkspaceManager,
-  workspaceKey,
 } from "../../src/runtime/workspace/index.ts";
 
 test("Workspace lifecycle rejects non-directories and times out fatal hooks", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await writeFile(resolve(root, workspaceKey("BLOCKED")), "not a directory");
   const input = {
     taskId: "task-blocked",
     identifier: "BLOCKED",
@@ -23,6 +22,9 @@ test("Workspace lifecycle rejects non-directories and times out fatal hooks", as
     branch: "codex/blocked",
     host: "local",
   };
+  const blockedPath = createWorkspaceReference({ root, ...input }).path;
+  await mkdir(resolve(blockedPath, ".."), { recursive: true });
+  await writeFile(blockedPath, "not a directory");
 
   await assert.rejects(
     new WorkspaceManager({ root }).prepare(input),
@@ -38,7 +40,7 @@ test("Workspace lifecycle rejects non-directories and times out fatal hooks", as
     timed.prepare(timedInput),
     (error) => error instanceof WorkspaceError && error.code === "hook_timed_out",
   );
-  await assert.rejects(access(resolve(root, workspaceKey("TIMED"))));
+  await assert.rejects(access(createWorkspaceReference({ root, ...timedInput }).path));
 });
 
 test("Workspace hooks terminate descendants and reject a symlink swap", async (t) => {
@@ -55,20 +57,22 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
   const hookTarget = resolve(root, "hook-target");
   await mkdir(hookTarget);
   await writeFile(resolve(hookTarget, "keep.txt"), "keep");
-  const swappedKey = workspaceKey("SWAPPED");
+  const swappedInput = {
+    ...input,
+    taskId: "task-swapped",
+    identifier: "SWAPPED",
+    attemptId: "attempt-swapped",
+  };
+  const swappedPath = createWorkspaceReference({ root, ...swappedInput }).path;
+  const swappedName = swappedPath.split("/").at(-1);
   const swapped = new WorkspaceManager({
     root,
     hooks: {
-      afterCreate: `cd .. && rm -rf ${swappedKey} && ln -s hook-target ${swappedKey}`,
+      afterCreate: `cd .. && rm -rf '${swappedName}' && ln -s '../hook-target' '${swappedName}'`,
     },
   });
   await assert.rejects(
-    swapped.prepare({
-      ...input,
-      taskId: "task-swapped",
-      identifier: "SWAPPED",
-      attemptId: "attempt-swapped",
-    }),
+    swapped.prepare(swappedInput),
     (error) => error instanceof WorkspaceError && error.code === "workspace_not_directory",
   );
   assert.equal(await readFile(resolve(hookTarget, "keep.txt"), "utf8"), "keep");
@@ -87,7 +91,7 @@ test("Workspace hooks terminate descendants and reject a symlink swap", async (t
     manager.prepare({ ...input, attemptId: "attempt-guarded-retry" }),
     (error) => error instanceof WorkspaceError && error.code === "hook_timed_out",
   );
-  const path = resolve(root, workspaceKey(input.identifier));
+  const path = createWorkspaceReference({ root, ...input }).path;
   await delay(700);
   await assert.rejects(access(resolve(path, "orphaned.txt")));
 

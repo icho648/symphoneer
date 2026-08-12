@@ -33,7 +33,7 @@ test("GitHub adapter preserves native identity and applies the exact dispatch ga
 
   const snapshot = await adapter.getTask("14");
   assert.equal(snapshot.task.id, "github:icho648/symphoneer:2345678");
-  assert.equal(snapshot.task.source.nativeId, "2345678");
+  assert.equal(snapshot.task.source.nativeId, "14");
   assert.equal(snapshot.task.source.url, issue.html_url);
   assert.equal(snapshot.task.dispatchable, true);
   assert.equal(snapshot.versionToken, '"issue-v2"');
@@ -56,6 +56,72 @@ test("GitHub adapter preserves native identity and applies the exact dispatch ga
     });
     assert.equal((await gated.getTask("14")).task.dispatchable, false);
   }
+});
+
+test("GitHub adapter lists every Issue page and excludes Pull Requests", async () => {
+  const pullRequest = {
+    ...issue,
+    id: 2_345_680,
+    number: 15,
+    html_url: "https://github.com/icho648/symphoneer/pull/15",
+    pull_request: { url: "https://api.github.com/repos/icho648/symphoneer/pulls/15" },
+  };
+  let calls = 0;
+  const adapter = new GitHubIssuesAdapter({
+    repository: "icho648/symphoneer-fixtures",
+    token: "secret-token",
+    fetch: (async (input) => {
+      calls += 1;
+      assert.match(String(input), /issues\?state=all&per_page=100&page=/);
+      return calls === 1
+        ? response([issue, pullRequest], 200, {
+            etag: '"page-1"',
+            link: '<https://api.github.com/repos/icho648/symphoneer-fixtures/issues?page=2>; rel="next"',
+          })
+        : response([], 200, { etag: '"page-2"' });
+    }) as typeof fetch,
+  });
+
+  const first = await adapter.listTasks();
+  assert.equal(first.tasks.length, 1);
+  assert.equal(first.tasks[0]?.task.identifier, "#14");
+  assert.equal(first.nextCursor, "2");
+  const second = await adapter.listTasks({ cursor: first.nextCursor ?? undefined });
+  assert.equal(second.tasks.length, 0);
+  assert.equal(second.nextCursor, null);
+});
+
+test("GitHub adapter enables dispatch by adding the ready label and re-reading the Issue", async () => {
+  const requests: Array<{ method: string; url: string; body?: unknown }> = [];
+  const adapter = new GitHubIssuesAdapter({
+    repository: "icho648/symphoneer",
+    token: "secret-token",
+    fetch: (async (input, init) => {
+      requests.push({
+        method: init?.method ?? "GET",
+        url: String(input),
+        ...(init?.body ? { body: JSON.parse(String(init.body)) } : {}),
+      });
+      return requests.length === 1
+        ? response([{ name: "symphoneer:ready" }])
+        : response(issue, 200, { etag: '"issue-ready"' });
+    }) as typeof fetch,
+  });
+
+  const snapshot = await adapter.enableTaskDispatch("14");
+
+  assert.equal(snapshot.task.dispatchable, true);
+  assert.deepEqual(requests, [
+    {
+      method: "POST",
+      url: "https://api.github.com/repos/icho648/symphoneer/issues/14/labels",
+      body: { labels: ["symphoneer:ready"] },
+    },
+    {
+      method: "GET",
+      url: "https://api.github.com/repos/icho648/symphoneer/issues/14",
+    },
+  ]);
 });
 
 test("GitHub adapter makes conflicts and boundary failures explicit without response bodies", async () => {

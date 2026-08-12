@@ -1,9 +1,27 @@
 #!/usr/bin/env node
-import { RuntimeHttpServer, RuntimeService, resolveRuntimeHostConfig } from "./index.ts";
+
+import {
+  ApplicationData,
+  DesktopRuntimeHost,
+  discoverGitRepositories,
+  GitHubIssuesAdapter,
+  loadProjectProfile,
+  openCodexThread,
+  RealSingleAgentOrchestration,
+  RuntimeHttpServer,
+  RuntimeService,
+  resolveGitHubToken,
+  resolveRuntimeHostConfig,
+  selectDirectoryInFinder,
+  WorkflowError,
+} from "./index.ts";
 
 export async function runServer(
   options: {
     dataDir?: string;
+    cacheDir?: string;
+    logDir?: string;
+    workspaceRoot?: string;
     host?: "127.0.0.1" | "localhost" | "::1";
     port?: number;
     uiDistDir?: string;
@@ -14,20 +32,76 @@ export async function runServer(
   const stdout = options.stdout ?? process.stdout;
   const hostConfig = await resolveRuntimeHostConfig({
     ...(options.dataDir ? { dataDir: options.dataDir } : {}),
+    ...(options.cacheDir ? { cacheDir: options.cacheDir } : {}),
+    ...(options.logDir ? { logDir: options.logDir } : {}),
+    ...(options.workspaceRoot ? { workspaceRoot: options.workspaceRoot } : {}),
     ...(options.host ? { host: options.host } : {}),
     ...(options.port !== undefined ? { port: options.port } : {}),
     ...(options.uiDistDir ? { uiDistDir: options.uiDistDir } : {}),
     ...(options.sessionToken ? { sessionToken: options.sessionToken } : {}),
   });
-  const runtimeId = process.env.SYMPHONEER_RUNTIME_ID;
-  const service = new RuntimeService({
+  const applicationData = new ApplicationData({
     dataDir: hostConfig.dataDir,
-    ...(runtimeId ? { runtimeId } : {}),
+    cacheDir: hostConfig.cacheDir,
+    logDir: hostConfig.logDir,
+    workspaceRoot: hostConfig.workspaceRoot,
   });
-  const server = new RuntimeHttpServer(service, {
+  const githubToken = await resolveGitHubToken();
+  const runtime = new DesktopRuntimeHost({
+    applicationData,
+    ...(process.env.SYMPHONEER_RUNTIME_ID ? { runtimeId: process.env.SYMPHONEER_RUNTIME_ID } : {}),
+    createRuntime: async ({ project, layout }) => {
+      const profile = project.projectRoot
+        ? await loadLocalProjectProfile(project.projectRoot, project.workspaceRoot)
+        : undefined;
+      const tracker =
+        githubToken && project.trackerKind === "github"
+          ? new GitHubIssuesAdapter({ repository: project.repository, token: githubToken })
+          : undefined;
+      const orchestration =
+        tracker && project.projectRoot
+          ? new RealSingleAgentOrchestration({
+              dataDir: layout.root,
+              tracker,
+              projectRoot: project.projectRoot,
+              workspaceRoot: project.workspaceRoot,
+            })
+          : undefined;
+      return {
+        runtime: new RuntimeService({
+          dataDir: layout.root,
+          ...(tracker ? { tracker } : {}),
+          ...(orchestration
+            ? {
+                defaultOrchestration: orchestration,
+                sessionHistory: (attempt) => orchestration.readSession(attempt),
+              }
+            : {}),
+        }),
+        ...(tracker ? { pollingIntervalMs: profile?.config.polling.intervalMs ?? 30_000 } : {}),
+      };
+    },
+  });
+  const server = new RuntimeHttpServer(runtime, {
     host: hostConfig.transport.host,
     port: hostConfig.transport.port,
     sessionToken: hostConfig.credentials.sessionToken,
+    projects: () => runtime.listProjects(),
+    addProject: async () => {
+      const selectedPath = await selectDirectoryInFinder();
+      if (!selectedPath) throw new Error("Project selection was canceled");
+      const repositories = await discoverGitRepositories(selectedPath);
+      const repository =
+        repositories.find((candidate) => candidate.remote === "origin") ?? repositories[0];
+      if (!repository) throw new Error("The selected directory has no GitHub remote");
+      return runtime.addProject({
+        trackerKind: "github",
+        repository: repository.repository,
+        projectRoot: selectedPath,
+      });
+    },
+    removeProject: (projectId) => runtime.removeProject(projectId),
+    openCodexThread,
     ...(hostConfig.uiDistDir ? { uiDistDir: hostConfig.uiDistDir } : {}),
   });
   const stopped = Promise.withResolvers<void>();
@@ -46,6 +120,15 @@ export async function runServer(
   } finally {
     process.off("SIGINT", stop);
     process.off("SIGTERM", stop);
+  }
+}
+
+async function loadLocalProjectProfile(projectRoot: string, workspaceRoot: string) {
+  try {
+    return await loadProjectProfile({ cwd: projectRoot, workspaceRoot });
+  } catch (error) {
+    if (error instanceof WorkflowError && error.code === "missing_workflow_file") return undefined;
+    throw error;
   }
 }
 

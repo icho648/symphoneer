@@ -1,25 +1,19 @@
-import type { RuntimeSnapshot } from "@symphoneer/contracts";
 import type { ReactNode } from "react";
-import type { Dictionary, Locale } from "../../i18n/index.ts";
+import { useShallow } from "zustand/react/shallow";
+import { useWorkbench } from "../../stores/workbench.ts";
 
 import { LocaleSwitcher } from "../locale-switcher";
 import { ThemeSwitcher } from "../theme-switcher";
 
-type ConnectionStatus = RuntimeSnapshot["runtime"]["status"];
-
-export function BoardChrome({
-  children,
-  connection,
-  dictionary,
-  locale,
-  snapshot,
-}: {
-  children: ReactNode;
-  connection: ConnectionStatus;
-  dictionary: Dictionary;
-  locale: Locale;
-  snapshot: RuntimeSnapshot | null;
-}) {
+export function BoardChrome({ children }: { children: ReactNode }) {
+  const { connection, dictionary, locale, snapshot } = useWorkbench(
+    useShallow((state) => ({
+      connection: state.connection,
+      dictionary: state.dictionary,
+      locale: state.locale,
+      snapshot: state.snapshot,
+    })),
+  );
   const online = connection === "online";
 
   return (

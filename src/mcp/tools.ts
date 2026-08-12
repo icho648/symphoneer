@@ -1,7 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RuntimeClient } from "@symphoneer/runtime-client";
-import { z } from "zod";
-
 import {
   executeRuntimeTool,
   getAttemptTool,
@@ -11,7 +9,8 @@ import {
   retryAttemptTool,
   runtimeHealthTool,
   runtimeSnapshotTool,
-} from "../runtime-tools/index.ts";
+} from "@symphoneer/runtime-tools";
+import { z } from "zod";
 import { registerUiResources, uiMeta } from "./resources.ts";
 import { toolFailure, toolSuccess } from "./results.ts";
 

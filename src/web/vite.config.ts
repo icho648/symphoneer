@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
         "@": root,
         "@symphoneer/contracts": path.resolve(root, "../contracts/index.ts"),
         "@symphoneer/runtime-client": path.resolve(root, "../runtime-client/index.ts"),
+        "@symphoneer/runtime-tools": path.resolve(root, "../runtime-tools/index.ts"),
       },
     },
     define: {

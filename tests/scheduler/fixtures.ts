@@ -20,6 +20,8 @@ export function task(id: string, state = "open"): TaskSummary {
     state,
     labels: ["symphoneer:ready"],
     dispatchable: true,
+    workflowStatus: "ready",
+    blocked: null,
   };
 }
 
