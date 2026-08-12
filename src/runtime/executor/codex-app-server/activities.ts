@@ -1,9 +1,9 @@
 import {
+  ActivityPayloadSchema,
   CONTRACT_SCHEMA_VERSION,
   type ExecutionSession,
   ExecutionSessionSchema,
   type JsonValue,
-  JsonValueSchema,
 } from "@symphoneer/contracts";
 import type { AgentRunEvent } from "../agent-runner.ts";
 
@@ -194,12 +194,18 @@ export function storedExecutionSession(
           status: stringField(turn, "status"),
           items: turn.items.flatMap((itemValue) => {
             const item = asRecord(itemValue);
-            const parsed = JsonValueSchema.safeParse(item);
-            if (!item || !parsed.success || Array.isArray(parsed.data)) return [];
+            if (!item) return [];
             const itemId = stringField(item, "id");
             const type = stringField(item, "type");
             if (!itemId || !type) return [];
-            return [{ id: itemId, type, status: stringField(item, "status"), data: parsed.data }];
+            return [
+              {
+                id: itemId,
+                type,
+                status: stringField(item, "status"),
+                data: storedSessionItemData(item, capturedAt),
+              },
+            ];
           }),
         },
       ];
@@ -210,6 +216,17 @@ export function storedExecutionSession(
 export function sessionExecutionActivities(session: ExecutionSession): ActivityEvent[] {
   return session.turns.flatMap((turn) =>
     turn.items.flatMap((item) => {
+      const stored = ActivityPayloadSchema.safeParse(item.data.activity);
+      if (stored.success) {
+        return [
+          {
+            type: "activity" as const,
+            occurredAt: session.capturedAt,
+            itemId: item.id,
+            ...stored.data,
+          },
+        ];
+      }
       const projected = executionActivity(
         {
           kind: "notification",
@@ -225,6 +242,21 @@ export function sessionExecutionActivities(session: ExecutionSession): ActivityE
       return projected ? [projected] : [];
     }),
   );
+}
+
+function storedSessionItemData(
+  item: Record<string, unknown>,
+  capturedAt: string,
+): Record<string, JsonValue> {
+  const projected = executionActivity(
+    {
+      kind: "notification",
+      method: stringField(item, "status") === "inProgress" ? "item/started" : "item/completed",
+      params: { item },
+    },
+    capturedAt,
+  );
+  return projected ? { activity: ActivityPayloadSchema.parse(projected) } : {};
 }
 
 function planActivity(params: Record<string, unknown>, occurredAt: string): ActivityEvent {

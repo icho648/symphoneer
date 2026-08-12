@@ -80,6 +80,8 @@ export async function syncTrackerProjection(
     pageCount += 1;
     for (const snapshot of page.tasks) {
       const task = TaskSummarySchema.parse(snapshot.task);
+      const returning =
+        log.projection.getTask(task.id)?.dispatchable === false && task.dispatchable;
       tasks.push(task);
       seenTaskIds.add(task.id);
       events.push(
@@ -88,7 +90,7 @@ export async function syncTrackerProjection(
           source: "adapter",
           aggregate: { kind: "task", id: task.id },
           taskId: task.id,
-          idempotencyKey: `tracker-sync:${task.id}:${task.updatedAt ?? ""}`,
+          idempotencyKey: `tracker-sync:${task.id}:${task.updatedAt ?? ""}${returning ? `:returning:${log.lastSequence}` : ""}`,
           payload: { task, versionToken: snapshot.versionToken },
         }),
       );
@@ -99,7 +101,8 @@ export async function syncTrackerProjection(
     if (
       existing.source.kind !== tracker.kind ||
       !taskMatches(existing) ||
-      seenTaskIds.has(existing.id)
+      seenTaskIds.has(existing.id) ||
+      !existing.dispatchable
     )
       continue;
     const unavailable = TaskSummarySchema.parse({ ...existing, dispatchable: false });
@@ -109,7 +112,7 @@ export async function syncTrackerProjection(
         source: "adapter",
         aggregate: { kind: "task", id: unavailable.id },
         taskId: unavailable.id,
-        idempotencyKey: `tracker-sync:missing:${unavailable.id}:${unavailable.updatedAt ?? ""}`,
+        idempotencyKey: `tracker-sync:missing:${unavailable.id}:${unavailable.updatedAt ?? ""}:${log.lastSequence}`,
         payload: { task: unavailable, versionToken: null },
       }),
     );

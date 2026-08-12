@@ -104,9 +104,10 @@ class FakeCodexTransport implements CodexTransport {
                 {
                   type: "commandExecution",
                   id: "command-history",
-                  command: "pnpm check",
+                  command: "curl --token=history-command-secret",
                   status: "completed",
-                  aggregatedOutput: "all checks passed",
+                  aggregatedOutput: "AWS_SECRET_ACCESS_KEY=history-output-secret",
+                  environment: { API_TOKEN: "history-environment-secret" },
                   exitCode: 0,
                 },
                 {
@@ -597,7 +598,7 @@ test("Codex adapter projects useful App Server items as bounded execution activi
   });
 });
 
-test("Codex adapter reads a complete persisted Thread session without resuming execution", async () => {
+test("Codex adapter persists bounded Thread history without raw Provider secrets", async () => {
   const transport = new FakeCodexTransport("thread-history", "history");
   const session = await new CodexAppServerAdapter({
     transportFactory: async () => transport,
@@ -614,10 +615,17 @@ test("Codex adapter reads a complete persisted Thread session without resuming e
     ],
   );
   assert.deepEqual(session?.turns[0]?.items[0]?.data, {
-    type: "userMessage",
-    id: "user-history",
-    content: [{ type: "inputText", text: "Implement the issue." }],
+    activity: {
+      kind: "message",
+      status: "completed",
+      title: "User message",
+      content: "Implement the issue.",
+      details: { role: "user" },
+    },
   });
+  const serialized = JSON.stringify(session);
+  assert.doesNotMatch(serialized, /history-(?:command|output|environment)-secret/);
+  assert.match(serialized, /<redacted>/);
   assert.deepEqual(
     transport.requests.map(({ method }) => method),
     ["initialize", "thread/read"],

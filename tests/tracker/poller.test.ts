@@ -160,5 +160,8 @@ test("TrackerSynchronizer disables Tasks missing from a full refresh", async (t)
   listed = false;
   await synchronizer.refresh();
   assert.equal(log.projection.getTask(task.id)?.dispatchable, false);
+  listed = true;
+  await synchronizer.refresh();
+  assert.equal(log.projection.getTask(task.id)?.dispatchable, true);
   await synchronizer.stop();
 });

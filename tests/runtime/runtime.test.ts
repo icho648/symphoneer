@@ -410,6 +410,44 @@ test("Runtime records a human ReviewDecision through the public command", async 
   assert.equal(repeated.eventSequence, accepted.eventSequence);
 });
 
+test("Runtime rejects completion evidence from a historical Attempt", async (t) => {
+  const root = await runtimeFixture(t);
+  const service = runtime(root, "runtime:historical-review");
+  await service.start();
+  await service.recordTask({ ...task, workflowStatus: "in_review" });
+  const historical = {
+    ...attempt,
+    id: "attempt-15-old",
+    status: "failed" as const,
+    finishedAt: attempt.updatedAt,
+  };
+  await service.recordAttempt(historical);
+  await service.recordAttempt({
+    ...attempt,
+    id: "attempt-15-current",
+    sequence: 2,
+    status: "succeeded",
+    updatedAt: "2026-08-04T08:01:00.000Z",
+    finishedAt: "2026-08-04T08:01:00.000Z",
+  });
+
+  await assert.rejects(
+    service.execute({
+      kind: "record_review",
+      idempotencyKey: "historical-review-15",
+      expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+      expectedAttemptUpdatedAt: historical.updatedAt,
+      attemptId: historical.id,
+      decision: "merge_close",
+      decidedBy: "local-human",
+      evidenceIds: ["verification:historical"],
+      nextAction: null,
+    }),
+    /latest Attempt/i,
+  );
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+});
+
 test("Runtime routes and persists an intervention answer by its global identity", async (t) => {
   const root = await runtimeFixture(t);
   const responses: unknown[] = [];
@@ -583,7 +621,7 @@ test("Runtime delegates Codex handoff and deletes an Attempt only after orchestr
     },
   });
   await service.start();
-  await service.recordTask(task);
+  await service.recordTask({ ...task, workflowStatus: "in_review" });
   const handoffAttempt: AttemptSnapshot = {
     ...attempt,
     status: "succeeded",
@@ -613,6 +651,7 @@ test("Runtime delegates Codex handoff and deletes an Attempt only after orchestr
     deleted.snapshot.attempts.some((item) => item.id === attempt.id),
     false,
   );
+  assert.equal(deleted.snapshot.tasks[0]?.workflowStatus, "ready");
   assert.equal(service.attemptDetail(attempt.id), null);
 });
 

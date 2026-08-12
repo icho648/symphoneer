@@ -330,7 +330,7 @@ async function requestAttemptCommand(
       throw new RuntimeError("unsupported", "Attempt Workspace deletion is not configured");
     }
     await orchestration.delete({ attempt, log });
-    return log.commit({
+    const deleted = await log.commit({
       type: "attempt.deleted",
       source: "human",
       aggregate: { kind: "attempt", id: attempt.id },
@@ -343,6 +343,19 @@ async function requestAttemptCommand(
         taskId: attempt.taskId,
       },
     });
+    const task = log.projection.getTask(attempt.taskId);
+    if (
+      task &&
+      log.projection.attemptsForTask(task.id).length === 0 &&
+      (task.workflowStatus === "in_progress" || task.workflowStatus === "in_review")
+    ) {
+      await recordTaskStatus(log, task.id, "ready", null, {
+        source: "human",
+        commit: true,
+        idempotencyKey: `workflow-status:delete:${command.idempotencyKey}:ready`,
+      });
+    }
+    return deleted;
   }
   return log.commit({
     type: "runtime.command.requested",
@@ -409,6 +422,15 @@ async function recordReviewCommand(
   });
   const task = log.projection.getTask(attempt.taskId);
   if (!task) throw new RuntimeError("not_found", `Task ${attempt.taskId} was not found`);
+  const latestAttempt = log.projection
+    .attemptsForTask(task.id)
+    .sort(
+      (left, right) =>
+        right.sequence - left.sequence || right.startedAt.localeCompare(left.startedAt),
+    )[0];
+  if (command.decision === "merge_close" && latestAttempt?.id !== attempt.id) {
+    throw new RuntimeError("conflict", "Only the latest Attempt can complete its Task");
+  }
   if (command.decision === "merge_close" && task.workflowStatus !== "in_review") {
     throw new RuntimeError("conflict", "Only In review tasks can be marked Done");
   }
