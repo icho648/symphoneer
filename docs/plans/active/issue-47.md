@@ -2,7 +2,7 @@
 
 > Plan status: Active
 > Decision status: Accepted
-> Implementation evidence: In progress; GitHub Issue and Draft PR remain the live evidence sources
+> Implementation evidence: In progress; [Draft PR #48](https://github.com/icho648/symphoneer/pull/48) is the live implementation and CI evidence source
 > Canonical task source: [GitHub Issue #47](https://github.com/icho648/symphoneer/issues/47)
 
 ## Purpose / Big Picture
@@ -47,7 +47,7 @@ Never force-clean a Workspace. On Smoke failure, retain the Issue, branch, Runti
 
 ## Artifacts and Notes
 
-Local backup manifest: `/Users/icho/Library/Application Support/Symphoneer/Development.backup-20260812T102421Z/issue47-backup-manifest.json`; restore drill passed and the final backup is retained. Failed Smoke manifests: `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-IV7GVv/manifest.json` (#4) and `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-l8KQZL/manifest.json` (#5). Draft PR: add the URL here after publication. Do not store credentials, prompts, source or Provider payloads.
+Local backup manifest: `/Users/icho/Library/Application Support/Symphoneer/Development.backup-20260812T102421Z/issue47-backup-manifest.json`; restore drill passed and the final backup is retained. Failed Smoke manifests: `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-IV7GVv/manifest.json` (#4) and `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-l8KQZL/manifest.json` (#5). Draft PR: [#48](https://github.com/icho648/symphoneer/pull/48). Do not store credentials, prompts, source or Provider payloads.
 
 ## Interfaces and Dependencies
 
