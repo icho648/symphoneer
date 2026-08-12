@@ -105,6 +105,7 @@ export const enUS = {
       ready: "Assistant ready",
       loading: "Loading Assistant…",
       unavailable: "Configure a provider, model, and API key to enable Assistant.",
+      requestFailed: "Assistant is temporarily unavailable. Reconnect Runtime and try again.",
       invalidConfig: "Assistant configuration is invalid.",
       providerFailure: "Assistant provider is unavailable.",
       close: "Close Assistant",

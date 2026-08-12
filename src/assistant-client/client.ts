@@ -108,17 +108,12 @@ export class AssistantClient {
       },
       ...(requestBody !== undefined ? { body: JSON.stringify(requestBody) } : {}),
     });
-    const body = await response.json();
-    if (!response.ok) {
-      const message =
-        body &&
-        typeof body === "object" &&
-        typeof (body as { message?: unknown }).message === "string"
-          ? (body as { message: string }).message
-          : "Assistant request failed";
-      throw new Error(message);
+    if (!response.ok) throw await readResponseError(response);
+    try {
+      return await response.json();
+    } catch {
+      throw new Error("Assistant request failed");
     }
-    return body;
   }
 }
 

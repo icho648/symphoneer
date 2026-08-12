@@ -21,6 +21,15 @@ import { createHttpAssistantClient } from "../../src/assistant-client/index.ts";
 import { RuntimeHttpServer, RuntimeService } from "../../src/runtime/index.ts";
 import { createHttpRuntimeClient } from "../../src/runtime-client/index.ts";
 
+test("AssistantClient hides empty HTTP response parse errors", async () => {
+  const client = createHttpAssistantClient({
+    baseUrl: "http://127.0.0.1:4318",
+    fetch: async () => new Response("", { status: 503 }),
+  });
+
+  await assert.rejects(() => client.status(), { message: "Assistant request failed" });
+});
+
 test("Runtime stays available when Assistant config is missing", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "symphoneer-assistant-disabled-"));
   const assistant = new PiAssistantService({ dataDir, env: {} });

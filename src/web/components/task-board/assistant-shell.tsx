@@ -75,8 +75,8 @@ export function AssistantShell() {
         if (disposed) return;
         setStatus(nextStatus);
         if (nextStatus.state === "ready") await refreshSessions();
-      } catch (reason) {
-        if (!disposed) setError(reason instanceof Error ? reason.message : assistant.unavailable);
+      } catch {
+        if (!disposed) setError(assistant.requestFailed);
       } finally {
         if (!disposed) setLoaded(true);
       }
@@ -84,7 +84,7 @@ export function AssistantShell() {
     return () => {
       disposed = true;
     };
-  }, [assistant.unavailable, client, refreshSessions]);
+  }, [assistant.requestFailed, client, refreshSessions]);
 
   useEffect(() => {
     let disposed = false;

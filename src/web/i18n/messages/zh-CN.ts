@@ -104,6 +104,7 @@ export const zhCN = {
       ready: "Assistant 已就绪",
       loading: "正在加载 Assistant……",
       unavailable: "配置 Provider、模型和 API key 后可启用 Assistant。",
+      requestFailed: "Assistant 暂时不可用，请重新连接 Runtime 后重试。",
       invalidConfig: "Assistant 配置无效。",
       providerFailure: "Assistant Provider 暂不可用。",
       close: "收起 Assistant",
