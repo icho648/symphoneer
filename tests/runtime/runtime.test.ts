@@ -577,6 +577,8 @@ test("Runtime projects the complete WorkflowStatus lifecycle and preserves block
     failure: null,
   };
   await service.recordAttempt(succeededAttempt);
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+  await service.recordTask({ ...task, labels: ["symphoneer:review"] });
   assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
 
   await service.execute({
@@ -681,6 +683,9 @@ test("Runtime hides Codex control and resumes input only after the external Turn
       handoff: async () => {
         operations.push("handoff");
       },
+      returnControl: async () => {
+        operations.push("return");
+      },
       sync: async () => {
         operations.push(`sync:${turnStatus}`);
         return session();
@@ -717,12 +722,30 @@ test("Runtime hides Codex control and resumes input only after the external Turn
       expectedEventSequence: handedOff.snapshot.runtime.lastEventSequence,
       expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
     }),
+    /Return to Automation/,
+  );
+
+  await assert.rejects(
+    service.execute({
+      kind: "return_attempt_control",
+      attemptId: paused.id,
+      idempotencyKey: "return-busy-attempt-15",
+      expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+      expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+    }),
     /Codex is still processing this Attempt/,
   );
 
   turnStatus = "completed";
   capturedAt = "2026-08-04T08:03:01.000Z";
   const resumed = await service.execute({
+    kind: "return_attempt_control",
+    attemptId: paused.id,
+    idempotencyKey: "return-idle-attempt-15",
+    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+  });
+  await service.execute({
     kind: "send_attempt_input",
     attemptId: paused.id,
     prompt: "Focus on the failing test.",
@@ -731,13 +754,14 @@ test("Runtime hides Codex control and resumes input only after the external Turn
     effort: "high",
     idempotencyKey: "input-idle-attempt-15",
     expectedEventSequence: service.snapshot().runtime.lastEventSequence,
-    expectedAttemptUpdatedAt: handedOff.snapshot.attempts[0]?.updatedAt,
+    expectedAttemptUpdatedAt: resumed.snapshot.attempts[0]?.updatedAt,
   });
 
   assert.deepEqual(operations, [
     "handoff",
     "sync:inProgress",
     "sync:completed",
+    "return",
     "input:Focus on the failing test.",
   ]);
   assert.equal(resumed.snapshot.attempts[0]?.controller, "symphoneer");

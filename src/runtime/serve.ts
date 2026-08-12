@@ -65,6 +65,7 @@ export async function runServer(
               tracker,
               projectRoot: project.projectRoot,
               workspaceRoot: project.workspaceRoot,
+              operatorLogPath: layout.operatorLogPath,
             })
           : undefined;
       return {

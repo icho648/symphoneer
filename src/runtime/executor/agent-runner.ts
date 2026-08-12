@@ -2,20 +2,28 @@ import type {
   ActivityOccurrence,
   CodexReasoningEffort,
   CodexSandbox,
+  ExecutionSession,
   TaskSummary,
   WorkspaceReference,
 } from "@symphoneer/contracts";
 
-export interface AgentRunRequest {
+export interface AgentWorkerRequest {
   attemptId: string;
   task: TaskSummary;
   workspace: WorkspaceReference;
-  prompt: string;
-  continuation: boolean;
-  threadId?: string;
   model?: string;
   sandbox?: CodexSandbox;
   effort?: CodexReasoningEffort;
+}
+
+export interface AgentTurnRequest {
+  prompt: string;
+  threadId?: string;
+}
+
+/** @deprecated Use AgentWorkerRequest plus AgentTurnRequest. */
+export interface AgentRunRequest extends AgentWorkerRequest, AgentTurnRequest {
+  continuation: boolean;
 }
 
 export type InterventionDetails =
@@ -86,6 +94,13 @@ export interface RunHandle {
   completion: Promise<AgentRunCompletion>;
 }
 
+export interface AttemptWorker {
+  readonly processIdentity: { pid: number | null; toolVersion: string };
+  startTurn(request: AgentTurnRequest): Promise<RunHandle>;
+  readSession(threadId: string, capturedAt: string): Promise<ExecutionSession | null>;
+  close(): Promise<void>;
+}
+
 export interface AgentRunner {
-  startOrContinue(request: AgentRunRequest): Promise<RunHandle>;
+  openWorker(request: AgentWorkerRequest): Promise<AttemptWorker>;
 }

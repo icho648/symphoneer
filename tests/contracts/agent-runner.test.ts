@@ -103,22 +103,54 @@ test("the deterministic Fake satisfies the Agent Runner public contract", async 
       ],
       completion: { outcome: "completed" },
     },
+    {
+      events: [
+        {
+          type: "session_started",
+          occurredAt: "2026-08-02T12:00:02.000Z",
+          threadId: "thread-13",
+          turnId: "turn-14",
+          provider: {
+            name: "fake",
+            version: "test",
+            schema: "test",
+            inputFingerprint: "b".repeat(64),
+          },
+        },
+      ],
+      completion: { outcome: "completed" },
+    },
   ]);
 
-  const handle = await runner.startOrContinue(request);
+  const worker = await runner.openWorker({
+    attemptId: request.attemptId,
+    task: request.task,
+    workspace: request.workspace,
+  });
+  const handle = await worker.startTurn({ prompt: request.prompt });
   const events = [];
   for await (const event of handle.events) events.push(event);
   await handle.respondToIntervention("approval-13", { decision: "approved" });
-  await handle.interrupt();
+  assert.deepEqual(await handle.completion, { outcome: "completed" });
+
+  const continuation = await worker.startTurn({ prompt: "Continue #13", threadId: "thread-13" });
+  for await (const _event of continuation.events) {
+    // Consume the Turn before starting another one.
+  }
+  assert.deepEqual(await continuation.completion, { outcome: "completed" });
+  await worker.close();
 
   assert.deepEqual(
     events.map(({ type }) => type),
     ["session_started", "intervention_requested"],
   );
-  assert.deepEqual(await handle.completion, { outcome: "completed" });
-  assert.deepEqual(runner.requests, [request]);
+  assert.deepEqual(runner.requests, [
+    request,
+    { ...request, prompt: "Continue #13", continuation: true, threadId: "thread-13" },
+  ]);
   assert.deepEqual(runner.responses, [
     { requestRef: "approval-13", decision: { decision: "approved" } },
   ]);
-  assert.equal(runner.interruptCount, 1);
+  assert.equal(runner.openWorkerCount, 1);
+  assert.equal(runner.closeWorkerCount, 1);
 });

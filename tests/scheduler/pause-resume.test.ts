@@ -151,7 +151,7 @@ test("terminal reconciliation requests cleanup without releasing a paused Worksp
     {
       keptAttemptIds: [],
       stoppedAttemptIds: ["attempt-15"],
-      cleanupWorkspaceIds: ["workspace:attempt-15"],
+      cleanupWorkspaceIds: ["workspace:15"],
     },
   );
   const snapshot = scheduler.snapshot();

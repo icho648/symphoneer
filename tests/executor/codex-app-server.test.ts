@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import test from "node:test";
 import { CONTRACT_SCHEMA_VERSION, type TaskSummary } from "@symphoneer/contracts";
 import {
@@ -25,6 +28,7 @@ class FakeCodexTransport implements CodexTransport {
   #controller!: ReadableStreamDefaultController<CodexServerMessage>;
   #threadId: string;
   #turnId = "turn-14";
+  #turnSequence = 14;
   readonly #mode:
     | "colliding_ids"
     | "failed"
@@ -128,6 +132,7 @@ class FakeCodexTransport implements CodexTransport {
       return { thread: { id: this.#threadId } };
     }
     if (method === "turn/start") {
+      this.#turnId = `turn-${this.#turnSequence++}`;
       if (this.#mode === "activity") {
         queueMicrotask(() => {
           const emit = (method: string, params: Record<string, unknown>) =>
@@ -670,6 +675,43 @@ test("Codex continuation resumes the recorded Thread and interrupt pauses the Tu
   );
 });
 
+test("one Attempt Worker keeps one App Server and Thread across sequential Turns", async (t) => {
+  const transport = new FakeCodexTransport("thread-worker", "manual");
+  const runner = new CodexAppServerAdapter({ transportFactory: async () => transport });
+  const worker = await runner.openWorker({
+    attemptId: "attempt-worker",
+    task,
+    workspace,
+  });
+  t.after(() => worker.close());
+
+  const first = await worker.startTurn({ prompt: "Start #14" });
+  const firstSession = (await first.events[Symbol.asyncIterator]().next()).value;
+  if (firstSession?.type !== "session_started") assert.fail("first session missing");
+  transport.complete("completed");
+  assert.deepEqual(await first.completion, { outcome: "completed" });
+  assert.equal(transport.closeCalls, 0);
+
+  const second = await worker.startTurn({
+    prompt: "Continue #14",
+    threadId: firstSession.threadId,
+  });
+  const secondSession = (await second.events[Symbol.asyncIterator]().next()).value;
+  if (secondSession?.type !== "session_started") assert.fail("second session missing");
+  transport.complete("completed");
+  assert.deepEqual(await second.completion, { outcome: "completed" });
+
+  assert.equal(firstSession.threadId, secondSession.threadId);
+  assert.notEqual(firstSession.turnId, secondSession.turnId);
+  assert.deepEqual(
+    transport.requests.map(({ method }) => method),
+    ["initialize", "thread/start", "turn/start", "turn/start"],
+  );
+  assert.equal(transport.closeCalls, 0);
+  await worker.close();
+  assert.equal(transport.closeCalls, 1);
+});
+
 test("Codex active Turns accept a small steering message", async () => {
   const transport = new FakeCodexTransport("thread-steer", "manual");
   const handle = await new CodexAppServerAdapter({
@@ -929,6 +971,23 @@ test("Codex stdio transport turns an input-pipe race into a process failure", as
     (error) => error instanceof CodexTransportError && error.code === "process_failed",
   );
   await transport.closed;
+});
+
+test("Codex stdio transport exposes its PID and starts in the Workspace cwd", async (t) => {
+  const cwd = await mkdtemp(resolve(tmpdir(), "symphoneer-codex-cwd-"));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  const transport = await StdioCodexTransport.start({
+    command: process.execPath,
+    args: [
+      "-e",
+      "const readline=require('node:readline');readline.createInterface({input:process.stdin}).on('line',line=>{const request=JSON.parse(line);process.stdout.write(JSON.stringify({id:request.id,result:{cwd:process.cwd()}})+'\\n')})",
+    ],
+    cwd,
+  });
+
+  assert.ok((transport.processIdentity.pid ?? 0) > 0);
+  assert.deepEqual(await transport.request("fixture/cwd", {}), { cwd: await realpath(cwd) });
+  await transport.close();
 });
 
 test("Codex stdio transport tolerates event consumer cancellation before process close", async () => {

@@ -69,12 +69,7 @@ export function createRunHandle(options: {
     settled = true;
     clearTimeout(turnTimer);
     if (stallTimer) clearTimeout(stallTimer);
-    // An interrupted Turn can still be writing to the Workspace, so completion stays pending
-    // until the Provider process has stopped; consumers may then verify or retry that checkout.
-    void transport
-      .close()
-      .catch(() => undefined)
-      .then(() => completion.resolve(result));
+    completion.resolve(result);
     if (!eventsCanceled) {
       try {
         controller.close();
@@ -142,7 +137,11 @@ async function pump(
   now: () => Date,
 ): Promise<void> {
   try {
-    for await (const message of transport.messages) {
+    const messages =
+      transport.messages instanceof ReadableStream
+        ? transport.messages.values({ preventCancel: true })
+        : transport.messages;
+    for await (const message of messages) {
       if (!belongsToTurn(message, threadId, turnId)) continue;
       resetStall();
       if (message.kind === "request") {

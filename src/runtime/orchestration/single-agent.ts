@@ -16,13 +16,22 @@ import {
 import { RuntimeError } from "../errors.ts";
 import type {
   AgentRunEvent,
+  AgentRunner,
   AgentRunRequest,
+  AttemptWorker,
   InterventionResponse,
   RunHandle,
 } from "../executor/agent-runner.ts";
 import { sessionExecutionActivities } from "../executor/codex-app-server/activities.ts";
 import { CodexAppServerAdapter } from "../executor/codex-app-server/runner.ts";
+import {
+  type CorePolicy,
+  CoreScheduler,
+  evaluateEligibility,
+  sortTasksForDispatch,
+} from "../scheduler/index.ts";
 import type { EventLog } from "../service/event-log.ts";
+import { OperatorLog, type OperatorRecord } from "../service/operator-log.ts";
 import {
   recordAgentActivity,
   recordAttempt,
@@ -41,7 +50,6 @@ import {
 } from "../workflow/index.ts";
 import { GitWorktreeDriver } from "../workspace/git-worktree/index.ts";
 import { WorkspaceManager } from "../workspace/manager.ts";
-import { workspaceAttemptKey } from "../workspace/reference.ts";
 import type { OrchestrationMode } from "./mode.ts";
 
 const execFile = promisify(execFileCallback);
@@ -56,7 +64,14 @@ interface ActiveRun {
   log: EventLog;
   manager: WorkspaceManager;
   workspace: WorkspaceReference;
+  workflow: ProjectProfile;
+  task: TaskSummary;
+  settings: Pick<AgentRunRequest, "effort" | "model" | "sandbox">;
+  turnCount: number;
+  worker?: AttemptWorker;
   handle?: RunHandle;
+  handoffRequested?: boolean;
+  settled: ReturnType<typeof Promise.withResolvers<void>>;
   stopping?: boolean;
 }
 
@@ -65,12 +80,19 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   #projectRoot: string | undefined;
   #workspaceRoot: string;
   readonly #now: () => Date;
+  readonly #runnerFactory: (workflow: ProjectProfile) => AgentRunner;
+  readonly #operatorLog: OperatorLog;
   readonly #runs = new Map<string, ActiveRun>();
   readonly #runningTasks = new Set<string>();
   readonly #interventions = new Map<
     string,
     { handle: RunHandle; questionIds: string[] | undefined }
   >();
+  #scheduler: CoreScheduler | undefined;
+  #workflow: ProjectProfile | undefined;
+  #tickTail = Promise.resolve();
+  readonly #retryTimers = new Map<string, NodeJS.Timeout>();
+  #legacyWorkflowLogged = false;
 
   constructor(options: {
     dataDir: string;
@@ -78,11 +100,18 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     workspaceRoot: string;
     projectRoot?: string;
     now?: () => Date;
+    runnerFactory?: (workflow: ProjectProfile) => AgentRunner;
+    operatorLogPath?: string;
   }) {
     this.#tracker = options.tracker;
     this.#projectRoot = options.projectRoot ? resolve(options.projectRoot) : undefined;
     this.#workspaceRoot = resolve(options.workspaceRoot);
     this.#now = options.now ?? (() => new Date());
+    this.#runnerFactory =
+      options.runnerFactory ?? ((workflow) => createAgentRunner(workflow, this.#now));
+    this.#operatorLog = new OperatorLog(
+      options.operatorLogPath ?? resolve(options.dataDir, "operator.jsonl"),
+    );
   }
 
   setTracker(tracker: Tracker): void {
@@ -95,6 +124,30 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
 
   setProjectRoot(projectRoot: string | undefined): void {
     this.#projectRoot = projectRoot ? resolve(projectRoot) : undefined;
+  }
+
+  tick(input: { tasks: readonly TaskSummary[]; log: EventLog }): Promise<void> {
+    const startedAt = Date.now();
+    const tick = this.#tickTail.then(async () => {
+      try {
+        await this.#tick(input.tasks, input.log);
+        await this.#operator({
+          operation: "scheduler.tick",
+          outcome: "succeeded",
+          durationMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        await this.#operator({
+          operation: "scheduler.tick",
+          outcome: "failed",
+          durationMs: Date.now() - startedAt,
+          errorKind: errorKind(error),
+        });
+        throw error;
+      }
+    });
+    this.#tickTail = tick.catch(() => undefined);
+    return tick;
   }
 
   async listModels() {
@@ -121,17 +174,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     command: Extract<RuntimeCommand, { kind: "start_run" }>;
     log: EventLog;
   }) {
-    if (this.#runningTasks.has(input.task.id)) {
-      throw new RuntimeError("conflict", `Task ${input.task.identifier} already has a running job`);
-    }
-    const locator = locateTask(input.task);
-    this.#runningTasks.add(input.task.id);
-    void this.#run(input.task, locator, input.log, "dispatch", {
+    this.#launch(input.task, input.log, "dispatch", {
       ...(input.command.model ? { model: input.command.model } : {}),
       ...(input.command.sandbox ? { sandbox: input.command.sandbox } : {}),
       ...(input.command.effort ? { effort: input.command.effort } : {}),
-    }).finally(() => {
-      this.#runningTasks.delete(input.task.id);
     });
   }
 
@@ -167,14 +213,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   async retry(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
     const task = input.log.projection.getTask(input.attempt.taskId);
     if (!task) throw new RuntimeError("not_found", `Task ${input.attempt.taskId} was not found`);
-    if (this.#runningTasks.has(task.id)) {
-      throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
-    }
-    const locator = locateTask(task);
-    this.#runningTasks.add(task.id);
-    void this.#run(task, locator, input.log, "retry").finally(() => {
-      this.#runningTasks.delete(task.id);
-    });
+    this.#launch(task, input.log, "retry", {}, true);
   }
 
   async input(input: {
@@ -216,47 +255,171 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
 
   async handoff(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
     const run = this.#runs.get(input.attempt.id);
-    if (run) await this.#pause(run, true);
+    if (!run) return;
+    run.handoffRequested = true;
+    await run.settled.promise;
+    if (input.log.projection.getAttempt(input.attempt.id)?.status !== "paused") {
+      throw new RuntimeError("conflict", "Attempt did not pause cleanly for Codex handoff");
+    }
+    await this.#operator({
+      operation: "attempt.handoff",
+      outcome: "succeeded",
+      durationMs: 0,
+      taskId: run.attempt.taskId,
+      attemptId: run.attempt.id,
+      workspaceId: run.workspace.id,
+    });
+  }
+
+  async returnControl(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
+    if (input.attempt.controller !== "codex" || input.attempt.status !== "paused") {
+      throw new RuntimeError("conflict", "Only a Codex-controlled paused Attempt can return");
+    }
+    const task = input.log.projection.getTask(input.attempt.taskId);
+    if (!task) throw new RuntimeError("not_found", `Task ${input.attempt.taskId} was not found`);
+    if (this.#runningTasks.has(task.id)) {
+      throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
+    }
+    const workflow = await this.#reloadWorkflow();
+    const prompt = await renderPrompt(workflow, {
+      issue: JSON.parse(JSON.stringify(task)) as Record<string, unknown>,
+      attempt: input.attempt.sequence,
+    });
+    const started = Promise.withResolvers<void>();
+    this.#runningTasks.add(task.id);
+    void this.#continue(input.attempt, task, prompt, input.log, {}, true, started).finally(() => {
+      this.#runningTasks.delete(task.id);
+    });
+    await started.promise;
   }
 
   async delete(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
     const run = this.#runs.get(input.attempt.id);
     if (run) await this.#pause(run, true);
+    this.#runs.delete(input.attempt.id);
+  }
 
-    const detail = input.log.projection.attemptDetail(input.attempt.id);
-    const workspace = run?.workspace ?? detail?.workspace;
-    if (!workspace || workspace.state === "released") return;
-    const task = input.log.projection.getTask(input.attempt.taskId);
-    if (!task || !this.#projectRoot) {
-      throw new RuntimeError("conflict", "Attempt Workspace identity is unavailable");
+  #launch(
+    task: TaskSummary,
+    log: EventLog,
+    startReason: "dispatch" | "retry" | "continuation",
+    settings: Pick<AgentRunRequest, "effort" | "model" | "sandbox"> = {},
+    forceRetry = false,
+  ): void {
+    if (this.#runningTasks.has(task.id)) {
+      throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
     }
     const locator = locateTask(task);
-    const workflow = await loadWorkflow(this.#projectRoot, this.#projectRoot, this.#workspaceRoot);
-    const manager = run?.manager ?? this.#workspaceManager(workflow, locator);
-    let retained = workspace;
-    if (!run) {
-      const recovered = await manager.recover(workspace, input.attempt.id);
-      retained = (await manager.finish(recovered.workspace)).workspace;
+    this.#runningTasks.add(task.id);
+    void this.#run(task, locator, log, startReason, settings, forceRetry).finally(() => {
+      this.#runningTasks.delete(task.id);
+    });
+  }
+
+  async #tick(tasks: readonly TaskSummary[], log: EventLog): Promise<void> {
+    const workflow = await this.#reloadWorkflow();
+    await this.#cancelLostAttempts(log, workflow);
+    const scheduler = this.#ensureScheduler(workflow, log);
+    scheduler.updatePolicy(corePolicy(workflow));
+    const observedAt = this.#timestamp();
+    const reconciliation = scheduler.reconcile({
+      tasks,
+      observedAt,
+      idempotencyKey: `single-agent:reconcile:${observedAt}:${log.lastSequence}`,
+    });
+    for (const attemptId of reconciliation.stoppedAttemptIds) {
+      await this.#recordReconciledAttempt(log, attemptId, observedAt);
     }
-    const removed = await manager.remove(retained, { discardChanges: true });
-    await recordWorkspace(
-      input.log,
-      removed.workspace,
-      `single-agent:workspace:${removed.workspace.id}:released`,
-      true,
+    for (const workspaceId of reconciliation.cleanupWorkspaceIds) {
+      await this.#cleanupWorkspace(log, workspaceId, workflow);
+    }
+
+    for (const retry of scheduler.dueRetries(this.#now().getTime())) {
+      let refreshed: TaskSummary | null = null;
+      try {
+        const current = log.projection.getTask(retry.taskId);
+        if (current) {
+          refreshed = (await this.#tracker.getTask(current.source.nativeId)).task;
+          await recordTask(
+            log,
+            refreshed,
+            `single-agent:retry-task:${refreshed.id}:${refreshed.updatedAt ?? ""}`,
+          );
+        }
+      } catch {
+        this.#scheduleTick(log, retry.taskId, retry.dueAtMs + 1_000);
+        continue;
+      }
+      if (!refreshed || !evaluateEligibility(refreshed, corePolicy(workflow)).eligible) {
+        const transition = scheduler.transitionRetry({
+          taskId: retry.taskId,
+          refreshedTask: refreshed,
+          nowMs: this.#now().getTime(),
+          idempotencyKey: `single-agent:release-retry:${retry.taskId}:${observedAt}`,
+        });
+        if (transition.kind === "released") {
+          for (const workspaceId of transition.cleanupWorkspaceIds) {
+            await this.#cleanupWorkspace(log, workspaceId, workflow);
+          }
+        }
+        continue;
+      }
+      if (!this.#runningTasks.has(refreshed.id)) {
+        this.#launch(refreshed, log, retry.kind === "continuation" ? "continuation" : "retry");
+      }
+    }
+
+    for (const retry of scheduler.snapshot().retries) {
+      if (retry.dueAtMs > this.#now().getTime()) {
+        this.#scheduleTick(log, retry.taskId, retry.dueAtMs);
+      }
+    }
+
+    const snapshot = scheduler.snapshot();
+    const activeTaskIds = new Set(
+      snapshot.activeAttempts.flatMap((attempt) => (attempt ? [attempt.taskId] : [])),
     );
-    this.#runs.delete(input.attempt.id);
+    let capacity =
+      workflow.config.agent.maxConcurrentAgents -
+      activeTaskIds.size -
+      [...this.#runningTasks].filter((taskId) => !activeTaskIds.has(taskId)).length;
+    if (capacity <= 0) return;
+    const claimed = new Set(snapshot.claimedTaskIds);
+    const activeByState = new Map<string, number>();
+    for (const attempt of snapshot.activeAttempts) {
+      const state = attempt
+        ? log.projection.getTask(attempt.taskId)?.state.toLowerCase()
+        : undefined;
+      if (state) activeByState.set(state, (activeByState.get(state) ?? 0) + 1);
+    }
+    for (const task of sortTasksForDispatch(tasks)) {
+      if (capacity <= 0) break;
+      if (
+        claimed.has(task.id) ||
+        this.#runningTasks.has(task.id) ||
+        !evaluateEligibility(task, corePolicy(workflow)).eligible
+      ) {
+        continue;
+      }
+      const state = task.state.toLowerCase();
+      const stateLimit = workflow.config.agent.maxConcurrentAgentsByState[state];
+      if (stateLimit != null && (activeByState.get(state) ?? 0) >= stateLimit) continue;
+      this.#launch(task, log, "dispatch");
+      claimed.add(task.id);
+      capacity -= 1;
+      activeByState.set(state, (activeByState.get(state) ?? 0) + 1);
+    }
   }
 
   async #run(
     task: TaskSummary,
     locator: TaskLocator,
     log: EventLog,
-    startReason: "dispatch" | "retry",
+    startReason: "dispatch" | "retry" | "continuation",
     settings: Pick<AgentRunRequest, "effort" | "model" | "sandbox"> = {},
+    forceRetry = false,
   ): Promise<void> {
     let run: ActiveRun | undefined;
-    let handle: RunHandle | undefined;
     try {
       const live = await this.#tracker.getTask(task.source.nativeId, {
         ...(task.updatedAt ? { expectedUpdatedAt: task.updatedAt } : {}),
@@ -276,39 +439,70 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       if (!this.#projectRoot) {
         throw new RuntimeError("conflict", "The project checkout is not available");
       }
-      const sourcePath = this.#projectRoot;
-      const workflow = await loadWorkflow(this.#projectRoot, sourcePath, this.#workspaceRoot);
+      const workflow = await this.#reloadWorkflow();
+      const scheduler = this.#ensureScheduler(workflow, log);
       const attemptId = `attempt:${encodeURIComponent(task.id)}:${randomUUID()}`;
-      const attemptKey = workspaceAttemptKey(attemptId);
       const manager = this.#workspaceManager(workflow, locator);
-      const prepared = await manager.prepare({
-        taskId: task.id,
-        identifier: task.identifier,
-        attemptId,
-        repository: locator.repository,
-        branch: `codex/issue-${locator.issueNumber}-${attemptKey.slice(0, 8)}`,
-        host: "local",
-      });
+      const retained = retainedWorkspaceForTask(log, task.id);
+      const prepared = retained
+        ? await manager.recover(retained, attemptId)
+        : await manager.prepare({
+            taskId: task.id,
+            identifier: task.identifier,
+            attemptId,
+            repository: locator.repository,
+            branch: `codex/issue-${locator.issueNumber}`,
+            host: "local",
+          });
       const now = this.#timestamp();
+      const sequence = log.projection.attemptsForTask(task.id).length + 1;
+      const decision =
+        startReason === "dispatch"
+          ? scheduler.reserveAttempt({
+              task: live.task,
+              attemptId,
+              sequence,
+              startReason,
+              workspace: prepared.workspace,
+              startedAt: now,
+              idempotencyKey: `single-agent:reserve:${attemptId}`,
+            })
+          : scheduler.transitionRetry({
+              taskId: task.id,
+              refreshedTask: live.task,
+              nowMs: retryTransitionClock(scheduler, task.id, this.#now().getTime(), forceRetry),
+              nextAttempt: {
+                attemptId,
+                sequence,
+                workspace: prepared.workspace,
+                startedAt: now,
+              },
+              idempotencyKey: `single-agent:${startReason}:${attemptId}`,
+            });
+      if (decision.kind !== "reserved") {
+        const retainedWorkspace = await manager.finish(prepared.workspace);
+        await recordWorkspace(
+          log,
+          retainedWorkspace.workspace,
+          `single-agent:workspace:${retainedWorkspace.workspace.id}:unreserved:${attemptId}`,
+        );
+        throw new RuntimeError(
+          "conflict",
+          decision.kind === "rejected"
+            ? `Task ${task.identifier} was not reserved: ${decision.reasons.join(", ")}`
+            : `Task ${task.identifier} retry was not reserved`,
+        );
+      }
       run = {
-        attempt: AttemptSnapshotSchema.parse({
-          schemaVersion: CONTRACT_SCHEMA_VERSION,
-          id: attemptId,
-          taskId: task.id,
-          sequence: log.projection.attemptsForTask(task.id).length + 1,
-          startReason,
-          status: "preparing_workspace",
-          workspaceId: prepared.workspace.id,
-          activeTurn: null,
-          providerSession: null,
-          startedAt: now,
-          updatedAt: now,
-          finishedAt: null,
-          failure: null,
-        }),
+        attempt: decision.attempt,
         log,
         manager,
         workspace: prepared.workspace,
+        workflow,
+        task: live.task,
+        settings,
+        turnCount: 0,
+        settled: Promise.withResolvers<void>(),
       };
       this.#runs.set(attemptId, run);
       await this.#recordAttempt(run);
@@ -320,19 +514,23 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         attempt: 1,
       });
       await this.#setStatus(run, "launching_agent");
-      const runner = createAgentRunner(workflow, this.#now);
-      handle = await runner.startOrContinue({
+      run.worker = await this.#runnerFactory(workflow).openWorker({
         attemptId,
         task: live.task,
         workspace: run.workspace,
-        prompt,
-        continuation: false,
         ...settings,
       });
-      run.handle = handle;
-      await this.#finishTurn(run, runner, handle);
+      await this.#operator({
+        operation: "worker.open",
+        outcome: "succeeded",
+        durationMs: 0,
+        taskId: run.attempt.taskId,
+        attemptId: run.attempt.id,
+        workspaceId: run.workspace.id,
+        pid: run.worker.processIdentity.pid,
+      });
+      await this.#driveTurns(run, prompt);
     } catch (error) {
-      if (handle && run) run.handle = handle;
       if (run) {
         if (!run.stopping) await this.#fail(run, error);
       } else {
@@ -359,10 +557,20 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     prompt: string,
     log: EventLog,
     settings: Pick<AgentRunRequest, "effort" | "model" | "sandbox"> = {},
+    takeControl = false,
+    started?: ReturnType<typeof Promise.withResolvers<void>>,
   ): Promise<void> {
     let run: ActiveRun | undefined;
-    let handle: RunHandle | undefined;
     try {
+      if (
+        attempt.status !== "paused" ||
+        (attempt.controller !== "symphoneer" && !(takeControl && attempt.controller === "codex"))
+      ) {
+        throw new RuntimeError(
+          "conflict",
+          "Only a Symphoneer-controlled paused Attempt can resume",
+        );
+      }
       const threadId = attempt.providerSession?.threadId;
       const workspace = log.projection.attemptDetail(attempt.id)?.workspace;
       if (!threadId || !workspace) {
@@ -383,43 +591,50 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         throw new RuntimeError("conflict", "Tracker Task is no longer eligible for execution");
       }
       const locator = locateTask(live.task);
-      const workflow = await loadWorkflow(
-        this.#projectRoot,
-        this.#projectRoot,
-        this.#workspaceRoot,
-      );
+      const workflow = await this.#reloadWorkflow();
+      const scheduler = this.#ensureScheduler(workflow, log);
       const manager = this.#workspaceManager(workflow, locator);
       const recovered = await manager.recover(workspace, attempt.id);
+      const resumedAt = this.#atLeastNow(attempt.updatedAt);
       run = {
-        attempt: AttemptSnapshotSchema.parse({
-          ...attempt,
-          status: "launching_agent",
-          controller: "symphoneer",
-          activeTurn: null,
-          updatedAt: this.#atLeastNow(attempt.updatedAt),
-          finishedAt: null,
-          failure: null,
+        attempt: scheduler.resumePausedAttempt({
+          attemptId: attempt.id,
+          task: live.task,
+          workspace: recovered.workspace,
+          resumedAt,
+          idempotencyKey: `single-agent:resume:${attempt.id}:${resumedAt}`,
+          ...(takeControl ? { takeControl: true } : {}),
         }),
         log,
         manager,
         workspace: recovered.workspace,
+        workflow,
+        task: live.task,
+        settings,
+        turnCount: 0,
+        settled: Promise.withResolvers<void>(),
       };
       this.#runs.set(attempt.id, run);
       await this.#recordAttempt(run);
-      const runner = createAgentRunner(workflow, this.#now);
-      handle = await runner.startOrContinue({
+      run.worker = await this.#runnerFactory(workflow).openWorker({
         attemptId: attempt.id,
         task: live.task,
         workspace: run.workspace,
-        prompt,
-        continuation: true,
-        threadId,
         ...settings,
       });
-      run.handle = handle;
-      await this.#finishTurn(run, runner, handle);
+      await this.#operator({
+        operation: "worker.open",
+        outcome: "succeeded",
+        durationMs: 0,
+        taskId: run.attempt.taskId,
+        attemptId: run.attempt.id,
+        workspaceId: run.workspace.id,
+        pid: run.worker.processIdentity.pid,
+      });
+      started?.resolve();
+      await this.#driveTurns(run, prompt, threadId);
     } catch (error) {
-      if (handle && run) run.handle = handle;
+      started?.reject(error);
       if (run) await this.#fail(run, error);
       else {
         await recordTaskStatus(
@@ -433,37 +648,110 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     }
   }
 
-  async #finishTurn(
+  async #driveTurns(
     run: ActiveRun,
-    runner: CodexAppServerAdapter,
-    handle: RunHandle,
+    initialPrompt: string,
+    initialThreadId?: string,
   ): Promise<void> {
-    await this.#consume(run, handle);
-    const completion = await handle.completion;
-    if (run.stopping) return;
-    if (completion.outcome !== "completed") {
-      throw new Error(`Codex Turn did not complete: ${completion.error ?? completion.outcome}`);
+    let prompt = initialPrompt;
+    let threadId = initialThreadId;
+    for (;;) {
+      const worker = run.worker;
+      if (!worker) throw new Error("Attempt Worker is unavailable");
+      const handle = await worker.startTurn({ prompt, ...(threadId ? { threadId } : {}) });
+      run.handle = handle;
+      await this.#consume(run, handle);
+      const completion = await handle.completion;
+      await this.#operator({
+        operation: "turn.complete",
+        outcome: completion.outcome === "completed" ? "succeeded" : "failed",
+        durationMs: 0,
+        taskId: run.attempt.taskId,
+        attemptId: run.attempt.id,
+        workspaceId: run.workspace.id,
+        ...(run.attempt.providerSession?.threadId
+          ? { threadId: run.attempt.providerSession.threadId }
+          : {}),
+        ...(run.attempt.activeTurn?.turnId ? { turnId: run.attempt.activeTurn.turnId } : {}),
+        pid: worker.processIdentity.pid,
+        ...(completion.error ? { errorKind: "worker_turn" } : {}),
+      });
+      if (run.stopping) return;
+      if (completion.outcome !== "completed") {
+        throw new Error(`Codex Turn did not complete: ${completion.error ?? completion.outcome}`);
+      }
+      run.turnCount += 1;
+      threadId = run.attempt.providerSession?.threadId;
+      if (threadId) {
+        const session = await worker.readSession(threadId, this.#timestamp()).catch(() => null);
+        if (session) await recordExecutionSession(run.log, session);
+      }
+      if (run.handoffRequested) {
+        await this.#pause(run, true, false);
+        return;
+      }
+
+      const live = await this.#tracker.getTask(run.task.source.nativeId);
+      if (live.task.id !== run.task.id) {
+        throw new RuntimeError("conflict", "Tracker Task identity changed after the Turn");
+      }
+      run.task = live.task;
+      await recordTask(
+        run.log,
+        live.task,
+        `single-agent:task:${live.task.id}:${live.task.updatedAt ?? ""}`,
+      );
+      const eligibility = evaluateEligibility(live.task, workflowEligibility(run.workflow));
+      if (eligibility.eligible && run.turnCount < run.workflow.config.agent.maxTurns) {
+        await this.#setStatus(run, "building_prompt");
+        prompt = await renderPrompt(run.workflow, {
+          issue: JSON.parse(JSON.stringify(live.task)) as Record<string, unknown>,
+          attempt: run.attempt.sequence,
+        });
+        await this.#setStatus(run, "launching_agent");
+        continue;
+      }
+      await this.#finishSucceeded(run);
+      return;
     }
-    const threadId = run.attempt.providerSession?.threadId;
-    if (threadId) {
-      const session = await runner
-        .readSession(threadId, run.attempt.id, this.#timestamp())
-        .catch(() => null);
-      if (session) await recordExecutionSession(run.log, session);
-    }
+  }
+
+  async #finishSucceeded(run: ActiveRun): Promise<void> {
+    await run.worker?.close();
     await this.#setStatus(run, "finishing");
     await this.#retain(run);
     const finishedAt = this.#atLeastNow(run.attempt.updatedAt);
-    run.attempt = AttemptSnapshotSchema.parse({
-      ...run.attempt,
+    const finished = this.#scheduler?.finishAttempt({
+      attemptId: run.attempt.id,
       status: "succeeded",
-      activeTurn: null,
-      updatedAt: finishedAt,
       finishedAt,
-      failure: null,
+      workspace: run.workspace,
+      idempotencyKey: `single-agent:finish:${run.attempt.id}:${finishedAt}`,
     });
+    run.attempt =
+      finished?.attempt ??
+      AttemptSnapshotSchema.parse({
+        ...run.attempt,
+        status: "succeeded",
+        activeTurn: null,
+        updatedAt: finishedAt,
+        finishedAt,
+        failure: null,
+      });
     await this.#recordAttempt(run);
+    await this.#operator({
+      operation: "attempt.finish",
+      outcome: "succeeded",
+      durationMs: 0,
+      taskId: run.attempt.taskId,
+      attemptId: run.attempt.id,
+      workspaceId: run.workspace.id,
+    });
+    if (finished?.retry) {
+      this.#scheduleTick(run.log, run.attempt.taskId, finished.retry.dueAtMs);
+    }
     this.#runs.delete(run.attempt.id);
+    run.settled.resolve();
   }
 
   async #consume(run: ActiveRun, handle: RunHandle): Promise<void> {
@@ -497,13 +785,22 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   }
 
   async #setStreaming(run: ActiveRun, event: Extract<AgentRunEvent, { type: "session_started" }>) {
-    run.attempt = AttemptSnapshotSchema.parse({
-      ...run.attempt,
-      status: "streaming_turn",
-      activeTurn: { threadId: event.threadId, turnId: event.turnId },
-      providerSession: { threadId: event.threadId, lastTurnId: event.turnId },
-      updatedAt: this.#atLeastNow(run.attempt.updatedAt),
-    });
+    const updatedAt = this.#atLeastNow(run.attempt.updatedAt);
+    run.attempt =
+      this.#scheduler?.attachTurn({
+        attemptId: run.attempt.id,
+        threadId: event.threadId,
+        turnId: event.turnId,
+        updatedAt,
+        idempotencyKey: `single-agent:turn:${run.attempt.id}:${event.turnId}`,
+      }) ??
+      AttemptSnapshotSchema.parse({
+        ...run.attempt,
+        status: "streaming_turn",
+        activeTurn: { threadId: event.threadId, turnId: event.turnId },
+        providerSession: { threadId: event.threadId, lastTurnId: event.turnId },
+        updatedAt,
+      });
     await this.#recordAttempt(run);
   }
 
@@ -526,6 +823,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   }
 
   async #retain(run: ActiveRun, commit = false): Promise<void> {
+    if (run.workspace.state === "retained") return;
     const finished = await run.manager.finish(run.workspace);
     run.workspace = finished.workspace;
     await recordWorkspace(
@@ -536,27 +834,42 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     );
   }
 
-  async #pause(run: ActiveRun, commit = false): Promise<void> {
+  async #pause(run: ActiveRun, commit = false, interrupt = true): Promise<void> {
     if (run.attempt.status === "paused") return;
     run.stopping = true;
-    await run.handle?.interrupt();
-    await run.handle?.completion.catch(() => undefined);
+    if (interrupt) {
+      await run.handle?.interrupt().catch(() => undefined);
+      await run.handle?.completion.catch(() => undefined);
+    }
+    await run.worker?.close().catch(() => undefined);
     await this.#retain(run, commit);
-    run.attempt = AttemptSnapshotSchema.parse({
-      ...run.attempt,
-      status: "paused",
-      activeTurn: null,
-      updatedAt: this.#atLeastNow(run.attempt.updatedAt),
-      finishedAt: null,
-      failure: null,
+    const pausedAt = this.#atLeastNow(run.attempt.updatedAt);
+    const paused = this.#scheduler?.pauseAttempt({
+      attemptId: run.attempt.id,
+      pausedAt,
+      workspace: run.workspace,
+      idempotencyKey: `single-agent:pause:${run.attempt.id}:${pausedAt}`,
     });
+    run.attempt =
+      paused?.attempt ??
+      AttemptSnapshotSchema.parse({
+        ...run.attempt,
+        status: "paused",
+        activeTurn: null,
+        updatedAt: pausedAt,
+        finishedAt: null,
+        failure: null,
+      });
+    if (paused) run.workspace = paused.workspace;
     await this.#recordAttempt(run, commit);
     this.#runs.delete(run.attempt.id);
+    run.settled.resolve();
   }
 
   async #fail(run: ActiveRun, error: unknown): Promise<void> {
     await run.handle?.interrupt().catch(() => undefined);
     await run.handle?.completion.catch(() => undefined);
+    await run.worker?.close().catch(() => undefined);
     try {
       const finished = await run.manager.finish(run.workspace);
       run.workspace = finished.workspace;
@@ -569,16 +882,239 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       // Keep the last known ready Workspace when its lifecycle cannot be observed safely.
     }
     const finishedAt = this.#atLeastNow(run.attempt.updatedAt);
-    run.attempt = AttemptSnapshotSchema.parse({
-      ...run.attempt,
-      status: "failed",
-      activeTurn: null,
-      updatedAt: finishedAt,
-      finishedAt,
-      failure: errorMessage(error),
-    });
+    const finished =
+      run.workspace.state === "retained"
+        ? this.#scheduler?.finishAttempt({
+            attemptId: run.attempt.id,
+            status: "failed",
+            finishedAt,
+            workspace: run.workspace,
+            error: errorMessage(error),
+            idempotencyKey: `single-agent:fail:${run.attempt.id}:${finishedAt}`,
+          })
+        : undefined;
+    run.attempt =
+      finished?.attempt ??
+      AttemptSnapshotSchema.parse({
+        ...run.attempt,
+        status: "failed",
+        activeTurn: null,
+        updatedAt: finishedAt,
+        finishedAt,
+        failure: errorMessage(error),
+      });
     await this.#recordAttempt(run).catch(() => undefined);
+    await this.#operator({
+      operation: "attempt.finish",
+      outcome: "failed",
+      durationMs: 0,
+      taskId: run.attempt.taskId,
+      attemptId: run.attempt.id,
+      workspaceId: run.workspace.id,
+      errorKind: errorKind(error),
+    });
+    if (finished?.retry) {
+      this.#scheduleTick(run.log, run.attempt.taskId, finished.retry.dueAtMs);
+    }
     this.#runs.delete(run.attempt.id);
+    run.settled.resolve();
+  }
+
+  async #reloadWorkflow(): Promise<ProjectProfile> {
+    if (!this.#projectRoot) throw new RuntimeError("conflict", "Project checkout is unavailable");
+    try {
+      const workflow = await loadWorkflow(
+        this.#projectRoot,
+        this.#projectRoot,
+        this.#workspaceRoot,
+      );
+      this.#workflow = workflow;
+      if (workflow.location === "legacy" && !this.#legacyWorkflowLogged) {
+        this.#legacyWorkflowLogged = true;
+        await this.#operator({
+          operation: "workflow.legacy_path",
+          outcome: "blocked",
+          durationMs: 0,
+          errorKind: "deprecated_workflow_path",
+        });
+      }
+      return workflow;
+    } catch (error) {
+      if (this.#workflow) {
+        await this.#operator({
+          operation: "workflow.reload",
+          outcome: "failed",
+          durationMs: 0,
+          errorKind: errorKind(error),
+        });
+        return this.#workflow;
+      }
+      throw error;
+    }
+  }
+
+  #ensureScheduler(workflow: ProjectProfile, log: EventLog): CoreScheduler {
+    if (this.#scheduler) return this.#scheduler;
+    const scheduler = new CoreScheduler(corePolicy(workflow));
+    const tasks = log.projection.tasks();
+    const attempts = tasks.flatMap((task) => log.projection.attemptsForTask(task.id));
+    const workspaces = new Map<string, WorkspaceReference>();
+    for (const attempt of attempts) {
+      const workspace = log.projection.attemptDetail(attempt.id)?.workspace;
+      if (workspace) workspaces.set(workspace.id, workspace);
+    }
+    scheduler.restore({ tasks, attempts, workspaces: [...workspaces.values()] });
+    this.#scheduler = scheduler;
+    return scheduler;
+  }
+
+  async #cancelLostAttempts(log: EventLog, workflow: ProjectProfile): Promise<void> {
+    if (this.#scheduler) return;
+    for (const task of log.projection.tasks()) {
+      const attempt = log.projection
+        .attemptsForTask(task.id)
+        .sort((left, right) => right.sequence - left.sequence)
+        .find((candidate) => candidate.finishedAt == null);
+      if (!attempt || attempt.controller === "codex" || this.#runs.has(attempt.id)) continue;
+      const detail = log.projection.attemptDetail(attempt.id);
+      if (!detail?.workspace) continue;
+      try {
+        let workspace = detail.workspace;
+        if (workspace.state === "ready" || workspace.state === "reserved") {
+          workspace = (await this.#workspaceManager(workflow, locateTask(task)).finish(workspace))
+            .workspace;
+          await recordWorkspace(
+            log,
+            workspace,
+            `single-agent:workspace:${workspace.id}:startup-reconciliation`,
+          );
+        }
+        const finishedAt = this.#atLeastNow(attempt.updatedAt);
+        await recordAttempt(
+          log,
+          AttemptSnapshotSchema.parse({
+            ...attempt,
+            status: "canceled_by_reconciliation",
+            activeTurn: null,
+            updatedAt: finishedAt,
+            finishedAt,
+            failure: "Attempt Worker was not present after Runtime restart",
+          }),
+          {
+            workspace,
+            idempotencyKey: `single-agent:attempt:${attempt.id}:startup-reconciliation`,
+          },
+        );
+      } catch (error) {
+        await recordTaskStatus(
+          log,
+          task.id,
+          task.workflowStatus,
+          { reason: errorMessage(error), since: this.#timestamp() },
+          {
+            source: "symphony-core",
+            idempotencyKey: `single-agent:startup-reconciliation:${attempt.id}:blocked`,
+          },
+        );
+      }
+    }
+  }
+
+  async #recordReconciledAttempt(
+    log: EventLog,
+    attemptId: string,
+    observedAt: string,
+  ): Promise<void> {
+    const run = this.#runs.get(attemptId);
+    if (run) {
+      run.stopping = true;
+      await run.handle?.interrupt().catch(() => undefined);
+      await run.handle?.completion.catch(() => undefined);
+      await run.worker?.close().catch(() => undefined);
+      await this.#retain(run);
+      const finishedAt = this.#atLeastNow(run.attempt.updatedAt);
+      run.attempt = AttemptSnapshotSchema.parse({
+        ...run.attempt,
+        status: "canceled_by_reconciliation",
+        activeTurn: null,
+        updatedAt: finishedAt,
+        finishedAt,
+        failure: "Task is no longer eligible",
+      });
+      await this.#recordAttempt(run);
+      this.#runs.delete(attemptId);
+      run.settled.resolve();
+      return;
+    }
+    const attempt = log.projection.getAttempt(attemptId);
+    if (!attempt || attempt.finishedAt != null || attempt.controller === "codex") return;
+    const workspace = log.projection.attemptDetail(attempt.id)?.workspace;
+    const finishedAt =
+      Date.parse(observedAt) > Date.parse(attempt.updatedAt)
+        ? observedAt
+        : this.#atLeastNow(attempt.updatedAt);
+    await recordAttempt(
+      log,
+      AttemptSnapshotSchema.parse({
+        ...attempt,
+        status: "canceled_by_reconciliation",
+        activeTurn: null,
+        updatedAt: finishedAt,
+        finishedAt,
+        failure: "Task is no longer eligible",
+      }),
+      {
+        ...(workspace ? { workspace } : {}),
+        idempotencyKey: `single-agent:attempt:${attempt.id}:reconciliation:${finishedAt}`,
+      },
+    );
+  }
+
+  async #cleanupWorkspace(
+    log: EventLog,
+    workspaceId: string,
+    workflow: ProjectProfile,
+  ): Promise<void> {
+    for (const task of log.projection.tasks()) {
+      const workspace = log.projection
+        .attemptsForTask(task.id)
+        .map((attempt) => log.projection.attemptDetail(attempt.id)?.workspace)
+        .find((candidate) => candidate?.id === workspaceId);
+      if (workspace?.state !== "retained") continue;
+      const released = await this.#workspaceManager(workflow, locateTask(task)).remove(workspace);
+      await recordWorkspace(
+        log,
+        released.workspace,
+        `single-agent:workspace:${workspace.id}:terminal-cleanup`,
+      );
+      await this.#operator({
+        operation: "workspace.cleanup",
+        outcome: "succeeded",
+        durationMs: 0,
+        taskId: task.id,
+        workspaceId: workspace.id,
+      });
+      return;
+    }
+  }
+
+  #scheduleTick(log: EventLog, taskId: string, dueAtMs: number): void {
+    clearTimeout(this.#retryTimers.get(taskId));
+    const timer = setTimeout(
+      () => {
+        this.#retryTimers.delete(taskId);
+        void this.tick({ tasks: log.projection.tasks(), log }).catch(() => undefined);
+      },
+      Math.max(0, dueAtMs - this.#now().getTime()),
+    );
+    timer.unref();
+    this.#retryTimers.set(taskId, timer);
+  }
+
+  #operator(record: Omit<OperatorRecord, "occurredAt">): Promise<void> {
+    return this.#operatorLog
+      .append({ occurredAt: this.#timestamp(), ...record })
+      .catch(() => undefined);
   }
 
   #timestamp(): string {
@@ -681,6 +1217,49 @@ function createAgentRunner(workflow: ProjectProfile, now: () => Date): CodexAppS
   });
 }
 
+function retainedWorkspaceForTask(log: EventLog, taskId: string): WorkspaceReference | undefined {
+  return log.projection
+    .attemptsForTask(taskId)
+    .sort((left, right) => right.sequence - left.sequence)
+    .map((attempt) => log.projection.attemptDetail(attempt.id)?.workspace)
+    .find(
+      (workspace): workspace is WorkspaceReference =>
+        workspace?.state === "retained" && workspace.ownerAttemptId === null,
+    );
+}
+
+function workflowEligibility(workflow: ProjectProfile) {
+  return {
+    activeStates: workflow.config.tracker.activeStates,
+    terminalStates: workflow.config.tracker.terminalStates,
+    requiredLabels: [
+      ...workflow.config.tracker.requiredLabels,
+      ...workflow.config.symphoneer.eligibility.requiredLabels,
+    ],
+    excludedLabels: workflow.config.symphoneer.eligibility.excludedLabels,
+  };
+}
+
+function corePolicy(workflow: ProjectProfile): CorePolicy {
+  return {
+    ...workflowEligibility(workflow),
+    maxConcurrentAgents: workflow.config.agent.maxConcurrentAgents,
+    maxConcurrentAgentsByState: workflow.config.agent.maxConcurrentAgentsByState,
+    maxRetryBackoffMs: workflow.config.agent.maxRetryBackoffMs,
+  };
+}
+
+function retryTransitionClock(
+  scheduler: CoreScheduler,
+  taskId: string,
+  nowMs: number,
+  force: boolean,
+): number {
+  if (!force) return nowMs;
+  const retry = scheduler.snapshot().retries.find((candidate) => candidate.taskId === taskId);
+  return Math.max(nowMs, retry?.dueAtMs ?? nowMs);
+}
+
 async function runCommand(command: string, args: string[], cwd: string): Promise<void> {
   try {
     await execFile(command, args, {
@@ -705,4 +1284,9 @@ function optionValue<T extends string>(value: unknown, allowed: readonly T[], fa
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message.slice(0, 500) : "Single-agent execution failed";
+}
+
+function errorKind(error: unknown): string {
+  if (error instanceof RuntimeError) return error.code;
+  return error instanceof Error ? error.name : "unknown_error";
 }

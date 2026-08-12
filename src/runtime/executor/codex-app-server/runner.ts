@@ -1,4 +1,11 @@
-import type { AgentRunner, AgentRunRequest, RunHandle } from "../agent-runner.ts";
+import type {
+  AgentRunner,
+  AgentRunRequest,
+  AgentTurnRequest,
+  AgentWorkerRequest,
+  AttemptWorker,
+  RunHandle,
+} from "../agent-runner.ts";
 
 import { storedExecutionSession } from "./activities.ts";
 import { listCodexModels } from "./models.ts";
@@ -8,7 +15,7 @@ import type { CodexTransport } from "./transport.ts";
 import { StdioCodexTransport } from "./transport.ts";
 
 export class CodexAppServerAdapter implements AgentRunner {
-  readonly #transportFactory: () => Promise<CodexTransport>;
+  readonly #transportFactory: (cwd: string) => Promise<CodexTransport>;
   readonly #approvalPolicy: "never" | "on-request" | "untrusted";
   readonly #sandbox: "danger-full-access" | "read-only" | "workspace-write";
   readonly #turnTimeoutMs: number;
@@ -17,7 +24,7 @@ export class CodexAppServerAdapter implements AgentRunner {
 
   constructor(
     options: {
-      transportFactory?: () => Promise<CodexTransport>;
+      transportFactory?: (cwd: string) => Promise<CodexTransport>;
       command?: string;
       args?: string[];
       readTimeoutMs?: number;
@@ -30,10 +37,11 @@ export class CodexAppServerAdapter implements AgentRunner {
   ) {
     this.#transportFactory =
       options.transportFactory ??
-      (() =>
+      ((cwd) =>
         StdioCodexTransport.start({
           ...(options.command === undefined ? {} : { command: options.command }),
           ...(options.args === undefined ? {} : { args: options.args }),
+          cwd,
           ...(options.readTimeoutMs === undefined ? {} : { readTimeoutMs: options.readTimeoutMs }),
         }));
     this.#approvalPolicy = options.approvalPolicy ?? "on-request";
@@ -49,25 +57,15 @@ export class CodexAppServerAdapter implements AgentRunner {
     }
   }
 
-  async startOrContinue(request: AgentRunRequest): Promise<RunHandle> {
-    if (request.continuation && !request.threadId) {
-      throw new Error("A continuation requires its Codex threadId");
-    }
-    if (!request.continuation && request.threadId) {
-      throw new Error("A new Codex session must not provide threadId");
-    }
-
-    const transport = await this.#transportFactory();
+  async openWorker(request: AgentWorkerRequest): Promise<AttemptWorker> {
+    const transport = await this.#transportFactory(request.workspace.path);
     try {
-      const { threadId, turnId } = await startCodexTurn(transport, request, {
-        approvalPolicy: this.#approvalPolicy,
-        sandbox: this.#sandbox,
-      });
-      return createRunHandle({
+      await initializeCodexTransport(transport);
+      return new CodexAttemptWorker({
         transport,
         request,
-        threadId,
-        turnId,
+        approvalPolicy: this.#approvalPolicy,
+        sandbox: this.#sandbox,
         turnTimeoutMs: this.#turnTimeoutMs,
         stallTimeoutMs: this.#stallTimeoutMs,
         now: this.#now,
@@ -78,8 +76,30 @@ export class CodexAppServerAdapter implements AgentRunner {
     }
   }
 
+  /** @deprecated Open an Attempt Worker and own its lifecycle explicitly. */
+  async startOrContinue(request: AgentRunRequest): Promise<RunHandle> {
+    if (request.continuation && !request.threadId) {
+      throw new Error("A continuation requires its Codex threadId");
+    }
+    if (!request.continuation && request.threadId) {
+      throw new Error("A new Codex session must not provide threadId");
+    }
+
+    const worker = await this.openWorker(request);
+    try {
+      const handle = await worker.startTurn({
+        prompt: request.prompt,
+        ...(request.threadId ? { threadId: request.threadId } : {}),
+      });
+      return { ...handle, completion: handle.completion.finally(() => worker.close()) };
+    } catch (error) {
+      await worker.close().catch(() => undefined);
+      throw error;
+    }
+  }
+
   async listModels() {
-    const transport = await this.#transportFactory();
+    const transport = await this.#transportFactory(process.cwd());
     try {
       return await listCodexModels(transport);
     } finally {
@@ -88,7 +108,7 @@ export class CodexAppServerAdapter implements AgentRunner {
   }
 
   async readSession(threadId: string, attemptId: string, capturedAt: string) {
-    const transport = await this.#transportFactory();
+    const transport = await this.#transportFactory(process.cwd());
     try {
       await initializeCodexTransport(transport);
       const response = await transport.request("thread/read", { threadId, includeTurns: true });
@@ -96,5 +116,89 @@ export class CodexAppServerAdapter implements AgentRunner {
     } finally {
       await transport.close().catch(() => undefined);
     }
+  }
+}
+
+class CodexAttemptWorker implements AttemptWorker {
+  readonly processIdentity: AttemptWorker["processIdentity"];
+  readonly #transport: CodexTransport;
+  readonly #request: AgentWorkerRequest;
+  readonly #approvalPolicy: "never" | "on-request" | "untrusted";
+  readonly #sandbox: "danger-full-access" | "read-only" | "workspace-write";
+  readonly #turnTimeoutMs: number;
+  readonly #stallTimeoutMs: number;
+  readonly #now: () => Date;
+  #threadId: string | undefined;
+  #active = false;
+  #closed = false;
+
+  constructor(options: {
+    transport: CodexTransport;
+    request: AgentWorkerRequest;
+    approvalPolicy: "never" | "on-request" | "untrusted";
+    sandbox: "danger-full-access" | "read-only" | "workspace-write";
+    turnTimeoutMs: number;
+    stallTimeoutMs: number;
+    now: () => Date;
+  }) {
+    this.#transport = options.transport;
+    this.#request = options.request;
+    this.#approvalPolicy = options.approvalPolicy;
+    this.#sandbox = options.sandbox;
+    this.#turnTimeoutMs = options.turnTimeoutMs;
+    this.#stallTimeoutMs = options.stallTimeoutMs;
+    this.#now = options.now;
+    this.processIdentity = {
+      pid: options.transport.processIdentity?.pid ?? null,
+      toolVersion: options.transport.toolVersion,
+    };
+  }
+
+  async startTurn(request: AgentTurnRequest): Promise<RunHandle> {
+    if (this.#closed) throw new Error("Attempt Worker is closed");
+    if (this.#active) throw new Error("Attempt Worker already has an active Turn");
+    const threadId = request.threadId ?? this.#threadId;
+    const runRequest: AgentRunRequest = {
+      ...this.#request,
+      prompt: request.prompt,
+      continuation: threadId !== undefined,
+      ...(threadId ? { threadId } : {}),
+    };
+    const started = await startCodexTurn(this.#transport, runRequest, {
+      approvalPolicy: this.#approvalPolicy,
+      sandbox: this.#sandbox,
+      initialized: true,
+      ...(this.#threadId ? { activeThreadId: this.#threadId } : {}),
+    });
+    this.#threadId = started.threadId;
+    this.#active = true;
+    const handle = createRunHandle({
+      transport: this.#transport,
+      request: runRequest,
+      threadId: started.threadId,
+      turnId: started.turnId,
+      turnTimeoutMs: this.#turnTimeoutMs,
+      stallTimeoutMs: this.#stallTimeoutMs,
+      now: this.#now,
+    });
+    return {
+      ...handle,
+      completion: handle.completion.finally(() => {
+        this.#active = false;
+      }),
+    };
+  }
+
+  async readSession(threadId: string, capturedAt: string) {
+    if (this.#closed) throw new Error("Attempt Worker is closed");
+    if (this.#active) throw new Error("Attempt Worker cannot read an active Turn");
+    const response = await this.#transport.request("thread/read", { threadId, includeTurns: true });
+    return storedExecutionSession(response, this.#request.attemptId, capturedAt);
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return;
+    this.#closed = true;
+    await this.#transport.close();
   }
 }

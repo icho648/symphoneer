@@ -269,6 +269,12 @@ export class RuntimeService {
     return new TrackerSynchronizer({
       log: this.#log,
       tracker,
+      ...(this.#defaultOrchestration?.tick
+        ? {
+            reconcile: (tasks) =>
+              this.#defaultOrchestration?.tick?.({ tasks, log: this.#log }) ?? Promise.resolve(),
+          }
+        : {}),
     });
   }
 

@@ -34,7 +34,7 @@ export async function recordTask(
   idempotencyKey?: string,
 ): Promise<RuntimeEvent> {
   const task = TaskSummarySchema.parse(taskInput);
-  return log.append({
+  const event = await log.append({
     type: "task.upserted",
     source: "adapter",
     aggregate: { kind: "task", id: task.id },
@@ -42,6 +42,14 @@ export async function recordTask(
     payload: { task },
     idempotencyKey: idempotencyKey ?? `task:${task.id}:${task.updatedAt ?? ""}`,
   });
+  const current = log.projection.getTask(task.id);
+  if (current?.workflowStatus === "in_progress" && task.labels.includes("symphoneer:review")) {
+    await recordTaskStatus(log, task.id, "in_review", null, {
+      source: "adapter",
+      idempotencyKey: `workflow-status:tracker:${task.id}:in-review:${task.updatedAt ?? ""}`,
+    });
+  }
+  return event;
 }
 
 export async function recordTaskStatus(
@@ -108,12 +116,6 @@ export async function recordAttempt(
       await recordTaskStatus(log, task.id, task.workflowStatus, null, {
         source: "symphony-core",
         idempotencyKey: `workflow-status:attempt:${attempt.id}:unblocked:${attempt.updatedAt}`,
-        commit: options.commit ?? false,
-      });
-    } else if (attempt.status === "succeeded" && task.workflowStatus === "in_progress") {
-      await recordTaskStatus(log, task.id, "in_review", null, {
-        source: "symphony-core",
-        idempotencyKey: `workflow-status:attempt:${attempt.id}:in-review`,
         commit: options.commit ?? false,
       });
     } else if (attempt.finishedAt != null && attempt.status !== "succeeded") {

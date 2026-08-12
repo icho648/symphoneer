@@ -28,6 +28,7 @@ export interface ProjectDataLayout {
   artifactsRoot: string;
   checkpointPath: string;
   workspaceRoot: string;
+  operatorLogPath: string;
 }
 
 export interface RegisterProjectInput {
@@ -147,6 +148,7 @@ export class ApplicationData {
       artifactsRoot: root,
       checkpointPath: resolve(root, "orchestration", "checkpoints.sqlite"),
       workspaceRoot: resolve(this.#workspaceRoot, id),
+      operatorLogPath: resolve(this.#logDir, id, "operator.jsonl"),
     };
   }
 

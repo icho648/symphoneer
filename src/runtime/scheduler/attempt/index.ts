@@ -59,6 +59,7 @@ export function resumePausedAttempt(
     task: TaskSummary;
     workspace: WorkspaceReference;
     resumedAt: string;
+    takeControl?: boolean;
   },
 ): AttemptSnapshot {
   const attempt = state.attempts.get(request.attemptId);
@@ -77,6 +78,12 @@ export function resumePausedAttempt(
     !sameStableWorkspaceIdentity(knownWorkspace, request.workspace)
   ) {
     throw new CoreError("invalid_transition", `Attempt ${attempt.id} cannot resume`);
+  }
+  if (attempt.controller === "codex" && request.takeControl !== true) {
+    throw new CoreError(
+      "invalid_transition",
+      `Attempt ${attempt.id} requires explicit control return`,
+    );
   }
   const eligibility = evaluateEligibility(request.task, policy);
   if (!eligibility.eligible) {
@@ -101,6 +108,7 @@ export function resumePausedAttempt(
   }
   const resumed = AttemptSnapshotSchema.parse({
     ...attempt,
+    controller: "symphoneer",
     status: "launching_agent",
     updatedAt: resumedAt,
   });

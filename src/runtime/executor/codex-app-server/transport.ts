@@ -9,6 +9,7 @@ export type CodexServerMessage =
 
 export interface CodexTransport {
   readonly toolVersion: string;
+  readonly processIdentity?: { pid: number | null };
   readonly messages: AsyncIterable<CodexServerMessage>;
   readonly closed: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   request(method: string, params: unknown): Promise<unknown>;
@@ -36,6 +37,7 @@ export class CodexTransportError extends Error {
 
 export class StdioCodexTransport implements CodexTransport {
   readonly toolVersion: string;
+  readonly processIdentity: { pid: number | null };
   readonly messages: AsyncIterable<CodexServerMessage>;
   readonly closed: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   readonly #child: ChildProcessWithoutNullStreams;
@@ -56,6 +58,7 @@ export class StdioCodexTransport implements CodexTransport {
   ) {
     this.#child = child;
     this.toolVersion = toolVersion;
+    this.processIdentity = { pid: child.pid ?? null };
     this.#readTimeoutMs = readTimeoutMs;
     this.closed = this.#closedResolver.promise;
     const stream = new ReadableStream<CodexServerMessage>({
@@ -68,7 +71,7 @@ export class StdioCodexTransport implements CodexTransport {
   }
 
   static async start(
-    options: { command?: string; args?: string[]; readTimeoutMs?: number } = {},
+    options: { command?: string; args?: string[]; cwd?: string; readTimeoutMs?: number } = {},
   ): Promise<StdioCodexTransport> {
     const command = options.command ?? "codex";
     const args = options.args ?? ["app-server"];
@@ -76,8 +79,11 @@ export class StdioCodexTransport implements CodexTransport {
     if (!Number.isInteger(readTimeoutMs) || readTimeoutMs <= 0) {
       throw new CodexTransportError("request_failed", "Codex read timeout must be positive");
     }
-    const toolVersion = await readToolVersion(command);
-    const child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
+    const toolVersion = await readToolVersion(command, options.cwd);
+    const child = spawn(command, args, {
+      ...(options.cwd ? { cwd: options.cwd } : {}),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     child.stderr.resume();
     return new StdioCodexTransport(child, toolVersion, readTimeoutMs);
   }
@@ -225,12 +231,12 @@ export class StdioCodexTransport implements CodexTransport {
   }
 }
 
-function readToolVersion(command: string): Promise<string> {
+function readToolVersion(command: string, cwd?: string): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     execFile(
       command,
       ["--version"],
-      { encoding: "utf8", maxBuffer: 64 * 1024 },
+      { ...(cwd ? { cwd } : {}), encoding: "utf8", maxBuffer: 64 * 1024 },
       (error, stdout) => {
         const version = stdout.trim().split("\n", 1)[0];
         if (error || !version) {

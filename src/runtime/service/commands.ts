@@ -294,11 +294,10 @@ async function requestAttemptCommand(
     await orchestration?.retry?.({ attempt, log });
   } else if (command.kind === "send_attempt_input") {
     if (attempt.controller === "codex") {
-      const session = await syncAttemptSession(log, attempt, orchestration);
-      if (session?.turns.at(-1)?.status === "inProgress") {
-        throw new RuntimeError("conflict", "Codex is still processing this Attempt");
-      }
-      await setAttemptController(log, attempt.id, "symphoneer", now);
+      throw new RuntimeError(
+        "conflict",
+        "Codex controls this Attempt; use Return to Automation before sending input",
+      );
     }
     if (!orchestration?.input) {
       throw new RuntimeError("unsupported", "Codex input is not configured");
@@ -323,7 +322,17 @@ async function requestAttemptCommand(
   } else if (command.kind === "sync_attempt_session") {
     await syncAttemptSession(log, attempt, orchestration);
   } else if (command.kind === "return_attempt_control") {
-    await syncAttemptSession(log, attempt, orchestration);
+    if (attempt.controller !== "codex") {
+      throw new RuntimeError("conflict", "Attempt is already controlled by Symphoneer");
+    }
+    const session = await syncAttemptSession(log, attempt, orchestration);
+    if (session?.turns.at(-1)?.status === "inProgress") {
+      throw new RuntimeError("conflict", "Codex is still processing this Attempt");
+    }
+    if (!orchestration?.returnControl) {
+      throw new RuntimeError("unsupported", "Return to Automation is not configured");
+    }
+    await orchestration.returnControl({ attempt, log });
     await setAttemptController(log, attempt.id, "symphoneer", now);
   } else if (command.kind === "delete_attempt") {
     if (!orchestration?.delete) {

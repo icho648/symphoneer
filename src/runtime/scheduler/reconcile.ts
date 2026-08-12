@@ -42,6 +42,11 @@ export function reconcile(
   const cleanupWorkspaceIds: string[] = [];
 
   for (const [taskId, running] of [...state.running]) {
+    const attempt = state.attempts.get(running.attemptId);
+    if (attempt?.controller === "codex") {
+      keptAttemptIds.push(running.attemptId);
+      continue;
+    }
     const current = refreshed.get(taskId);
     const eligibility = current ? evaluateEligibility(current, policy) : null;
     if (current && eligibility?.eligible) {
@@ -68,6 +73,10 @@ export function reconcile(
   for (const attempt of [...state.attempts.values()].filter(
     (candidate) => candidate.status === "paused",
   )) {
+    if (attempt.controller === "codex") {
+      keptAttemptIds.push(attempt.id);
+      continue;
+    }
     const current = refreshed.get(attempt.taskId);
     const eligibility = current ? evaluateEligibility(current, policy) : null;
     if (current && eligibility?.eligible) {

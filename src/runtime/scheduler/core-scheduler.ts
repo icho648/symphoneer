@@ -1,5 +1,6 @@
 import {
   type AttemptSnapshot,
+  AttemptSnapshotSchema,
   type TaskSummary,
   TaskSummarySchema,
   type WorkspaceReference,
@@ -9,7 +10,7 @@ import { attachTurn, finishAttempt, pauseAttempt, resumePausedAttempt } from "./
 import { reserve } from "./dispatch/index.ts";
 import { type ReconcileResult, reconcile } from "./reconcile.ts";
 import { ReplayCache } from "./replay-cache.ts";
-import { dueRetries, transitionRetry } from "./retry/index.ts";
+import { dueRetries, retryDelayMs, transitionRetry } from "./retry/index.ts";
 import { snapshot } from "./snapshot.ts";
 import { createSchedulerState } from "./state.ts";
 import {
@@ -23,12 +24,104 @@ import {
 } from "./types.ts";
 
 export class CoreScheduler {
-  readonly #policy: CorePolicy;
+  #policy: CorePolicy;
   readonly #state = createSchedulerState();
   readonly #replay = new ReplayCache();
 
   constructor(policy: CorePolicy) {
     this.#policy = policy;
+  }
+
+  updatePolicy(policy: CorePolicy): void {
+    this.#policy = policy;
+  }
+
+  restore(input: {
+    tasks: readonly TaskSummary[];
+    attempts: readonly AttemptSnapshot[];
+    workspaces: readonly WorkspaceReference[];
+  }): void {
+    if (this.#state.attempts.size > 0) {
+      throw new CoreError("conflict", "Scheduler state has already been restored");
+    }
+    const tasks = new Map(input.tasks.map((task) => [task.id, TaskSummarySchema.parse(task)]));
+    const attempts = input.attempts
+      .map((attempt) => AttemptSnapshotSchema.parse(attempt))
+      .sort((left, right) => left.sequence - right.sequence);
+    const workspaces = new Map(
+      input.workspaces.map((workspace) => {
+        const canonical = canonicalizeWorkspaceReference(workspace);
+        this.#state.workspaces.set(canonical.path, canonical);
+        return [canonical.id, canonical] as const;
+      }),
+    );
+    for (const attempt of attempts) this.#state.attempts.set(attempt.id, attempt);
+
+    const latest = new Map<string, AttemptSnapshot>();
+    for (const attempt of attempts) latest.set(attempt.taskId, attempt);
+    for (const attempt of latest.values()) {
+      const task = tasks.get(attempt.taskId);
+      const workspace = workspaces.get(attempt.workspaceId);
+      if (!task || !workspace) continue;
+      if (attempt.controller === "codex") {
+        this.#state.claims.set(task.id, attempt.id);
+        this.#restoreActive(attempt, task, workspace);
+        continue;
+      }
+      if (attempt.status === "paused") {
+        this.#state.claims.set(task.id, attempt.id);
+        const threadId = attempt.providerSession?.threadId;
+        if (threadId) this.#state.pausedThreads.set(threadId, attempt.id);
+        continue;
+      }
+      if (attempt.finishedAt == null) {
+        this.#state.claims.set(task.id, attempt.id);
+        this.#restoreActive(attempt, task, workspace);
+        continue;
+      }
+      if (
+        !["succeeded", "failed", "timed_out", "stalled"].includes(attempt.status) ||
+        workspace.state !== "retained"
+      ) {
+        continue;
+      }
+      const kind = attempt.status === "succeeded" ? "continuation" : "failure";
+      const failureAttempt =
+        kind === "continuation"
+          ? 1
+          : consecutiveFailures(attempts.filter((candidate) => candidate.taskId === task.id));
+      this.#state.claims.set(task.id, attempt.id);
+      this.#state.retries.set(task.id, {
+        taskId: task.id,
+        identifier: task.identifier,
+        attempt: failureAttempt,
+        kind,
+        dueAtMs:
+          Date.parse(attempt.finishedAt) +
+          retryDelayMs(kind, failureAttempt, this.#policy.maxRetryBackoffMs),
+        error: attempt.failure ?? null,
+      });
+    }
+  }
+
+  #restoreActive(attempt: AttemptSnapshot, task: TaskSummary, workspace: WorkspaceReference): void {
+    if (attempt.finishedAt != null || attempt.status === "paused") return;
+    this.#state.running.set(task.id, {
+      task,
+      attemptId: attempt.id,
+      workspace,
+      failureRetryAttempt: 0,
+    });
+    if (workspace.ownerAttemptId === attempt.id) {
+      this.#state.workspaceOwners.set(workspace.path, attempt.id);
+    }
+    if (attempt.activeTurn) {
+      this.#state.activeTurns.set(attempt.activeTurn.turnId, {
+        attemptId: attempt.id,
+        ...attempt.activeTurn,
+      });
+      this.#state.activeThreads.set(attempt.activeTurn.threadId, attempt.id);
+    }
   }
 
   reserveAttempt(request: ReserveAttemptRequest): ReserveDecision {
@@ -116,6 +209,7 @@ export class CoreScheduler {
     workspace: WorkspaceReference;
     resumedAt: string;
     idempotencyKey: string;
+    takeControl?: boolean;
   }): AttemptSnapshot {
     const normalized = {
       ...request,
@@ -186,4 +280,13 @@ export class CoreScheduler {
   snapshot() {
     return snapshot(this.#state);
   }
+}
+
+function consecutiveFailures(attempts: readonly AttemptSnapshot[]): number {
+  let count = 0;
+  for (const attempt of [...attempts].sort((left, right) => right.sequence - left.sequence)) {
+    if (!["failed", "timed_out", "stalled"].includes(attempt.status)) break;
+    count += 1;
+  }
+  return Math.max(count, 1);
 }

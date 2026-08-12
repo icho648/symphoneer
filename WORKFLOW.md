@@ -28,4 +28,4 @@ symphoneer:
 
 Implement {{ issue.identifier }}: {{ issue.title }}.
 
-Keep the change inside the issue scope, run the configured verification, and stop for human review.
+Treat the linked Issue and repository instructions as the scope and acceptance source. Run the configured checks. Use GitHub-native labels to move the Issue from `symphoneer:ready` to `symphoneer:review`, and leave a short evidence comment when the acceptance conditions are met. If GitHub writes are unavailable, report the blocker instead of claiming completion. Do not merge or close the Issue.

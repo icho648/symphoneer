@@ -8,6 +8,7 @@ export {
   isCommandEvent,
   workspaceEventType,
 } from "./helpers.ts";
+export { OperatorLog, type OperatorRecord } from "./operator-log.ts";
 export {
   recordAttempt,
   recordExecutionActivity,

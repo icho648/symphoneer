@@ -208,18 +208,21 @@ test("concurrent identical preparation waits for workspace initialization", asyn
   assert.deepEqual(secondResult, firstResult);
 });
 
-test("cleanup of one Attempt does not block the next Attempt workspace", async (t) => {
+test("a retained per-Issue Workspace transfers its lease to the next Attempt", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "symphoneer-workspaces-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const started = resolve(root, "before-remove.started");
-  const release = resolve(root, "before-remove.release");
-  const manager = new WorkspaceManager({
-    root,
-    hooks: {
-      beforeRemove: `touch '${started}'; while [ ! -f '${release}' ]; do sleep 0.01; done`,
-      timeoutMs: 1_000,
+  const identity = { gitHead: "a".repeat(40), worktreeFingerprint: "b".repeat(64) };
+  const driver: WorkspaceDriver = {
+    prepare: async (workspace) => {
+      await mkdir(workspace.path);
+      return { ...identity, createdNow: true };
     },
-  });
+    recover: async () => identity,
+    assertReady: async () => identity,
+    assertRemovable: async () => "present",
+    remove: async () => "removed",
+  };
+  const manager = new WorkspaceManager({ root, driver });
   const input = {
     taskId: "task-race",
     identifier: "ISSUE-RACE",
@@ -230,25 +233,12 @@ test("cleanup of one Attempt does not block the next Attempt workspace", async (
   };
   const prepared = await manager.prepare(input);
   const retained = await manager.finish(prepared.workspace);
-  const removal = manager.remove(retained.workspace);
-  for (;;) {
-    try {
-      await access(started);
-      break;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-  }
+  const preparedNext = await manager.recover(retained.workspace, "attempt-next");
 
-  const preparedNext = await manager.prepare({
-    ...input,
-    attemptId: "attempt-next",
-    branch: "codex/issue-race-next",
-  });
-  assert.notEqual(preparedNext.workspace.path, retained.workspace.path);
-  await writeFile(release, "release\n");
-
-  assert.equal((await removal).workspace.state, "released");
+  assert.equal(preparedNext.createdNow, false);
+  assert.equal(preparedNext.workspace.id, retained.workspace.id);
+  assert.equal(preparedNext.workspace.path, retained.workspace.path);
+  assert.equal(preparedNext.workspace.branch, retained.workspace.branch);
   assert.equal(preparedNext.workspace.ownerAttemptId, "attempt-next");
   await access(preparedNext.workspace.path);
 });

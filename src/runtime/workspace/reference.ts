@@ -18,13 +18,9 @@ export function workspaceKey(identifier: string): string {
   return `${sanitized}-${hash}`;
 }
 
-export function workspaceAttemptKey(attemptId: string): string {
-  return workspaceKey(attemptId.split(":").at(-1) ?? attemptId);
-}
-
 export function createWorkspaceReference(input: WorkspaceReferenceInput): WorkspaceReference {
   const root = resolve(input.root);
-  const path = resolve(root, workspaceKey(input.identifier), workspaceAttemptKey(input.attemptId));
+  const path = resolve(root, workspaceKey(input.identifier));
   const child = relative(root, path);
   if (!child || child.startsWith("..") || isAbsolute(child)) {
     throw new Error(`Workspace path escapes its root: ${path}`);
@@ -32,7 +28,7 @@ export function createWorkspaceReference(input: WorkspaceReferenceInput): Worksp
 
   return canonicalizeWorkspaceReference({
     schemaVersion: CONTRACT_SCHEMA_VERSION,
-    id: `workspace:${input.attemptId}`,
+    id: `workspace:${input.taskId}`,
     taskId: input.taskId,
     path,
     repository: input.repository,

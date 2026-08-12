@@ -100,7 +100,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(result, {
     keptAttemptIds: [],
     stoppedAttemptIds: ["attempt-40", "attempt-41", "attempt-42"],
-    cleanupWorkspaceIds: ["workspace:attempt-40"],
+    cleanupWorkspaceIds: ["workspace:40"],
   });
   assert.deepEqual(
     scheduler.reconcile({
@@ -120,9 +120,9 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     snapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:attempt-40", "retained"],
-      ["workspace:attempt-41", "retained"],
-      ["workspace:attempt-42", "retained"],
+      ["workspace:40", "retained"],
+      ["workspace:41", "retained"],
+      ["workspace:42", "retained"],
     ],
   );
   assert.ok(snapshot.attempts.every((attempt) => attempt.status === "canceled_by_reconciliation"));
@@ -141,7 +141,7 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
     {
       keptAttemptIds: [],
       stoppedAttemptIds: [],
-      cleanupWorkspaceIds: ["workspace:attempt-43-1"],
+      cleanupWorkspaceIds: ["workspace:43"],
     },
   );
   const retrySnapshot = retrying.snapshot();
@@ -150,9 +150,9 @@ test("reconciliation stops terminal, unroutable, and missing Tasks without dupli
   assert.deepEqual(
     retrySnapshot.workspaces.map(({ id, state }) => [id, state]),
     [
-      ["workspace:attempt-43-1", "retained"],
-      ["workspace:attempt-44-1", "retained"],
-      ["workspace:attempt-45-1", "retained"],
+      ["workspace:43", "retained"],
+      ["workspace:44", "retained"],
+      ["workspace:45", "retained"],
     ],
   );
 });
@@ -189,6 +189,48 @@ test("terminal reconciliation accepts a later retained Workspace observation", (
   });
 
   assert.equal(scheduler.snapshot().workspaces[0]?.worktreeFingerprint, "b".repeat(64));
+});
+
+test("reconciliation keeps a Codex-controlled paused Attempt locked", () => {
+  const setup = new CoreScheduler(policy);
+  const owned = workspace("47", "attempt-47");
+  setup.reserveAttempt({
+    task: task("47"),
+    attemptId: "attempt-47",
+    sequence: 1,
+    startReason: "dispatch",
+    workspace: owned,
+    startedAt: "2026-08-02T12:00:00.000Z",
+    idempotencyKey: "dispatch-47",
+  });
+  setup.attachTurn({
+    attemptId: "attempt-47",
+    threadId: "thread-47",
+    turnId: "turn-47",
+    updatedAt: "2026-08-02T12:00:01.000Z",
+    idempotencyKey: "turn-47",
+  });
+  const paused = setup.pauseAttempt({
+    attemptId: "attempt-47",
+    pausedAt: "2026-08-02T12:00:02.000Z",
+    workspace: retained(owned),
+    idempotencyKey: "pause-47",
+  });
+  const scheduler = new CoreScheduler(policy);
+  scheduler.restore({
+    tasks: [task("47")],
+    attempts: [{ ...paused.attempt, controller: "codex" }],
+    workspaces: [paused.workspace],
+  });
+
+  assert.deepEqual(
+    scheduler.reconcile({
+      tasks: [{ ...task("47"), state: "closed" }],
+      observedAt: "2026-08-02T12:01:00.000Z",
+      idempotencyKey: "reconcile-codex-47",
+    }),
+    { keptAttemptIds: ["attempt-47"], stoppedAttemptIds: [], cleanupWorkspaceIds: [] },
+  );
 });
 
 test("the in-memory idempotency replay window stays bounded", () => {
