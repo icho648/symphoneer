@@ -79,7 +79,7 @@ Intent
 
 ## 人工接管
 
-人工接管是 V1 可选结果，不改变人拥有最终控制权。具体暂停、交还与失败条件见 [`../product-specs/manual-delivery-flow.md`](../product-specs/manual-delivery-flow.md) 和 [`system-boundaries.md`](system-boundaries.md)；真实深链与恢复在 Smoke 前为 `Not verified`。
+人工接管是 V1 可选结果，不改变人拥有最终控制权。具体自动推进、暂停、交还与失败条件见 [`../product-specs/delivery-flow.md`](../product-specs/delivery-flow.md) 和 [`system-boundaries.md`](system-boundaries.md)；真实深链与恢复在 Smoke 前为 `Not verified`。
 
 ## 访问面和扩展
 
@@ -102,4 +102,4 @@ V1 采用 Codex App Server 作为唯一生产 Agent Runtime，并保留一个测
 - 复制 Phoenix UI、用综合分数评价 Agent，或自动替用户修改项目规则、权限和 CI。
 - 未经关联 Issue 授权，不在核心交付闭环外追加 LangGraph、数据库、消息队列或 Electron；当前垂直切片的 LangGraph 与本地 checkpoint 由 Issue #40 明确授权。
 
-当前阶段、授权范围和验收由 [active plan](../plans/active/symphoneer-v1.md) 与关联 GitHub Issue 决定；本文不复制易漂移的实施进度。当前真实代码结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)。
+当前阶段、授权范围和验收由关联 GitHub Issue 决定；仅本地恢复信息见 [active plan](../plans/active/issue-47.md)。本文不复制易漂移的实施进度。当前真实代码结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)。

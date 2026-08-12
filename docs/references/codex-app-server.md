@@ -22,8 +22,8 @@
 
 - `Thread` 是 Agent 的持久上下文，包含多个 `Turn`；`Item` 是消息、命令、编辑和工具事件等运行单元。
 - `Thread` 使用 Symphony `Workspace` 的路径执行，但不拥有目录、分支、所有权或回收生命周期。
-- Symphoneer V1 将 `threadId` / `turnId` 作为 Attempt 的运行引用；默认一个 Task 的一次 Attempt 关联一个活跃 Agent Session。
-- Scheduler 只依赖 `startOrContinue`、事件流、`interrupt`、介入响应和 completion 所需的小 Interface；Codex Adapter 内部继续保留原生事件。
+- Symphoneer 将 `threadId` / `turnId` 作为 Attempt 的运行引用；一个 Attempt Worker 拥有一个 App Server 进程，并在顺序 Turn 中复用一个 Thread。
+- Scheduler 只依赖 `openWorker`；Worker 暴露 `startTurn`、`readSession`、process identity 和 `close`，Turn 的 `RunHandle` 暴露事件流、`interrupt`、介入响应和 completion。Codex Adapter 内部继续保留原生事件。
 - 同一 Task 多 Thread 的并行聚合、子 Agent 的业务状态和独立合并证据不属于当前 V1；需要真实需求和新的 Symphoneer 契约。
 - V1 只实现 `CodexAppServerAdapter` 和测试 Fake，不建立 Provider factory、通用事件全集或 capability 注册表。
 
@@ -35,7 +35,7 @@
 
 ## 已固定与仍待 Smoke
 
-- 已通过本地 Schema 与可控 transcript 固定初始化、Thread 创建/继续、Turn 启动/中断/完成、审批和 intervention response 的消费字段。
+- 已通过本地 Schema、可控 transcript 和确定性子进程检查固定初始化、Thread 创建/继续、同 Worker 多 Turn、Workspace cwd、PID、Turn 中断/完成、审批和 intervention response 的消费字段。
 - Adapter 记录 CLI version、协议版本和 hashed input fingerprint，不保存原始 Provider payload 或未经脱敏的错误正文。
 - 权限、sandbox、审批和凭据的宿主边界。
 - Codex App 与 App Server 之间是否存在可用的 Thread 深链、暂停、恢复和交还能力。

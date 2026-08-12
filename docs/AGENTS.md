@@ -9,7 +9,7 @@
 | 产品是什么、不是什么 | [`design-docs/product-boundary.md`](design-docs/product-boundary.md) | `system-boundaries.md` |
 | 判断原则、Module 与 Seam 取舍 | [`design-docs/core-beliefs.md`](design-docs/core-beliefs.md) | `system-boundaries.md` |
 | 对象权威、Runtime、存储与控制 | [`design-docs/system-boundaries.md`](design-docs/system-boundaries.md) | 对应 reference |
-| 用户可观察流程与验收 | [`product-specs/manual-delivery-flow.md`](product-specs/manual-delivery-flow.md) | 相关 design doc |
+| 用户可观察流程与验收 | [`product-specs/delivery-flow.md`](product-specs/delivery-flow.md) | 相关 design doc |
 | Symphony 外部契约 | [`references/symphony-spec.md`](references/symphony-spec.md) | `system-boundaries.md` |
 | Codex App Server 外部契约 | [`references/codex-app-server.md`](references/codex-app-server.md) | `system-boundaries.md` |
 | GitHub Issues 外部契约 | [`references/github-issues.md`](references/github-issues.md) | `product-boundary.md` |
