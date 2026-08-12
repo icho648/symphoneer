@@ -2,7 +2,7 @@
 
 > Plan status: Active
 > Decision status: Accepted
-> Implementation evidence: In progress; [Draft PR #48](https://github.com/icho648/symphoneer/pull/48) is the live implementation and CI evidence source
+> Implementation evidence: Implemented and verified locally, in CI, and through two real Web/Desktop Host fixture runs; [Draft PR #48](https://github.com/icho648/symphoneer/pull/48) is the live review source
 > Canonical task source: [GitHub Issue #47](https://github.com/icho648/symphoneer/issues/47)
 
 ## Purpose / Big Picture
@@ -23,7 +23,7 @@ Reuse `CoreScheduler`, `WorkspaceManager`, `RealSingleAgentOrchestration` and `s
 
 ## Outcomes & Retrospective
 
-Deterministic gates pass. Development restore drill passed. Real Smoke is `Not verified`: the initial sandboxed #4 run could not initialize Codex state; the sandbox-exempt Host retried #4 and ran #5, and both real PID/Thread/Turn executions ended `codex_turn_failed` before any file or GitHub write. Fixture #4 and #5, their stable Workspaces and manifests remain retained. The harness now scopes each subsequent run to its newly created Issue. Final acceptance and evidence belong in the Draft PR and Issue.
+Deterministic gates and CI pass. Development restore drill passed. Real Web/Desktop Host integration passed twice against fixture [#8](https://github.com/icho648/symphoneer-fixtures/issues/8) and [#9](https://github.com/icho648/symphoneer-fixtures/issues/9): both reached Tracker Review with clean retained Workspaces and successful Attempts. #8 used one PID and Thread across three Turns; #9 completed poll, dispatch, commit, push, labels and evidence comment without a manual Start. Earlier #4/#5 failure resources remain retained as diagnostic history. Final evidence belongs in the Draft PR and Issue.
 
 ## Context and Orientation
 
@@ -31,7 +31,7 @@ Primary implementation seams are `src/runtime/orchestration/single-agent.ts`, `s
 
 ## Plan of Work
 
-Finish deterministic checks, preserve or clean Smoke resources using their manifest, then publish the Draft PR with `Fixes #47`.
+Keep the Draft PR and Issue open for human review. Preserve review-state #8/#9 Workspaces until terminal reconciliation, and preserve failed #4/#5 resources until their manifests are explicitly cleaned.
 
 ## Concrete Steps
 
@@ -39,7 +39,7 @@ Use `pnpm check` as the repository gate. Before real Smoke, confirm no Developme
 
 ## Validation and Acceptance
 
-Deterministic validation is `pnpm check`. Real GitHub/Codex/Desktop Host behavior remains `Not verified` unless the fixture Smoke completes and its IDs, HEAD, labels, operator log and cleanup evidence are recorded.
+Deterministic validation is `pnpm check`. Real GitHub/Codex/Desktop Host execution is verified by #8/#9 IDs, HEADs, labels and operator logs in Draft PR #48. Terminal cleanup of these review-state Workspaces is intentionally not claimed; cleanup safety remains deterministic test evidence until the Issues become terminal.
 
 ## Idempotence and Recovery
 
@@ -47,7 +47,7 @@ Never force-clean a Workspace. On Smoke failure, retain the Issue, branch, Runti
 
 ## Artifacts and Notes
 
-Local backup manifest: `/Users/icho/Library/Application Support/Symphoneer/Development.backup-20260812T102421Z/issue47-backup-manifest.json`; restore drill passed and the final backup is retained. Failed Smoke manifests: `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-IV7GVv/manifest.json` (#4) and `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-l8KQZL/manifest.json` (#5). Draft PR: [#48](https://github.com/icho648/symphoneer/pull/48). Do not store credentials, prompts, source or Provider payloads.
+Local backup manifest: `/Users/icho/Library/Application Support/Symphoneer/Development.backup-20260812T102421Z/issue47-backup-manifest.json`; restore drill passed and the final backup is retained. Failed Smoke manifests: `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-IV7GVv/manifest.json` (#4) and `/var/folders/8_/7hbyc9q53ll0dzwxs569lbm00000gn/T/symphoneer-fixture-smoke-l8KQZL/manifest.json` (#5). Web evidence: #8 HEAD `ef71863`, #9 HEAD `c9edba0`, project `project-cbd1a912-9b23-4984-9245-97e6721e2146`. Draft PR: [#48](https://github.com/icho648/symphoneer/pull/48). Do not store credentials, prompts, source or Provider payloads.
 
 ## Interfaces and Dependencies
 
