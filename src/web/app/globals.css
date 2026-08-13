@@ -180,28 +180,20 @@
   }
 
   .assistant-column {
-    @apply flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden;
+    @apply flex min-h-0 min-w-0 flex-col overflow-hidden;
   }
 
-  .assistant-rail-nav {
-    @apply flex shrink-0 items-center gap-0.5 rounded-[10px] border border-line bg-panel px-1.5 py-1;
+  .assistant-collapsed-toggle,
+  .assistant-header-toggle {
+    @apply grid shrink-0 cursor-pointer place-items-center rounded-[8px] border border-line bg-panel text-muted transition hover:border-signal/30 hover:bg-panel-raised hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
   }
 
-  .assistant-rail-toggle {
-    @apply grid size-7 shrink-0 cursor-pointer place-items-center rounded-[7px] text-[17px] leading-none text-muted transition hover:bg-panel-raised hover:text-ink;
+  .assistant-collapsed-toggle {
+    @apply size-10 text-[16px] text-signal;
   }
 
-  .assistant-rail-nav .macos-nav-item {
-    @apply w-auto min-w-0 flex-1 justify-center px-2 py-1.5;
-  }
-
-  .assistant-rail-nav .macos-nav-label,
-  .assistant-rail-nav .macos-nav-meta {
-    display: none;
-  }
-
-  .assistant-rail-meta {
-    @apply ml-auto flex shrink-0 items-center gap-1.5 px-2 text-[10px] text-muted;
+  .assistant-header-toggle {
+    @apply size-8 text-[20px] leading-none;
   }
 
   .assistant-slot {
@@ -237,31 +229,7 @@
   }
 
   .assistant-column.is-collapsed {
-    @apply gap-0;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-nav {
-    @apply h-full flex-col gap-1 px-1 py-1.5;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-toggle {
-    @apply order-first mb-1 size-8 rounded-[8px] bg-signal-soft text-[15px] text-signal;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-toggle:hover {
-    @apply bg-signal/15;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-nav .macos-nav-item {
-    @apply size-8 flex-none px-0 py-0;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-meta {
-    @apply mb-1 ml-0 mt-auto px-0;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-version {
-    display: none;
+    @apply items-center;
   }
 
   .assistant-column.is-collapsed .assistant-slot {
@@ -1229,11 +1197,6 @@
     display: inline;
   }
 
-  .assistant-rail-nav .macos-nav-label,
-  .assistant-rail-nav .macos-nav-meta {
-    display: none;
-  }
-
   .task-workbench,
   .task-workbench.assistant-is-closed {
     display: flex;
@@ -1244,14 +1207,6 @@
   .assistant-column.is-collapsed {
     min-height: 48px;
     flex-basis: 48px;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-nav {
-    flex-direction: row;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-meta {
-    margin: 0 0 0 auto;
   }
 
   .assistant-column {
