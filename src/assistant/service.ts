@@ -10,7 +10,11 @@ import type {
   SqliteSessionRepository,
 } from "@earendil-works/pi-session-backend-sqlite-node";
 import { createHttpRuntimeClient, type RuntimeClient } from "@symphoneer/runtime-client";
-import { executeRuntimeTool, RUNTIME_TOOLS } from "@symphoneer/runtime-tools";
+import {
+  executeRuntimeTool,
+  prepareRuntimeToolInput,
+  RUNTIME_TOOLS,
+} from "@symphoneer/runtime-tools";
 import { z } from "zod";
 import {
   type AssistantEvent,
@@ -49,7 +53,15 @@ export class PiAssistantService {
   #modelsPromise: Promise<Models> | undefined;
   #repoPromise: Promise<SqliteSessionRepository> | undefined;
   readonly #sessions = new Map<string, Session<SqliteSessionMetadata>>();
-  readonly #agents = new Map<string, { agent: Agent; unsubscribePersistence: () => void }>();
+  readonly #agents = new Map<
+    string,
+    {
+      agent: Agent;
+      flushPersistence: () => Promise<void>;
+      unsubscribePersistence: () => void;
+    }
+  >();
+  readonly #startingRuns = new Set<string>();
   readonly #runs = new Map<string, { agent: Agent; emit: (event: AssistantEvent) => void }>();
   readonly #approvals = new Map<
     string,
@@ -160,7 +172,10 @@ export class PiAssistantService {
     const originalMessages = entries.flatMap((entry) =>
       entry.type === "message" ? [entry.message] : [],
     );
-    const messages = await repairInterruptedToolCalls(session, originalMessages);
+    const messages =
+      this.#startingRuns.has(id) || this.#runs.has(id)
+        ? originalMessages
+        : await repairInterruptedToolCalls(session, originalMessages);
     const durableEntries =
       messages.length === originalMessages.length
         ? entries
@@ -190,6 +205,7 @@ export class PiAssistantService {
     const agent = this.#agents.get(id);
     agent?.agent.abort();
     await agent?.agent.waitForIdle();
+    await agent?.flushPersistence();
     agent?.unsubscribePersistence();
     this.#agents.delete(id);
     this.#runs.delete(id);
@@ -201,18 +217,30 @@ export class PiAssistantService {
   async run(id: string, prompt: string): Promise<ReadableStream<AssistantEvent>> {
     const trimmed = prompt.trim();
     if (!trimmed) throw new AssistantServiceError(400, "invalid_request", "Prompt is required");
-    if (this.#runs.has(id)) {
+    if (this.#startingRuns.has(id) || this.#runs.has(id)) {
       throw new AssistantServiceError(409, "conflict", "Session already has an active run");
     }
-    const agent = await this.#agent(id);
+    this.#startingRuns.add(id);
+    let agent: Agent;
+    try {
+      agent = await this.#agent(id);
+    } catch (error) {
+      this.#startingRuns.delete(id);
+      throw error;
+    }
     let controller: ReadableStreamDefaultController<AssistantEvent> | undefined;
     let closed = false;
     let unsubscribe = () => {};
     const credential = this.#requireReady().apiKey;
     const textRedactor = new CredentialStreamRedactor(credential);
-    const finish = (event: AssistantEvent) => {
+    const finish = async (event: AssistantEvent) => {
       if (closed) return;
       closed = true;
+      try {
+        await this.#agents.get(id)?.flushPersistence();
+      } catch {
+        event = { type: "error", message: "Assistant message persistence failed" };
+      }
       const tail = textRedactor.flush();
       if (tail) controller?.enqueue({ type: "text_delta", delta: tail });
       controller?.enqueue(event);
@@ -228,6 +256,7 @@ export class PiAssistantService {
       cancel: () => agent.abort(),
     });
     this.#runs.set(id, { agent, emit: (event) => controller?.enqueue(event) });
+    this.#startingRuns.delete(id);
     unsubscribe = agent.subscribe((event) => {
       if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") {
         const delta = textRedactor.push(event.assistantMessageEvent.delta);
@@ -238,16 +267,17 @@ export class PiAssistantService {
       if (normalized) controller?.enqueue(normalized);
       if (event.type !== "agent_end") return;
       const last = [...event.messages].reverse().find((message) => message.role === "assistant");
-      if (last?.role === "assistant" && last.stopReason === "aborted") finish({ type: "aborted" });
-      else if (last?.role === "assistant" && last.stopReason === "error") {
-        finish({
+      if (last?.role === "assistant" && last.stopReason === "aborted") {
+        void finish({ type: "aborted" });
+      } else if (last?.role === "assistant" && last.stopReason === "error") {
+        void finish({
           type: "error",
           message: redactCredentialText(last.errorMessage ?? "Provider request failed", credential),
         });
-      } else finish({ type: "completed" });
+      } else void finish({ type: "completed" });
     });
     void agent.prompt(trimmed).catch((error: unknown) => {
-      finish({
+      void finish({
         type: "error",
         message: redactCredentialText(
           error instanceof Error && error.message ? error.message : "Assistant run failed",
@@ -281,11 +311,16 @@ export class PiAssistantService {
   ) => handleAssistantHttp(this, request, response, url);
 
   async close(): Promise<void> {
-    for (const { agent } of this.#agents.values()) agent.abort();
-    await Promise.all([...this.#agents.values()].map(({ agent }) => agent.waitForIdle()));
-    for (const { unsubscribePersistence } of this.#agents.values()) unsubscribePersistence();
+    const agents = [...this.#agents.values()];
+    for (const { agent } of agents) agent.abort();
+    await Promise.all(agents.map(({ agent }) => agent.waitForIdle()));
+    const persistence = await Promise.allSettled(
+      agents.map(({ flushPersistence }) => flushPersistence()),
+    );
+    for (const { unsubscribePersistence } of agents) unsubscribePersistence();
     this.#agents.clear();
     this.#runs.clear();
+    this.#startingRuns.clear();
     this.#expireApprovals();
     this.#sessions.clear();
     const repo = await this.#repoPromise?.catch(() => undefined);
@@ -293,6 +328,8 @@ export class PiAssistantService {
     await repo?.close();
     await this.#env?.cleanup();
     this.#env = undefined;
+    const failure = persistence.find((result) => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
   }
 
   async #repo(): Promise<SqliteSessionRepository> {
@@ -367,13 +404,25 @@ export class PiAssistantService {
       sessionId: id,
       toolExecution: "sequential",
     });
-    const unsubscribePersistence = agent.subscribe(async (event) => {
+    let persistence = Promise.resolve();
+    let persistenceFailure: unknown;
+    const unsubscribePersistence = agent.subscribe((event) => {
       if (event.type === "message_end") {
         const durableMessage = sanitizeAgentMessage(event.message, config.apiKey);
-        await session.appendMessage(durableMessage);
+        persistence = persistence.then(async () => {
+          try {
+            await session.appendMessage(durableMessage);
+          } catch (error) {
+            persistenceFailure ??= error;
+          }
+        });
       }
     });
-    this.#agents.set(id, { agent, unsubscribePersistence });
+    const flushPersistence = async () => {
+      await persistence;
+      if (persistenceFailure) throw persistenceFailure;
+    };
+    this.#agents.set(id, { agent, flushPersistence, unsubscribePersistence });
     return agent;
   }
 
@@ -385,12 +434,16 @@ export class PiAssistantService {
       parameters: z.toJSONSchema(tool.inputSchema) as unknown as TSchema,
       executionMode: "sequential",
       execute: async (toolCallId, params, signal) => {
-        if (tool.approval === "required") {
-          await this.#waitForApproval(sessionId, toolCallId, tool.name, params, signal);
-        }
         const runtime = this.#runtimeClient?.();
         if (!runtime) throw new Error("Runtime client is unavailable");
-        const result = await executeRuntimeTool(runtime, tool.name, params, {
+        const input =
+          tool.approval === "required"
+            ? await prepareRuntimeToolInput(runtime, tool.name, params)
+            : params;
+        if (tool.approval === "required") {
+          await this.#waitForApproval(sessionId, toolCallId, tool.name, input, signal);
+        }
+        const result = await executeRuntimeTool(runtime, tool.name, input, {
           confirmed: tool.approval === "required",
         });
         return {

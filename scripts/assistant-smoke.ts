@@ -39,7 +39,12 @@ async function runSmoke(): Promise<void> {
 
   try {
     host = await startHost(root, env);
-    assert.deepEqual(await host.client.status(), { state: "ready", provider, model });
+    const status = await host.client.status();
+    assert.equal(status.state, "ready");
+    if (status.state !== "ready") throw new Error("Assistant did not become ready");
+    assert.equal(status.provider, provider);
+    assert.equal(status.model, model);
+    assert.ok(status.models.some((option) => option.id === model));
     const session = await host.client.createSession({
       createdBy: "tui",
       locale: "en-US",

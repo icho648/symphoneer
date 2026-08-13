@@ -8,7 +8,7 @@ import {
   CreateAssistantSessionInputSchema,
 } from "../assistant-client/index.ts";
 
-const MAX_BODY_BYTES = 64 * 1024;
+const MAX_BODY_BYTES = 1024 * 1024;
 
 type AssistantOperations = {
   status(): Promise<AssistantStatus>;

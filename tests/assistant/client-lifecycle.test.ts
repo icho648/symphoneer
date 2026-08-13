@@ -17,7 +17,10 @@ import {
   SqliteSessionRepository,
 } from "@earendil-works/pi-session-backend-sqlite-node";
 import { PiAssistantService } from "../../src/assistant/index.ts";
-import { createHttpAssistantClient } from "../../src/assistant-client/index.ts";
+import {
+  type AssistantEvent,
+  createHttpAssistantClient,
+} from "../../src/assistant-client/index.ts";
 import { RuntimeHttpServer, RuntimeService } from "../../src/runtime/index.ts";
 import { createHttpRuntimeClient } from "../../src/runtime-client/index.ts";
 
@@ -28,6 +31,22 @@ test("AssistantClient hides empty HTTP response parse errors", async () => {
   });
 
   await assert.rejects(() => client.status(), { message: "Assistant request failed" });
+});
+
+test("AssistantClient rejects an Assistant stream without a terminal event", async () => {
+  const client = createHttpAssistantClient({
+    baseUrl: "http://127.0.0.1:4318",
+    fetch: async () =>
+      new Response('data: {"type":"text_delta","delta":"partial"}\n\n', {
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+  });
+  const events: AssistantEvent[] = [];
+
+  await assert.rejects(async () => {
+    for await (const event of client.run("session-1", "hello")) events.push(event);
+  }, /ended unexpectedly/);
+  assert.deepEqual(events, [{ type: "text_delta", delta: "partial" }]);
 });
 
 test("Runtime stays available when Assistant config is missing", async () => {
@@ -217,7 +236,8 @@ test("AssistantClient streams Pi text and reopens the persisted conversation", a
     const client = createHttpAssistantClient({ baseUrl: endpoint.url, token: "test-token" });
     const session = await client.createSession({ createdBy: "web", taskId: "task-45" });
     const events = [];
-    for await (const event of client.run(session.id, "hello")) events.push(event);
+    const attachmentPrompt = `Summarize:\n\n<attachment name=notes.md>\n${"x".repeat(70 * 1024)}\n</attachment>`;
+    for await (const event of client.run(session.id, attachmentPrompt)) events.push(event);
 
     assert.equal(
       events
@@ -233,6 +253,10 @@ test("AssistantClient streams Pi text and reopens the persisted conversation", a
       reopened.messages.map((message) => message.role),
       ["user", "assistant"],
     );
+    assert.equal(reopened.messages[0]?.parts[0]?.type, "text");
+    if (reopened.messages[0]?.parts[0]?.type === "text") {
+      assert.equal(reopened.messages[0].parts[0].text, attachmentPrompt);
+    }
     assert.deepEqual(reopened.messages[1]?.parts, [{ type: "text", text: "hello from Pi" }]);
     assert.equal(
       (await readFile(join(dataDir, "assistant", "sessions.sqlite"))).includes(
@@ -400,16 +424,22 @@ test("A session rejects a second concurrent run", async () => {
     const endpoint = await server.listen();
     const client = createHttpAssistantClient({ baseUrl: endpoint.url, token: "test-token" });
     const session = await client.createSession({ createdBy: "web" });
-    const firstRun = client.run(session.id, "first")[Symbol.asyncIterator]();
-    assert.equal((await firstRun.next()).done, false);
-    await assert.rejects(async () => {
-      for await (const _event of client.run(session.id, "second")) {
-        // request is expected to fail before streaming
-      }
-    }, /active run/);
+    const runs = [
+      client.run(session.id, "first")[Symbol.asyncIterator](),
+      client.run(session.id, "second")[Symbol.asyncIterator](),
+    ];
+    const starts = await Promise.allSettled(runs.map((run) => run.next()));
+    const rejected = starts.filter((result) => result.status === "rejected");
+    assert.equal(rejected.length, 1);
+    assert.match(String(rejected[0]?.reason), /active run/);
     await client.abort(session.id);
-    while (!(await firstRun.next()).done) {
-      // drain the aborted run
+    for (const [index, result] of starts.entries()) {
+      if (result.status === "rejected") continue;
+      const run = runs[index];
+      assert.ok(run);
+      while (!(await run.next()).done) {
+        // drain the aborted run
+      }
     }
   } finally {
     await assistant.close();

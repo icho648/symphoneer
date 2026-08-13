@@ -85,12 +85,14 @@ test("normalized Assistant events project to cumulative assistant-ui text and to
 test("assistant-ui cancellation calls the Assistant abort endpoint", async () => {
   const abortGate = Promise.withResolvers<void>();
   let abortCalls = 0;
+  let runSignal: AbortSignal | undefined;
   const client = {
     abort: async () => {
       abortCalls += 1;
       abortGate.resolve();
     },
-    run: async function* () {
+    run: async function* (_sessionId: string, _prompt: string, options?: { signal?: AbortSignal }) {
+      runSignal = options?.signal;
       yield { type: "text_delta" as const, delta: "partial" };
       await Promise.race([abortGate.promise, new Promise((resolve) => setTimeout(resolve, 25))]);
       yield { type: abortCalls === 1 ? ("aborted" as const) : ("completed" as const) };
@@ -117,6 +119,7 @@ test("assistant-ui cancellation calls the Assistant abort endpoint", async () =>
   }
 
   assert.equal(abortCalls, 1);
+  assert.equal(runSignal, controller.signal);
   assert.deepEqual(updates.at(-1)?.status, { type: "incomplete", reason: "cancelled" });
 });
 

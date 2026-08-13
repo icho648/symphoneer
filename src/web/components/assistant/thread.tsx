@@ -327,13 +327,13 @@ function RuntimeToolPart({
       ? isError
         ? "output-error"
         : "output-available"
-      : approval && decision === "idle"
+      : approval && decision !== "submitted"
         ? "approval-requested"
         : approval
           ? "approval-responded"
           : "input-available";
   const decide = async (approved: boolean) => {
-    if (!approval || decision !== "idle") return;
+    if (!approval || decision === "submitted") return;
     setDecision("submitted");
     try {
       await client.respondApproval(sessionId, approval.id, approved);
@@ -349,10 +349,18 @@ function RuntimeToolPart({
         <ToolInput input={args} />
         {approval && result === undefined ? (
           <div className="assistant-tool-approval">
-            <button disabled={decision !== "idle"} type="button" onClick={() => void decide(false)}>
+            <button
+              disabled={decision === "submitted"}
+              type="button"
+              onClick={() => void decide(false)}
+            >
               {assistant.reject}
             </button>
-            <button disabled={decision !== "idle"} type="button" onClick={() => void decide(true)}>
+            <button
+              disabled={decision === "submitted"}
+              type="button"
+              onClick={() => void decide(true)}
+            >
               {assistant.approve}
             </button>
             {decision === "failed" ? <span>{assistant.approvalFailed}</span> : null}

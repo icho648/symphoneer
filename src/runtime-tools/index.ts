@@ -3,6 +3,7 @@ export {
   getAttemptTool,
   listEventsTool,
   pauseAttemptTool,
+  prepareRuntimeToolInput,
   RUNTIME_TOOLS,
   respondInterventionTool,
   retryAttemptTool,

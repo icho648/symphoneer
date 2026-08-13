@@ -70,6 +70,54 @@ async function startHost(responses: FauxResponseStep[]) {
   };
 }
 
+async function recordActiveAttempt(host: Awaited<ReturnType<typeof startHost>>) {
+  const task: TaskSummary = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "github:icho648/symphoneer:45",
+    identifier: "#45",
+    source: {
+      kind: "github",
+      nativeId: "45",
+      url: "https://github.com/icho648/symphoneer/issues/45",
+    },
+    title: "Assistant",
+    state: "open",
+    labels: [],
+    dispatchable: true,
+    workflowStatus: "ready",
+    blocked: null,
+  };
+  const attempt: AttemptSnapshot = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "attempt-45",
+    taskId: task.id,
+    sequence: 1,
+    startReason: "dispatch",
+    status: "preparing_workspace",
+    controller: "symphoneer",
+    workspaceId: "workspace-45",
+    providerSession: null,
+    startedAt: "2026-08-12T09:00:00.000Z",
+    updatedAt: "2026-08-12T09:01:00.000Z",
+  };
+  const workspace: WorkspaceReference = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "workspace-45",
+    taskId: task.id,
+    path: "/tmp/symphoneer-workspace-45",
+    repository: "icho648/symphoneer",
+    branch: "codex/issue-45-pi-assistant",
+    gitHead: null,
+    worktreeFingerprint: null,
+    host: "local",
+    state: "ready",
+    ownerAttemptId: attempt.id,
+  };
+  await host.runtime.recordTask(task);
+  await host.runtime.recordAttempt(attempt, { workspace });
+  return { attempt, task };
+}
+
 test("Pi sees only the Runtime allowlist and executes a query through RuntimeClient", async () => {
   let observedTools: string[] = [];
   const host = await startHost([
@@ -114,7 +162,7 @@ test("Rejected mutation approval does not create a Runtime domain event", async 
   const host = await startHost([
     fauxAssistantMessage(
       fauxToolCall("pause_attempt", {
-        attemptId: "missing-attempt",
+        attemptId: "attempt-45",
         idempotencyKey: "reject-test",
       }),
       { stopReason: "toolUse" },
@@ -123,6 +171,7 @@ test("Rejected mutation approval does not create a Runtime domain event", async 
   ]);
 
   try {
+    await recordActiveAttempt(host);
     const before = await host.runtimeClient.listEvents();
     const session = await host.assistantClient.createSession({ createdBy: "web" });
     const events = [];
@@ -148,11 +197,39 @@ test("Rejected mutation approval does not create a Runtime domain event", async 
   }
 });
 
-test("Aborting a run expires its pending approval", async () => {
+test("Opening a live approval does not repair its tool call as interrupted", async () => {
   const host = await startHost([
     fauxAssistantMessage(
       fauxToolCall("pause_attempt", {
         attemptId: "missing-attempt",
+        idempotencyKey: "open-live-test",
+      }),
+      { stopReason: "toolUse" },
+    ),
+    fauxAssistantMessage("The mutation was rejected"),
+  ]);
+
+  try {
+    const session = await host.assistantClient.createSession({ createdBy: "web" });
+    for await (const event of host.assistantClient.run(session.id, "Pause it")) {
+      if (event.type !== "approval_required") continue;
+      const opened = await host.assistantClient.openSession(session.id);
+      assert.equal(
+        opened.messages.some((message) => message.role === "tool"),
+        false,
+      );
+      await host.assistantClient.respondApproval(session.id, event.approvalId, false);
+    }
+  } finally {
+    await host.close();
+  }
+});
+
+test("Aborting a run expires its pending approval", async () => {
+  const host = await startHost([
+    fauxAssistantMessage(
+      fauxToolCall("pause_attempt", {
+        attemptId: "attempt-45",
         idempotencyKey: "abort-approval-test",
       }),
       { stopReason: "toolUse" },
@@ -160,6 +237,7 @@ test("Aborting a run expires its pending approval", async () => {
   ]);
 
   try {
+    await recordActiveAttempt(host);
     const session = await host.assistantClient.createSession({ createdBy: "web" });
     let approvalId = "";
     for await (const event of host.assistantClient.run(session.id, "Pause it")) {
@@ -177,76 +255,50 @@ test("Aborting a run expires its pending approval", async () => {
   }
 });
 
-test("Approved mutation still surfaces Runtime optimistic-concurrency failure", async () => {
+test("Approved mutation uses the pre-approval Runtime version", async () => {
   const host = await startHost([
     fauxAssistantMessage(
       fauxToolCall("pause_attempt", {
         attemptId: "attempt-45",
         idempotencyKey: "stale-test",
-        expectedEventSequence: 0,
-        expectedAttemptUpdatedAt: "2026-08-12T09:01:00.000Z",
       }),
       { stopReason: "toolUse" },
     ),
     fauxAssistantMessage("Runtime rejected the stale mutation"),
   ]);
-  const task: TaskSummary = {
-    schemaVersion: CONTRACT_SCHEMA_VERSION,
-    id: "github:icho648/symphoneer:45",
-    identifier: "#45",
-    source: {
-      kind: "github",
-      nativeId: "45",
-      url: "https://github.com/icho648/symphoneer/issues/45",
-    },
-    title: "Assistant",
-    state: "open",
-    labels: [],
-    dispatchable: true,
-    workflowStatus: "ready",
-    blocked: null,
-  };
-  const attempt: AttemptSnapshot = {
-    schemaVersion: CONTRACT_SCHEMA_VERSION,
-    id: "attempt-45",
-    taskId: task.id,
-    sequence: 1,
-    startReason: "dispatch",
-    status: "preparing_workspace",
-    controller: "symphoneer",
-    workspaceId: "workspace-45",
-    providerSession: null,
-    startedAt: "2026-08-12T09:00:00.000Z",
-    updatedAt: "2026-08-12T09:01:00.000Z",
-  };
-  const workspace: WorkspaceReference = {
-    schemaVersion: CONTRACT_SCHEMA_VERSION,
-    id: "workspace-45",
-    taskId: task.id,
-    path: "/tmp/symphoneer-workspace-45",
-    repository: "icho648/symphoneer",
-    branch: "codex/issue-45-pi-assistant",
-    gitHead: null,
-    worktreeFingerprint: null,
-    host: "local",
-    state: "ready",
-    ownerAttemptId: attempt.id,
-  };
-
   try {
-    await host.runtime.recordTask(task);
-    await host.runtime.recordAttempt(attempt, { workspace });
-    const before = await host.runtimeClient.listEvents();
+    const { attempt, task } = await recordActiveAttempt(host);
     const session = await host.assistantClient.createSession({ createdBy: "web" });
     const events = [];
+    let approvedEvents: Awaited<ReturnType<DefaultRuntimeClient["listEvents"]>> | undefined;
     for await (const event of host.assistantClient.run(session.id, "Pause it")) {
       events.push(event);
       if (event.type === "approval_required") {
+        assert.equal(
+          (event.input as { expectedEventSequence?: unknown }).expectedEventSequence,
+          (await host.runtimeClient.snapshot()).runtime.lastEventSequence,
+        );
+        assert.equal(
+          (event.input as { expectedAttemptUpdatedAt?: unknown }).expectedAttemptUpdatedAt,
+          attempt.updatedAt,
+        );
+        await host.runtime.recordTask({
+          ...task,
+          id: "github:icho648/symphoneer:46",
+          identifier: "#46",
+          source: {
+            kind: "github",
+            nativeId: "46",
+            url: "https://github.com/icho648/symphoneer/issues/46",
+          },
+        });
+        approvedEvents = await host.runtimeClient.listEvents();
         await host.assistantClient.respondApproval(session.id, event.approvalId, true);
       }
     }
 
-    assert.deepEqual((await host.runtimeClient.listEvents()).events, before.events);
+    assert.ok(approvedEvents);
+    assert.deepEqual((await host.runtimeClient.listEvents()).events, approvedEvents.events);
     const failure = events.find(
       (event) => event.type === "tool_completed" && event.toolName === "pause_attempt",
     );

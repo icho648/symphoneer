@@ -76,9 +76,13 @@ export class AssistantClient {
       },
     );
     if (!response.ok || !response.body) throw await readResponseError(response);
+    let terminal = false;
     for await (const value of readSseData(response.body)) {
-      yield AssistantEventSchema.parse(value);
+      const event = AssistantEventSchema.parse(value);
+      terminal ||= event.type === "completed" || event.type === "aborted" || event.type === "error";
+      yield event;
     }
+    if (!terminal) throw new Error("Assistant stream ended unexpectedly");
   }
 
   async abort(sessionId: string): Promise<void> {

@@ -26,7 +26,7 @@ export function createAssistantUiChatModelAdapter(
       abortSignal.addEventListener("abort", abort, { once: true });
 
       try {
-        for await (const event of client.run(sessionId, prompt)) {
+        for await (const event of client.run(sessionId, prompt, { signal: abortSignal })) {
           if (event.type === "text_delta") {
             text += event.delta;
             const part = { type: "text" as const, text };
