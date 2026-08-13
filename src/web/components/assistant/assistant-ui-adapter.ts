@@ -9,6 +9,17 @@ import type {
 import type { AssistantClient, AssistantMessage } from "@symphoneer/assistant-client";
 
 type AssistantRunClient = Pick<AssistantClient, "abort" | "run">;
+type AssistantSessionClient = Pick<AssistantClient, "deleteSession" | "openSession">;
+
+export async function discardEmptyReplacedSession(
+  client: AssistantSessionClient,
+  sessionId: string | null,
+): Promise<void> {
+  if (!sessionId) return;
+  const current = await client.openSession(sessionId);
+  if (current.messages.length > 0) return;
+  await client.deleteSession(sessionId);
+}
 
 export function createAssistantUiChatModelAdapter(
   client: AssistantRunClient,

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { createBrowserAssistantClient } from "../../runtime-provider.tsx";
 import { selectActiveAttempt, selectSelectedTask, useWorkbench } from "../../stores/workbench.ts";
+import { discardEmptyReplacedSession } from "../assistant/assistant-ui-adapter.ts";
 import { AssistantSessionRuntime } from "../assistant/session-runtime.tsx";
 
 export function AssistantShell() {
@@ -32,7 +33,6 @@ export function AssistantShell() {
   const [renameDraft, setRenameDraft] = useState<string | null>(null);
   const creating = useRef(false);
   const assistant = dictionary.board.assistant;
-  const replaceableSessionId = detail?.messages.length === 0 ? detail.id : null;
 
   const refreshSessions = useCallback(async () => {
     const next = await client.listSessions();
@@ -74,17 +74,32 @@ export function AssistantShell() {
 
   const configureSession = useCallback(
     async (options: { model: string; thinkingLevel: AssistantThinkingLevel }) => {
+      const previousId = sessionId;
       const created = await createSession(options);
-      if (!created || !replaceableSessionId) return;
+      if (!created || !previousId || previousId === created.id) return;
       try {
-        await client.deleteSession(replaceableSessionId);
+        await discardEmptyReplacedSession(client, previousId);
         await refreshSessions();
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : assistant.unavailable);
       }
     },
-    [assistant.unavailable, client, createSession, refreshSessions, replaceableSessionId],
+    [assistant.unavailable, client, createSession, refreshSessions, sessionId],
   );
+
+  const handleRunFinished = useCallback(() => {
+    void (async () => {
+      await refreshSessions();
+      const id = sessionId;
+      if (!id) return;
+      try {
+        const session = await client.openSession(id);
+        setDetail((current) => (current && current.id !== id ? current : session));
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : assistant.unavailable);
+      }
+    })();
+  }, [assistant.unavailable, client, refreshSessions, sessionId]);
 
   useEffect(() => {
     let disposed = false;
@@ -294,7 +309,7 @@ export function AssistantShell() {
             modelOptions={status.models}
             onCreateSession={configureSession}
             onRunError={setError}
-            onRunFinished={refreshSessions}
+            onRunFinished={handleRunFinished}
             selectedAttempt={sessionAttempt}
             selectedTask={sessionTask}
             session={detail}
