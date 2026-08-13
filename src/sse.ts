@@ -3,7 +3,7 @@ export type SseFrame = {
   data: string;
 };
 
-export async function* readSseFrames(body: ReadableStream<Uint8Array>): AsyncIterable<SseFrame> {
+export async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncIterable<SseFrame> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";

@@ -1,5 +1,5 @@
 import { ApiErrorSchema } from "@symphoneer/contracts";
-import { readSseFrames } from "../sse.ts";
+import { parseSseStream } from "../sse.ts";
 import { mapHttpError, RuntimeClientError } from "./errors.ts";
 import type {
   RuntimeSubscriptionRequest,
@@ -193,7 +193,7 @@ export class HttpRuntimeTransport implements RuntimeTransport {
       throw mapHttpError(response.status, "runtime_error", message);
     }
 
-    for await (const frame of readSseFrames(response.body)) {
+    for await (const frame of parseSseStream(response.body)) {
       let data: unknown = frame.data;
       try {
         data = JSON.parse(frame.data);

@@ -1,4 +1,4 @@
-import { readSseFrames } from "../sse.ts";
+import { parseSseStream } from "../sse.ts";
 import {
   type AssistantEvent,
   AssistantEventSchema,
@@ -78,7 +78,7 @@ export class AssistantClient {
     );
     if (!response.ok || !response.body) throw await readResponseError(response);
     let terminal = false;
-    for await (const frame of readSseFrames(response.body)) {
+    for await (const frame of parseSseStream(response.body)) {
       const event = AssistantEventSchema.parse(JSON.parse(frame.data));
       terminal ||= event.type === "completed" || event.type === "aborted" || event.type === "error";
       yield event;

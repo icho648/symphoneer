@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { readSseFrames } from "../src/sse.ts";
+import { parseSseStream } from "../src/sse.ts";
 
-test("readSseFrames parses fragmented UTF-8, named events, comments, and multiline data", async () => {
+test("parseSseStream parses fragmented UTF-8, named events, comments, and multiline data", async () => {
   const source = [
     ": keepalive\n",
     "event: assistant\n",
@@ -22,7 +22,7 @@ test("readSseFrames parses fragmented UTF-8, named events, comments, and multili
   });
   const frames = [];
 
-  for await (const frame of readSseFrames(body)) frames.push(frame);
+  for await (const frame of parseSseStream(body)) frames.push(frame);
 
   assert.deepEqual(frames, [
     { event: "assistant", data: "你\n好" },
