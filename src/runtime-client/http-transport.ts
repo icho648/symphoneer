@@ -1,4 +1,5 @@
 import { ApiErrorSchema } from "@symphoneer/contracts";
+import { parseSseStream } from "../sse.ts";
 import { mapHttpError, RuntimeClientError } from "./errors.ts";
 import type {
   RuntimeSubscriptionRequest,
@@ -192,51 +193,15 @@ export class HttpRuntimeTransport implements RuntimeTransport {
       throw mapHttpError(response.status, "runtime_error", message);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let eventName = "message";
-    let dataLines: string[] = [];
-
-    const flush = () => {
-      if (dataLines.length === 0) {
-        eventName = "message";
-        return;
-      }
-      const raw = dataLines.join("\n");
-      dataLines = [];
-      let data: unknown = raw;
+    for await (const frame of parseSseStream(response.body)) {
+      let data: unknown = frame.data;
       try {
-        data = JSON.parse(raw);
+        data = JSON.parse(frame.data);
       } catch {
         // keep raw string
       }
-      push({ kind: "message", event: eventName, data });
-      eventName = "message";
-    };
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split(/\r?\n/);
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (line === "") {
-          flush();
-          continue;
-        }
-        if (line.startsWith(":")) continue;
-        if (line.startsWith("event:")) {
-          eventName = line.slice(6).trim() || "message";
-          continue;
-        }
-        if (line.startsWith("data:")) {
-          dataLines.push(line.slice(5).trimStart());
-        }
-      }
+      push({ kind: "message", event: frame.event, data });
     }
-    flush();
   }
 
   #authHeaders(): Record<string, string> {

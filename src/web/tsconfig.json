@@ -18,6 +18,7 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./*"],
+      "@symphoneer/assistant-client": ["../assistant-client/index.ts"],
       "@symphoneer/contracts": ["../contracts/index.ts"],
       "@symphoneer/runtime-client": ["../runtime-client/index.ts"],
       "@symphoneer/runtime-tools": ["../runtime-tools/index.ts"]

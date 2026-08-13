@@ -180,28 +180,20 @@
   }
 
   .assistant-column {
-    @apply flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden;
+    @apply flex min-h-0 min-w-0 flex-col overflow-hidden;
   }
 
-  .assistant-rail-nav {
-    @apply flex shrink-0 items-center gap-0.5 rounded-[10px] border border-line bg-panel px-1.5 py-1;
+  .assistant-collapsed-toggle,
+  .assistant-header-toggle {
+    @apply grid shrink-0 cursor-pointer place-items-center rounded-[8px] border border-line bg-panel text-muted transition hover:border-signal/30 hover:bg-panel-raised hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
   }
 
-  .assistant-rail-toggle {
-    @apply grid size-7 shrink-0 cursor-pointer place-items-center rounded-[7px] text-[17px] leading-none text-muted transition hover:bg-panel-raised hover:text-ink;
+  .assistant-collapsed-toggle {
+    @apply size-10 text-[16px] text-signal;
   }
 
-  .assistant-rail-nav .macos-nav-item {
-    @apply w-auto min-w-0 flex-1 justify-center px-2 py-1.5;
-  }
-
-  .assistant-rail-nav .macos-nav-label,
-  .assistant-rail-nav .macos-nav-meta {
-    display: none;
-  }
-
-  .assistant-rail-meta {
-    @apply ml-auto flex shrink-0 items-center gap-1.5 px-2 text-[10px] text-muted;
+  .assistant-header-toggle {
+    @apply size-8 text-[20px] leading-none;
   }
 
   .assistant-slot {
@@ -237,31 +229,7 @@
   }
 
   .assistant-column.is-collapsed {
-    @apply gap-0;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-nav {
-    @apply h-full flex-col gap-1 px-1 py-1.5;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-toggle {
-    @apply order-first mb-1 size-8 rounded-[8px] bg-signal-soft text-[15px] text-signal;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-toggle:hover {
-    @apply bg-signal/15;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-nav .macos-nav-item {
-    @apply size-8 flex-none px-0 py-0;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-meta {
-    @apply mb-1 ml-0 mt-auto px-0;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-version {
-    display: none;
+    @apply items-center;
   }
 
   .assistant-column.is-collapsed .assistant-slot {
@@ -277,8 +245,47 @@
     box-shadow: 0 0 0 3px rgb(52 199 89 / 12%);
   }
 
+  .assistant-status-dot.is-offline {
+    @apply bg-muted;
+    box-shadow: none;
+  }
+
   .assistant-status-note {
     @apply ml-auto font-mono text-[9px] uppercase tracking-[0.06em] text-faint;
+  }
+
+  .assistant-session-controls {
+    @apply flex shrink-0 flex-wrap items-center gap-1.5 border-b border-line px-3 py-2;
+  }
+
+  .assistant-session-controls select,
+  .assistant-session-controls input {
+    @apply min-w-0 flex-1 rounded-[6px] border border-line bg-panel px-2 py-1 text-[10px] text-ink outline-none;
+  }
+
+  .assistant-delete-confirm {
+    @apply basis-full text-[10px] text-muted;
+  }
+
+  .assistant-session-controls button,
+  .assistant-tool-approval button {
+    @apply rounded-[6px] border border-line bg-panel px-2 py-1 text-[10px] text-muted transition hover:border-signal/30 hover:text-signal disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .assistant-unavailable {
+    @apply grid gap-3 p-4 text-[11px] text-muted;
+  }
+
+  .assistant-unavailable textarea {
+    @apply min-h-14 resize-none rounded-[9px] border border-line bg-panel-raised/30 px-3 py-2.5 text-faint;
+  }
+
+  .assistant-tool-approval {
+    @apply flex items-center justify-end gap-2;
+  }
+
+  .assistant-tool-approval span {
+    @apply mr-auto text-[10px] text-danger;
   }
 
   .assistant-thread {
@@ -365,6 +372,10 @@
     @apply flex justify-end;
   }
 
+  .assistant-aui-user-content {
+    @apply grid max-w-[92%] justify-items-end gap-1.5;
+  }
+
   .assistant-aui-assistant {
     @apply grid gap-2;
   }
@@ -386,15 +397,74 @@
   }
 
   .assistant-compose-root {
-    @apply relative rounded-[9px] border border-line bg-panel-raised/30;
+    @apply grid gap-2 rounded-[9px] border border-line bg-panel-raised/30 p-2;
   }
 
   .assistant-compose-input {
-    @apply block min-h-14 w-full resize-none bg-transparent px-3 py-2.5 pr-12 text-[11px] leading-relaxed text-ink outline-none placeholder:text-faint;
+    @apply block min-h-12 w-full resize-none bg-transparent px-1 py-1 text-[11px] leading-relaxed text-ink outline-none placeholder:text-faint;
+  }
+
+  .assistant-compose-toolbar,
+  .assistant-compose-options,
+  .assistant-compose-actions {
+    @apply flex min-w-0 items-center gap-1.5;
+  }
+
+  .assistant-compose-toolbar {
+    @apply justify-between;
+  }
+
+  .assistant-compose-options {
+    @apply overflow-hidden;
   }
 
   .assistant-compose-actions {
-    @apply absolute bottom-2 right-2 flex items-center gap-1;
+    @apply shrink-0;
+  }
+
+  .assistant-compose-option,
+  .assistant-compose-select select {
+    @apply h-6 cursor-pointer rounded-[6px] border border-line bg-panel px-1.5 text-[9px] text-muted outline-none transition hover:border-signal/30 hover:text-signal disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .assistant-compose-option {
+    @apply grid w-6 shrink-0 place-items-center p-0;
+  }
+
+  .assistant-compose-select {
+    @apply min-w-0;
+  }
+
+  .assistant-thinking-control {
+    @apply flex shrink-0 items-center gap-1 text-[9px] text-faint;
+  }
+
+  .assistant-compose-label {
+    @apply whitespace-nowrap;
+  }
+
+  .assistant-compose-select select {
+    @apply max-w-28 truncate;
+  }
+
+  .assistant-thinking-control select {
+    @apply max-w-16;
+  }
+
+  .assistant-attachment {
+    @apply flex min-w-0 max-w-full items-center gap-1 rounded-[6px] border border-line bg-panel px-2 py-1 text-[9px] text-muted;
+  }
+
+  .assistant-compose-root > .assistant-attachment {
+    @apply mx-1 mt-1;
+  }
+
+  .assistant-attachment > span {
+    @apply truncate;
+  }
+
+  .assistant-attachment > button {
+    @apply grid shrink-0 place-items-center rounded text-faint hover:text-danger;
   }
 
   .assistant-compose-send,
@@ -1190,11 +1260,6 @@
     display: inline;
   }
 
-  .assistant-rail-nav .macos-nav-label,
-  .assistant-rail-nav .macos-nav-meta {
-    display: none;
-  }
-
   .task-workbench,
   .task-workbench.assistant-is-closed {
     display: flex;
@@ -1205,14 +1270,6 @@
   .assistant-column.is-collapsed {
     min-height: 48px;
     flex-basis: 48px;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-nav {
-    flex-direction: row;
-  }
-
-  .assistant-column.is-collapsed .assistant-rail-meta {
-    margin: 0 0 0 auto;
   }
 
   .assistant-column {

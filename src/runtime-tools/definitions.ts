@@ -55,16 +55,11 @@ export const pauseAttemptTool = defineRuntimeTool({
   }),
   approval: "required",
   readOnly: false,
+  prepare: captureAttemptPreconditions,
   execute: async (runtime, input) => {
-    const [snapshot, detail] = await Promise.all([
-      runtime.snapshot(),
-      runtime.getAttempt(input.attemptId),
-    ]);
+    const prepared = await captureAttemptPreconditions(runtime, input);
     return runtime.pauseAttempt({
-      attemptId: input.attemptId,
-      idempotencyKey: input.idempotencyKey,
-      expectedEventSequence: input.expectedEventSequence ?? snapshot.runtime.lastEventSequence,
-      expectedAttemptUpdatedAt: input.expectedAttemptUpdatedAt ?? detail.attempt.updatedAt,
+      ...prepared,
     });
   },
 });
@@ -80,16 +75,11 @@ export const retryAttemptTool = defineRuntimeTool({
   }),
   approval: "required",
   readOnly: false,
+  prepare: captureAttemptPreconditions,
   execute: async (runtime, input) => {
-    const [snapshot, detail] = await Promise.all([
-      runtime.snapshot(),
-      runtime.getAttempt(input.attemptId),
-    ]);
+    const prepared = await captureAttemptPreconditions(runtime, input);
     return runtime.retryAttempt({
-      attemptId: input.attemptId,
-      idempotencyKey: input.idempotencyKey,
-      expectedEventSequence: input.expectedEventSequence ?? snapshot.runtime.lastEventSequence,
-      expectedAttemptUpdatedAt: input.expectedAttemptUpdatedAt ?? detail.attempt.updatedAt,
+      ...prepared,
     });
   },
 });
@@ -107,15 +97,11 @@ export const respondInterventionTool = defineRuntimeTool({
   }),
   approval: "required",
   readOnly: false,
+  prepare: captureEventSequence,
   execute: async (runtime, input) => {
-    const snapshot = await runtime.snapshot();
+    const prepared = await captureEventSequence(runtime, input);
     return runtime.respondToIntervention({
-      interventionId: input.interventionId,
-      decidedBy: input.decidedBy,
-      decision: input.decision,
-      ...(input.response !== undefined ? { response: input.response } : {}),
-      idempotencyKey: input.idempotencyKey,
-      expectedEventSequence: input.expectedEventSequence ?? snapshot.runtime.lastEventSequence,
+      ...prepared,
     });
   },
 });
@@ -141,6 +127,46 @@ export async function executeRuntimeTool(
   if (tool.approval === "required" && !options.confirmed) {
     throw new Error(`Tool ${name} requires confirmation`);
   }
-  const input = tool.inputSchema.parse(rawInput ?? {});
+  const input = await prepareRuntimeToolInput(runtime, name, rawInput);
   return tool.execute(runtime, input as never);
+}
+
+export async function prepareRuntimeToolInput(
+  runtime: RuntimeClient,
+  name: string,
+  rawInput: unknown,
+): Promise<unknown> {
+  const tool = RUNTIME_TOOLS.find((item) => item.name === name);
+  if (!tool) throw new Error(`Unknown runtime tool: ${name}`);
+  const input = tool.inputSchema.parse(rawInput ?? {});
+  return tool.prepare ? tool.prepare(runtime, input as never) : input;
+}
+
+async function captureAttemptPreconditions(
+  runtime: RuntimeClient,
+  input: {
+    attemptId: string;
+    idempotencyKey: string;
+    expectedEventSequence?: number | undefined;
+    expectedAttemptUpdatedAt?: string | undefined;
+  },
+) {
+  const [snapshot, detail] = await Promise.all([
+    input.expectedEventSequence === undefined ? runtime.snapshot() : undefined,
+    input.expectedAttemptUpdatedAt === undefined ? runtime.getAttempt(input.attemptId) : undefined,
+  ]);
+  return {
+    ...input,
+    expectedEventSequence: input.expectedEventSequence ?? snapshot?.runtime.lastEventSequence,
+    expectedAttemptUpdatedAt: input.expectedAttemptUpdatedAt ?? detail?.attempt.updatedAt,
+  };
+}
+
+async function captureEventSequence<T extends { expectedEventSequence?: number | undefined }>(
+  runtime: RuntimeClient,
+  input: T,
+): Promise<T> {
+  if (input.expectedEventSequence !== undefined) return input;
+  const snapshot = await runtime.snapshot();
+  return { ...input, expectedEventSequence: snapshot.runtime.lastEventSequence };
 }
