@@ -1,5 +1,14 @@
-import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
-import type { AssistantClient, AssistantSession } from "@symphoneer/assistant-client";
+import {
+  AssistantRuntimeProvider,
+  SimpleTextAttachmentAdapter,
+  useLocalRuntime,
+} from "@assistant-ui/react";
+import type {
+  AssistantClient,
+  AssistantModelOption,
+  AssistantSession,
+  AssistantThinkingLevel,
+} from "@symphoneer/assistant-client";
 import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
 import { useMemo } from "react";
 import type { Dictionary } from "../../i18n/index.ts";
@@ -12,6 +21,8 @@ import { DeliveryAssistantThread } from "./thread.tsx";
 export function AssistantSessionRuntime({
   client,
   dictionary,
+  modelOptions,
+  onCreateSession,
   onRunError,
   onRunFinished,
   selectedAttempt,
@@ -20,6 +31,11 @@ export function AssistantSessionRuntime({
 }: {
   client: AssistantClient;
   dictionary: Dictionary;
+  modelOptions: AssistantModelOption[];
+  onCreateSession: (options: {
+    model: string;
+    thinkingLevel: AssistantThinkingLevel;
+  }) => Promise<void>;
   onRunError: (message: string) => void;
   onRunFinished: () => void;
   selectedAttempt: AttemptSnapshot | null;
@@ -34,7 +50,11 @@ export function AssistantSessionRuntime({
     () => toAssistantUiMessages(session.messages),
     [session.messages],
   );
-  const runtime = useLocalRuntime(adapter, { initialMessages });
+  const attachments = useMemo(() => new SimpleTextAttachmentAdapter(), []);
+  const runtime = useLocalRuntime(adapter, {
+    initialMessages,
+    adapters: { attachments },
+  });
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -42,9 +62,13 @@ export function AssistantSessionRuntime({
         <DeliveryAssistantThread
           client={client}
           dictionary={dictionary}
+          model={session.model}
+          modelOptions={modelOptions}
+          onCreateSession={onCreateSession}
           selectedAttempt={selectedAttempt}
           selectedTask={selectedTask}
           sessionId={session.id}
+          thinkingLevel={session.thinkingLevel}
         />
       </div>
     </AssistantRuntimeProvider>

@@ -4,6 +4,8 @@ export {
   AssistantEventSchema,
   type AssistantMessage,
   AssistantMessageSchema,
+  type AssistantModelOption,
+  AssistantModelOptionSchema,
   type AssistantSession,
   type AssistantSessionMetadata,
   AssistantSessionMetadataSchema,
@@ -12,6 +14,8 @@ export {
   AssistantSessionSummarySchema,
   type AssistantStatus,
   AssistantStatusSchema,
+  type AssistantThinkingLevel,
+  AssistantThinkingLevelSchema,
   type CreateAssistantSessionInput,
   CreateAssistantSessionInputSchema,
 } from "./contracts.ts";

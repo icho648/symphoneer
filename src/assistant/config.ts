@@ -1,12 +1,17 @@
 import type { Models } from "@earendil-works/pi-ai";
 import type { SqliteSessionMetadata } from "@earendil-works/pi-session-backend-sqlite-node";
-import type { AssistantSessionMetadata, AssistantStatus } from "../assistant-client/index.ts";
+import {
+  type AssistantSessionMetadata,
+  type AssistantStatus,
+  type AssistantThinkingLevel,
+  AssistantThinkingLevelSchema,
+} from "../assistant-client/index.ts";
 
 export type AssistantConfig = {
   provider: string;
   model: string;
   apiKey: string;
-  thinkingLevel: "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  thinkingLevel: AssistantThinkingLevel;
 };
 
 export function resolveAssistantConfig(
@@ -36,20 +41,27 @@ export function resolveAssistantConfig(
     };
   }
   return {
-    status: { state: "ready", provider, model },
+    status: { state: "ready", provider, model, thinkingLevel, models: [] },
     config: { provider, model, apiKey, thinkingLevel },
   };
 }
 
-export function readProductMetadata(metadata: SqliteSessionMetadata): {
+export function readProductMetadata(
+  metadata: SqliteSessionMetadata,
+  fallbackThinkingLevel: AssistantThinkingLevel = "off",
+): {
   provider: string;
   model: string;
+  thinkingLevel: AssistantThinkingLevel;
   metadata: AssistantSessionMetadata;
 } {
   const value = metadata.metadata ?? {};
   return {
     provider: typeof value.provider === "string" ? value.provider : "unknown",
     model: typeof value.model === "string" ? value.model : "unknown",
+    thinkingLevel: AssistantThinkingLevelSchema.safeParse(value.thinkingLevel).success
+      ? (value.thinkingLevel as AssistantThinkingLevel)
+      : fallbackThinkingLevel,
     metadata: {
       ...withoutUndefined({
         projectId: typeof value.projectId === "string" ? value.projectId : undefined,
@@ -78,5 +90,5 @@ export function withoutUndefined<T extends Record<string, unknown>>(value: T): P
 }
 
 function isThinkingLevel(value: string): value is AssistantConfig["thinkingLevel"] {
-  return ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value);
+  return AssistantThinkingLevelSchema.safeParse(value).success;
 }

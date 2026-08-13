@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import type { Agent, AgentTool, Session } from "@earendil-works/pi-agent-core";
 import type { NodeExecutionEnv } from "@earendil-works/pi-agent-core/node";
-import type { Models, TSchema } from "@earendil-works/pi-ai";
+import { getSupportedThinkingLevels, type Models, type TSchema } from "@earendil-works/pi-ai";
 import type {
   SqliteSessionMetadata,
   SqliteSessionRepository,
@@ -79,9 +79,26 @@ export class PiAssistantService {
     if (!this.#config) return this.#initialStatus;
     try {
       const models = await this.#models();
-      return models.getModel(this.#config.provider, this.#config.model)
-        ? this.#initialStatus
-        : { state: "invalid_config", message: "Assistant model was not found" };
+      const available = models.getModels(this.#config.provider).map((model) => ({
+        id: model.id,
+        name: model.name,
+        thinkingLevels: getSupportedThinkingLevels(model),
+      }));
+      const selected = available.find((model) => model.id === this.#config?.model);
+      if (!selected) return { state: "invalid_config", message: "Assistant model was not found" };
+      if (!selected.thinkingLevels.includes(this.#config.thinkingLevel)) {
+        return {
+          state: "invalid_config",
+          message: "Assistant thinking level is not supported by the selected model",
+        };
+      }
+      return {
+        state: "ready",
+        provider: this.#config.provider,
+        model: this.#config.model,
+        thinkingLevel: this.#config.thinkingLevel,
+        models: available,
+      };
     } catch {
       return { state: "provider_failure", message: "Assistant provider failed to initialize" };
     }
@@ -104,6 +121,17 @@ export class PiAssistantService {
     }
     const config = this.#requireReady();
     const parsed = CreateAssistantSessionInputSchema.parse(input);
+    const model = status.models.find((option) => option.id === (parsed.model ?? config.model));
+    if (!model)
+      throw new AssistantServiceError(400, "invalid_request", "Assistant model was not found");
+    const thinkingLevel = parsed.thinkingLevel ?? config.thinkingLevel;
+    if (!model.thinkingLevels.includes(thinkingLevel)) {
+      throw new AssistantServiceError(
+        400,
+        "invalid_request",
+        "Assistant thinking level is not supported by the selected model",
+      );
+    }
     const metadata: AssistantSessionMetadata = {
       ...withoutUndefined({
         projectId: parsed.projectId,
@@ -116,7 +144,7 @@ export class PiAssistantService {
     };
     const session = await (await this.#repo()).create({
       cwd: this.#assistantDir,
-      metadata: { ...metadata, provider: config.provider, model: config.model },
+      metadata: { ...metadata, provider: config.provider, model: model.id, thinkingLevel },
     });
     const stored = await session.getMetadata();
     this.#sessions.set(stored.id, session);
@@ -298,8 +326,8 @@ export class PiAssistantService {
     if (current) return current.agent;
     const config = this.#requireReady();
     const metadata = await this.#metadata(id);
-    const product = readProductMetadata(metadata);
-    if (product.provider !== config.provider || product.model !== config.model) {
+    const product = readProductMetadata(metadata, config.thinkingLevel);
+    if (product.provider !== config.provider) {
       throw new AssistantServiceError(
         503,
         "invalid_config",
@@ -310,6 +338,13 @@ export class PiAssistantService {
     const model = models.getModel(product.provider, product.model);
     if (!model) {
       throw new AssistantServiceError(503, "invalid_config", "Assistant model was not found");
+    }
+    if (!getSupportedThinkingLevels(model).includes(product.thinkingLevel)) {
+      throw new AssistantServiceError(
+        503,
+        "invalid_config",
+        "Session thinking level is not supported by the selected model",
+      );
     }
     const session = await this.#open(metadata);
     const entries = await session.findEntries({ type: "message", order: "oldestFirst" });
@@ -323,7 +358,7 @@ export class PiAssistantService {
         systemPrompt: buildSystemPrompt(product.metadata),
         model,
         messages,
-        thinkingLevel: config.thinkingLevel,
+        thinkingLevel: product.thinkingLevel,
         tools: this.#runtimeTools(id),
       },
       streamFn: (selectedModel, context, options) =>
@@ -426,7 +461,7 @@ export class PiAssistantService {
     // backend exposes updatedAt in its read-only catalog projection.
     const session = await this.#open(metadata);
     const latest = await session.findEntry({ order: "newestFirst", limit: 1 });
-    const product = readProductMetadata(metadata);
+    const product = readProductMetadata(metadata, this.#config?.thinkingLevel);
     return {
       id: metadata.id,
       ...(metadata.name ? { name: metadata.name } : {}),
@@ -434,6 +469,7 @@ export class PiAssistantService {
       updatedAt: latest?.timestamp ?? metadata.createdAt,
       provider: product.provider,
       model: product.model,
+      thinkingLevel: product.thinkingLevel,
       metadata: product.metadata,
     };
   }

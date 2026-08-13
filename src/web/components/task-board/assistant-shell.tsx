@@ -2,6 +2,7 @@ import type {
   AssistantSession,
   AssistantSessionSummary,
   AssistantStatus,
+  AssistantThinkingLevel,
 } from "@symphoneer/assistant-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -31,6 +32,7 @@ export function AssistantShell() {
   const [renameDraft, setRenameDraft] = useState<string | null>(null);
   const creating = useRef(false);
   const assistant = dictionary.board.assistant;
+  const replaceableSessionId = detail?.messages.length === 0 ? detail.id : null;
 
   const refreshSessions = useCallback(async () => {
     const next = await client.listSessions();
@@ -41,28 +43,48 @@ export function AssistantShell() {
     );
   }, [client]);
 
-  const createSession = useCallback(async () => {
-    if (creating.current) return;
-    creating.current = true;
-    setError("");
-    try {
-      const created = await client.createSession({
-        createdBy: "web",
-        locale,
-        ...(selectedTask?.projectId ? { projectId: selectedTask.projectId } : {}),
-        ...(selectedTask ? { taskId: selectedTask.id } : {}),
-        ...(selectedAttempt ? { attemptId: selectedAttempt.id } : {}),
-      });
-      setDeleteArmed(false);
-      setRenameDraft(null);
-      setSessionId(created.id);
-      await refreshSessions();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : assistant.unavailable);
-    } finally {
-      creating.current = false;
-    }
-  }, [assistant.unavailable, client, locale, refreshSessions, selectedAttempt, selectedTask]);
+  const createSession = useCallback(
+    async (options?: { model?: string; thinkingLevel?: AssistantThinkingLevel }) => {
+      if (creating.current) return;
+      creating.current = true;
+      setError("");
+      try {
+        const created = await client.createSession({
+          createdBy: "web",
+          locale,
+          ...(selectedTask?.projectId ? { projectId: selectedTask.projectId } : {}),
+          ...(selectedTask ? { taskId: selectedTask.id } : {}),
+          ...(selectedAttempt ? { attemptId: selectedAttempt.id } : {}),
+          ...options,
+        });
+        setDeleteArmed(false);
+        setRenameDraft(null);
+        setSessionId(created.id);
+        await refreshSessions();
+        return created;
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : assistant.unavailable);
+        return undefined;
+      } finally {
+        creating.current = false;
+      }
+    },
+    [assistant.unavailable, client, locale, refreshSessions, selectedAttempt, selectedTask],
+  );
+
+  const configureSession = useCallback(
+    async (options: { model: string; thinkingLevel: AssistantThinkingLevel }) => {
+      const created = await createSession(options);
+      if (!created || !replaceableSessionId) return;
+      try {
+        await client.deleteSession(replaceableSessionId);
+        await refreshSessions();
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : assistant.unavailable);
+      }
+    },
+    [assistant.unavailable, client, createSession, refreshSessions, replaceableSessionId],
+  );
 
   useEffect(() => {
     let disposed = false;
@@ -71,7 +93,14 @@ export function AssistantShell() {
         const nextStatus = await client.status();
         if (disposed) return;
         setStatus(nextStatus);
-        if (nextStatus.state === "ready") await refreshSessions();
+        if (nextStatus.state === "ready") {
+          try {
+            await refreshSessions();
+          } catch {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            if (!disposed) await refreshSessions();
+          }
+        }
       } catch {
         if (!disposed) setError(assistant.requestFailed);
       }
@@ -184,7 +213,9 @@ export function AssistantShell() {
           />
           <span>{error || statusText}</span>
           <span className="assistant-status-note">
-            {status?.state === "ready" ? `${status.provider}/${status.model}` : assistant.optional}
+            {status?.state === "ready"
+              ? `${status.provider}/${detail?.model ?? status.model}`
+              : assistant.optional}
           </span>
         </div>
 
@@ -260,6 +291,8 @@ export function AssistantShell() {
             key={detail.id}
             client={client}
             dictionary={dictionary}
+            modelOptions={status.models}
+            onCreateSession={configureSession}
             onRunError={setError}
             onRunFinished={refreshSessions}
             selectedAttempt={sessionAttempt}

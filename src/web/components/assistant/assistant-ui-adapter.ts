@@ -1,5 +1,6 @@
 import type {
   ChatModelAdapter,
+  CompleteAttachment,
   ThreadAssistantMessagePart,
   ThreadMessage,
   ThreadMessageLike,
@@ -100,17 +101,21 @@ export function toAssistantUiMessages(messages: readonly AssistantMessage[]): Th
     role: "user" | "assistant";
     content: ThreadAssistantMessagePart[];
     createdAt: Date;
+    attachments?: CompleteAttachment[];
   }> = [];
 
   for (const message of messages) {
     if (message.role === "user") {
+      const restored = restoreUserMessage(
+        message.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])).join(""),
+        message.id,
+      );
       result.push({
         id: message.id,
         role: "user",
-        content: message.parts.flatMap((part) =>
-          part.type === "text" ? [{ type: "text" as const, text: part.text }] : [],
-        ),
+        content: restored.text ? [{ type: "text", text: restored.text }] : [],
         createdAt: new Date(message.timestamp),
+        ...(restored.attachments.length ? { attachments: restored.attachments } : {}),
       });
       continue;
     }
@@ -177,7 +182,37 @@ function lastUserText(messages: readonly ThreadMessage[]): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message?.role !== "user") continue;
-    return message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+    const text = message.content
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("");
+    const attachments = message.attachments
+      .flatMap((attachment) => attachment.content)
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n\n");
+    return [text, attachments].filter((part) => part.trim()).join("\n\n");
   }
   return "";
+}
+
+function restoreUserMessage(
+  text: string,
+  messageId: string,
+): { text: string; attachments: CompleteAttachment[] } {
+  const attachments: CompleteAttachment[] = [];
+  const prefixed = text.startsWith("<attachment name=") ? `\n\n${text}` : text;
+  const visible = prefixed.replace(
+    /\n\n<attachment name=([^\n>]+)>\n([\s\S]*?)\n<\/attachment>(?=\n\n<attachment name=|$)/g,
+    (marker, name: string, _contents: string) => {
+      attachments.push({
+        id: `${messageId}:attachment:${attachments.length}`,
+        type: "document",
+        name,
+        contentType: "text/plain",
+        status: { type: "complete" },
+        content: [{ type: "text", text: marker.slice(2) }],
+      });
+      return "";
+    },
+  );
+  return { text: visible, attachments };
 }

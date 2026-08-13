@@ -120,6 +120,53 @@ test("assistant-ui cancellation calls the Assistant abort endpoint", async () =>
   assert.deepEqual(updates.at(-1)?.status, { type: "incomplete", reason: "cancelled" });
 });
 
+test("assistant-ui sends text attachment contents with the user prompt", async () => {
+  let prompt = "";
+  const client = {
+    abort: async () => {},
+    run: async function* (_sessionId: string, input: string) {
+      prompt = input;
+      yield { type: "completed" as const };
+    },
+  };
+  const adapter = createAssistantUiChatModelAdapter(client, "session-1");
+
+  for await (const _update of adapter.run({
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: [{ type: "text", text: "Summarize this file" }],
+        createdAt: new Date(),
+        attachments: [
+          {
+            id: "attachment-1",
+            type: "document",
+            name: "notes.md",
+            contentType: "text/markdown",
+            status: { type: "complete" },
+            content: [
+              {
+                type: "text",
+                text: "<attachment name=notes.md>\nIssue 45 is ready\n</attachment>",
+              },
+            ],
+          },
+        ],
+        metadata: {},
+      },
+    ],
+    abortSignal: new AbortController().signal,
+  } as never) as AsyncIterable<unknown>) {
+    // drain the run
+  }
+
+  assert.equal(
+    prompt,
+    "Summarize this file\n\n<attachment name=notes.md>\nIssue 45 is ready\n</attachment>",
+  );
+});
+
 test("assistant-ui keeps provider failures visible", async () => {
   let reported = "";
   const client = {
@@ -165,7 +212,12 @@ test("persisted Assistant messages restore text and tool results without Pi type
     {
       id: "user-1",
       role: "user",
-      parts: [{ type: "text", text: "Check" }],
+      parts: [
+        {
+          type: "text",
+          text: "Check\n\n<attachment name=notes.md>\nIssue 45 is ready\n</attachment>",
+        },
+      ],
       timestamp: 1,
     },
     {
@@ -194,6 +246,8 @@ test("persisted Assistant messages restore text and tool results without Pi type
   ]);
 
   assert.equal(messages.length, 2);
+  assert.deepEqual(messages[0]?.content, [{ type: "text", text: "Check" }]);
+  assert.equal(messages[0]?.attachments?.[0]?.name, "notes.md");
   assert.deepEqual(messages[1]?.content, [
     { type: "text", text: "Checking" },
     {

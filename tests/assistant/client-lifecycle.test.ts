@@ -111,7 +111,10 @@ test("AssistantClient manages persistent sessions through the loopback API", asy
   };
 
   const start = async (runtimeName: string) => {
-    const faux = fauxProvider({ provider: "faux", models: [{ id: "test-model" }] });
+    const faux = fauxProvider({
+      provider: "faux",
+      models: [{ id: "test-model" }, { id: "reasoning-model", reasoning: true }],
+    });
     const models = createModels();
     models.setProvider(faux.provider);
     const assistant = new PiAssistantService({ dataDir, env, models });
@@ -131,15 +134,31 @@ test("AssistantClient manages persistent sessions through the loopback API", asy
 
   let host = await start("runtime-1");
   try {
+    const status = await host.client.status();
+    assert.equal(status.state, "ready");
+    if (status.state !== "ready") return;
+    assert.deepEqual(
+      status.models.map((model) => model.id),
+      ["test-model", "reasoning-model"],
+    );
+    assert.ok(status.models[1]?.thinkingLevels.includes("high"));
+
     const created = await host.client.createSession({
       createdBy: "web",
       taskId: "task-45",
       locale: "zh-CN",
+      model: "reasoning-model",
+      thinkingLevel: "high",
     });
     assert.equal(created.provider, "faux");
-    assert.equal(created.model, "test-model");
+    assert.equal(created.model, "reasoning-model");
+    assert.equal(created.thinkingLevel, "high");
     assert.equal(created.metadata.taskId, "task-45");
     assert.deepEqual(await host.client.listSessions(), [created]);
+    await assert.rejects(
+      () => host.client.createSession({ createdBy: "web", model: "missing-model" }),
+      { message: "Assistant model was not found" },
+    );
 
     const renamed = await host.client.renameSession(created.id, "Issue 45");
     assert.equal(renamed.name, "Issue 45");
@@ -154,7 +173,10 @@ test("AssistantClient manages persistent sessions through the loopback API", asy
       baseUrl: host.baseUrl,
       token: "test-token",
     });
-    assert.equal((await headlessClient.openSession(created.id)).name, "Issue 45");
+    const reopened = await headlessClient.openSession(created.id);
+    assert.equal(reopened.name, "Issue 45");
+    assert.equal(reopened.model, "reasoning-model");
+    assert.equal(reopened.thinkingLevel, "high");
     const runtimeEvents = await host.runtimeClient.listEvents();
     await headlessClient.deleteSession(created.id);
     assert.deepEqual(await headlessClient.listSessions(), []);
