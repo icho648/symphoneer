@@ -19,6 +19,7 @@ WORKFLOW.md                  进入 Git 的 ProjectProfile（repository-owned �
   orchestrations/            OrchestrationDefinition JSON IR（当前 PIR）
 package.json                 根依赖安装、共享工具和运行编排
 src/
+  sse.ts                    Assistant / Runtime client 共用的浏览器安全 SSE 字节分帧
   contracts/                 Runtime / CLI / Web / MCP 共用的版本化边界 Schema
     package.json              私有 link package identity（@symphoneer/contracts）
     index.ts                 共享契约入口
@@ -166,8 +167,9 @@ docs/
 ```text
 src/contracts ──> Zod
 src/runtime ───> src/contracts + Node stdlib + Zod + YAML + LiquidJS + LangGraph + SQLite checkpoint
-src/runtime-client ──> src/contracts + Node stdlib
-src/assistant-client ──> Zod + browser fetch / ReadableStream
+src/sse ────────────> browser ReadableStream / TextDecoder
+src/runtime-client ──> src/contracts + src/sse + Node stdlib
+src/assistant-client ──> src/sse + Zod + browser fetch / ReadableStream
 src/runtime-tools ──> src/contracts + src/runtime-client + Zod
 src/assistant ──────> assistant-client + runtime-client + runtime-tools + Pi Agent/AI/SQLite
 src/mcp ────────────> src/contracts + src/runtime-client + src/runtime-tools + MCP SDK

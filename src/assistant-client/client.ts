@@ -1,3 +1,4 @@
+import { readSseFrames } from "../sse.ts";
 import {
   type AssistantEvent,
   AssistantEventSchema,
@@ -77,8 +78,8 @@ export class AssistantClient {
     );
     if (!response.ok || !response.body) throw await readResponseError(response);
     let terminal = false;
-    for await (const value of readSseData(response.body)) {
-      const event = AssistantEventSchema.parse(value);
+    for await (const frame of readSseFrames(response.body)) {
+      const event = AssistantEventSchema.parse(JSON.parse(frame.data));
       terminal ||= event.type === "completed" || event.type === "aborted" || event.type === "error";
       yield event;
     }
@@ -119,40 +120,6 @@ export class AssistantClient {
       throw new Error("Assistant request failed");
     }
   }
-}
-
-async function* readSseData(body: ReadableStream<Uint8Array>): AsyncIterable<unknown> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let dataLines: string[] = [];
-  const values: unknown[] = [];
-
-  const flush = () => {
-    if (dataLines.length === 0) return;
-    const raw = dataLines.join("\n");
-    dataLines = [];
-    try {
-      values.push(JSON.parse(raw));
-    } catch {
-      values.push(raw);
-    }
-  };
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line === "") flush();
-      else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-    }
-    while (values.length > 0) yield values.shift();
-  }
-  flush();
-  while (values.length > 0) yield values.shift();
 }
 
 async function readResponseError(response: Response): Promise<Error> {
