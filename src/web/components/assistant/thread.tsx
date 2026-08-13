@@ -249,8 +249,8 @@ function SessionConfiguration({
           ))}
         </select>
       </label>
-      <label className="assistant-compose-select">
-        <span className="sr-only">{assistant.thinking}</span>
+      <label className="assistant-compose-select assistant-thinking-control">
+        <span className="assistant-compose-label">{assistant.thinking}</span>
         <select
           aria-label={assistant.thinking}
           disabled={running}

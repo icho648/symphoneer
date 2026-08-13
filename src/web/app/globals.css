@@ -435,8 +435,20 @@
     @apply min-w-0;
   }
 
+  .assistant-thinking-control {
+    @apply flex shrink-0 items-center gap-1 text-[9px] text-faint;
+  }
+
+  .assistant-compose-label {
+    @apply whitespace-nowrap;
+  }
+
   .assistant-compose-select select {
     @apply max-w-28 truncate;
+  }
+
+  .assistant-thinking-control select {
+    @apply max-w-16;
   }
 
   .assistant-attachment {
