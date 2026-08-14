@@ -389,7 +389,7 @@
   }
 
   .assistant-aui-bubble-user {
-    @apply bg-selection text-selection-text;
+    @apply max-w-full bg-selection text-selection-text;
   }
 
   .assistant-aui-bubble-assistant {
