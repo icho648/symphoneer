@@ -7,7 +7,7 @@ import type { AssistantEvent, AssistantMessage } from "../assistant-client/index
 
 export function normalizeAgentEvent(
   event: AgentEvent,
-  credential: string,
+  credential?: string,
 ): AssistantEvent | undefined {
   if (event.type === "tool_execution_start") {
     return {
@@ -118,19 +118,20 @@ export async function repairInterruptedToolCalls(
   return repaired;
 }
 
-export function redactCredentialText(value: string, credential: string): string {
-  return value.replaceAll(credential, "[redacted]");
+export function redactCredentialText(value: string, credential?: string): string {
+  return credential ? value.replaceAll(credential, "[redacted]") : value;
 }
 
 export class CredentialStreamRedactor {
-  readonly #credential: string;
+  readonly #credential: string | undefined;
   #pending = "";
 
-  constructor(credential: string) {
+  constructor(credential?: string) {
     this.#credential = credential;
   }
 
   push(value: string): string {
+    if (!this.#credential) return value;
     this.#pending += value;
     let output = "";
     while (this.#pending) {
@@ -155,6 +156,7 @@ export class CredentialStreamRedactor {
   }
 
   #credentialPrefixSuffixLength(): number {
+    if (!this.#credential) return 0;
     const maximum = Math.min(this.#pending.length, this.#credential.length - 1);
     for (let length = maximum; length > 0; length -= 1) {
       if (this.#pending.endsWith(this.#credential.slice(0, length))) return length;
@@ -163,11 +165,11 @@ export class CredentialStreamRedactor {
   }
 }
 
-export function sanitizeAgentMessage(message: AgentMessage, credential: string): AgentMessage {
+export function sanitizeAgentMessage(message: AgentMessage, credential?: string): AgentMessage {
   return redactCredentialValue(message, credential) as AgentMessage;
 }
 
-export function redactCredentialValue(value: unknown, credential: string): unknown {
+export function redactCredentialValue(value: unknown, credential?: string): unknown {
   const serialized = JSON.stringify(value, (_key, nested) =>
     typeof nested === "string" ? redactCredentialText(nested, credential) : nested,
   );

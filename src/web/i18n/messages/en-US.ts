@@ -104,7 +104,7 @@ export const enUS = {
       optional: "Optional",
       ready: "Assistant ready",
       loading: "Loading Assistant…",
-      unavailable: "Configure a provider, model, and API key to enable Assistant.",
+      unavailable: "No usable Pi configuration was found. Sign in and select a model in Pi TUI.",
       requestFailed: "Assistant is temporarily unavailable. Reconnect Runtime and try again.",
       invalidConfig: "Assistant configuration is invalid.",
       providerFailure: "Assistant provider is unavailable.",
