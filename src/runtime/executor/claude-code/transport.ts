@@ -3,6 +3,14 @@ import { createInterface } from "node:readline";
 
 export type ClaudeMessage = Record<string, unknown>;
 
+export type ClaudePermissionMode =
+  | "acceptEdits"
+  | "auto"
+  | "bypassPermissions"
+  | "manual"
+  | "dontAsk"
+  | "plan";
+
 export interface ClaudeTransport {
   readonly toolVersion: string;
   readonly processIdentity: { pid: number | null };
@@ -19,7 +27,7 @@ export interface ClaudeTransportOptions {
   argv: string[];
   cwd: string;
   model?: string;
-  permissionMode: string;
+  permissionMode: ClaudePermissionMode;
   resumeSessionId?: string;
 }
 
