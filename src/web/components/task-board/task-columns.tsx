@@ -1,5 +1,5 @@
 import type { AttemptSnapshot, TaskSummary, TeamRunSnapshot } from "@symphoneer/contracts";
-import { CircleAlert, FolderOpen, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { CircleAlert, FolderOpen, MoreHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { type Dictionary, interpolate } from "../../i18n/index.ts";
@@ -11,7 +11,6 @@ import {
 } from "../../lib/task-column";
 import { useWorkbench } from "../../stores/workbench.ts";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input.tsx";
 
 export function TaskColumns() {
   const {
@@ -39,21 +38,11 @@ export function TaskColumns() {
   const [expandedCompleted, setExpandedCompleted] = useState<Record<string, boolean>>({});
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [selectingProject, setSelectingProject] = useState(false);
-  const [query, setQuery] = useState("");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const tasks = snapshot?.tasks ?? [];
   const attempts = snapshot?.attempts ?? [];
-  const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleTasks = tasks
     .filter((task) => !attentionOnly || taskNeedsAttention(task))
-    .filter(
-      (task) =>
-        !normalizedQuery ||
-        [task.identifier, task.title, task.body ?? "", ...task.labels]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(normalizedQuery),
-    )
     .sort(compareExecutionPriority);
   const activeCount = tasks.filter((task) => task.workflowStatus !== "done").length;
   const attentionCount = tasks.filter(taskNeedsAttention).length;
@@ -71,16 +60,6 @@ export function TaskColumns() {
 
       <div className="task-overview-panel">
         <div className="task-overview-toolbar">
-          <div className="task-queue-search">
-            <Search aria-hidden="true" />
-            <Input
-              aria-label={dictionary.board.queue.search}
-              placeholder={dictionary.board.queue.search}
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
           <span className="task-queue-summary">
             {interpolate(dictionary.board.queue.summary, {
               total: tasks.length,
@@ -171,7 +150,7 @@ export function TaskColumns() {
                       </strong>
                     </span>
                     <span className="project-group-count">
-                      {!attentionOnly && !normalizedQuery
+                      {!attentionOnly
                         ? projectTasks.length
                         : `${projectVisibleTasks.length}/${projectTasks.length}`}{" "}
                       {dictionary.board.projectGroup.issues}

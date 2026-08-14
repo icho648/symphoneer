@@ -562,20 +562,8 @@
     @apply sr-only;
   }
 
-  .task-queue-search {
-    @apply relative col-span-3 min-w-0;
-  }
-
-  .task-queue-search > svg {
-    @apply pointer-events-none absolute left-2.5 top-2 size-4 text-faint;
-  }
-
-  .task-queue-search input {
-    @apply h-8 pl-8 text-[12px];
-  }
-
   .task-queue-summary {
-    @apply col-span-2 min-w-0 truncate font-mono text-[10px] text-faint;
+    @apply col-span-5 min-w-0 truncate font-mono text-[10px] text-faint;
   }
 
   .task-alert {
@@ -1408,7 +1396,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .task-queue-search,
   .task-queue-summary,
   .task-overview-toolbar-meta {
     grid-column: 1 / -1;
