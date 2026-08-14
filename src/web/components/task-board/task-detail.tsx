@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import type { Dictionary } from "../../i18n/index.ts";
+import { providerPresentation } from "../../lib/provider-presentation.ts";
 import {
   selectActiveAttempt,
   selectSelectedAttempts,
@@ -41,6 +42,7 @@ export function TaskOverview() {
     : attempt
       ? (dictionary.statuses[attempt.status] ?? attempt.status)
       : dictionary.detail.notStarted;
+  const provider = detail?.session?.provider ?? attempt?.providerSession?.provider ?? null;
 
   return (
     <section className="attempt-view" id="task-view" aria-labelledby="task-view-title">
@@ -106,6 +108,7 @@ export function TaskOverview() {
           <OrchestrationProgress
             attempt={attempt}
             dictionary={dictionary}
+            provider={provider}
             workflowStatus={task.workflowStatus}
           />
         </div>
@@ -165,16 +168,23 @@ export function TaskOverview() {
 function OrchestrationProgress({
   attempt,
   dictionary,
+  provider,
   workflowStatus,
 }: {
   attempt: AttemptSnapshot | null;
   dictionary: Dictionary;
+  provider: string | null;
   workflowStatus: WorkflowStatus;
 }) {
   const states = orchestrationStates(attempt, workflowStatus);
+  const providerKind = providerPresentation(provider).kind;
   const labels = [
     dictionary.detail.executionSteps.workspace,
-    dictionary.detail.executionSteps.codex,
+    providerKind === "claude"
+      ? dictionary.detail.executionSteps.claude
+      : providerKind === "codex"
+        ? dictionary.detail.executionSteps.codex
+        : dictionary.detail.executionSteps.agent,
     dictionary.detail.executionSteps.review,
   ];
   return (

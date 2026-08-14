@@ -14,8 +14,10 @@ import { useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { providerPresentation } from "../../lib/provider-presentation.ts";
 import type { CommandIntent } from "../../stores/runtime-commands.ts";
 import { selectActiveAttempt, selectSelectedTask, useWorkbench } from "../../stores/workbench.ts";
+import { ProviderIdentity } from "./provider-identity.tsx";
 
 export function ExecutionComposer() {
   const {
@@ -57,6 +59,7 @@ export function ExecutionComposer() {
   const inputRequired = intervention?.kind === "input";
   const threadId = attempt?.providerSession?.threadId;
   const provider = attempt?.providerSession?.provider ?? (threadId ? "codex-app-server" : null);
+  const presentation = providerPresentation(provider);
   const pausable = attempt != null && attempt.finishedAt == null && attempt.status !== "paused";
   const canStart =
     !attempt &&
@@ -64,6 +67,7 @@ export function ExecutionComposer() {
     (task.workflowStatus === "backlog" || task.workflowStatus === "ready");
   const canApplySettings = intervention == null && attempt?.activeTurn == null;
   const showSettings = canStart || Boolean(threadId);
+  const showCodexSettings = showSettings && (canStart || presentation.supportsCodexSettings);
   const selectedModelName = codexModels.some((item) => item.model === model) ? model : "";
   const selectedModel =
     codexModels.find((item) => item.model === selectedModelName) ??
@@ -74,16 +78,17 @@ export function ExecutionComposer() {
   )
     ? effort
     : "";
-  const selectedSettings = canApplySettings
-    ? {
-        ...(selectedModelName ? { model: selectedModelName } : {}),
-        ...(sandbox ? { sandbox } : {}),
-        ...(selectedEffort ? { effort: selectedEffort } : {}),
-      }
-    : {};
+  const selectedSettings =
+    canApplySettings && (canStart || presentation.supportsCodexSettings)
+      ? {
+          ...(selectedModelName ? { model: selectedModelName } : {}),
+          ...(sandbox ? { sandbox } : {}),
+          ...(selectedEffort ? { effort: selectedEffort } : {}),
+        }
+      : {};
   const hasInput = Boolean(inputRequired || threadId);
   const canSend = connection === "online" && !busy && hasInput;
-  const showComposer = showSettings || hasInput;
+  const showComposer = showCodexSettings || hasInput;
   const panelOpen = showComposer && (composerOpen || inputRequired);
 
   const run = async (command: CommandIntent) => {
@@ -113,6 +118,7 @@ export function ExecutionComposer() {
   return (
     <form
       className="task-execution-composer"
+      data-provider={presentation.kind}
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
@@ -221,7 +227,7 @@ export function ExecutionComposer() {
             <Pause /> {dictionary.detail.requestPause}
           </Button>
         )}
-        {provider && <small>{provider}</small>}
+        {provider && <ProviderIdentity compact dictionary={dictionary} provider={provider} />}
         {threadId && provider === "codex-app-server" && (
           <Button
             disabled={busy}
@@ -260,7 +266,11 @@ export function ExecutionComposer() {
               placeholder={
                 inputRequired
                   ? dictionary.detail.activity.interventionPlaceholder
-                  : dictionary.detail.activity.composerPlaceholder
+                  : presentation.kind === "claude"
+                    ? dictionary.detail.activity.claudeComposerPlaceholder
+                    : presentation.kind === "codex"
+                      ? dictionary.detail.activity.composerPlaceholder
+                      : dictionary.detail.activity.agentComposerPlaceholder
               }
               rows={2}
               value={message}
@@ -274,7 +284,7 @@ export function ExecutionComposer() {
             />
           )}
           <div className="task-execution-composer-actions">
-            {showSettings && !inputRequired && (
+            {showCodexSettings && !inputRequired && (
               <>
                 <label className="task-codex-setting">
                   <span>{dictionary.detail.activity.permission}</span>

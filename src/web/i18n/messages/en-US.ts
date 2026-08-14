@@ -211,7 +211,9 @@ export const enUS = {
     notStarted: "Not started",
     executionSteps: {
       workspace: "Prepare workspace",
+      agent: "Agent session / turn",
       codex: "Codex thread / turn",
+      claude: "Claude Code session / turn",
       verification: "Independent verification",
       review: "Human decision",
     },
@@ -229,17 +231,24 @@ export const enUS = {
       active: "Active",
       retained: "Last recorded",
     },
+    providers: {
+      claude: { name: "Claude Code", runtime: "Anthropic CLI session" },
+      codex: { name: "Codex", runtime: "OpenAI App Server session" },
+      neutral: { name: "Agent runtime", runtime: "Provider appears after session start" },
+    },
     activity: {
       title: "Execution activity",
       emptyTitle: "No detailed activity",
       notStarted:
         "Start the task to see plans, agent messages, commands, file changes, and tool calls.",
       legacyEmpty:
-        "This Attempt predates detailed activity capture. New runs stream it from Codex App Server.",
+        "This Attempt predates detailed activity capture. New runs stream it from the active agent runtime.",
       running: "Running",
       input: "Input",
       output: "Output",
       composerPlaceholder: "Add a short instruction to this Codex session…",
+      claudeComposerPlaceholder: "Add a short instruction to this Claude Code session…",
+      agentComposerPlaceholder: "Add a short instruction to this agent session…",
       addInstruction: "Add instruction",
       executionSettings: "Execution settings",
       collapseComposer: "Collapse",

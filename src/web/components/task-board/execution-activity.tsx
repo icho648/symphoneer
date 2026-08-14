@@ -24,8 +24,10 @@ import {
 import { Tool, ToolContent, ToolHeader } from "@/components/ai-elements/tool";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
+import { providerPresentation } from "../../lib/provider-presentation.ts";
 import { selectSelectedTask, useWorkbench } from "../../stores/workbench.ts";
 import { ExecutionComposer } from "./execution-composer.tsx";
+import { ProviderIdentity } from "./provider-identity.tsx";
 
 export function ExecutionActivityFeed() {
   const { detail, dictionary, locale, selectedTask } = useWorkbench(
@@ -39,15 +41,21 @@ export function ExecutionActivityFeed() {
   if (!selectedTask) return null;
   const blockedReason = selectedTask.blocked?.reason ?? null;
   const activities = detail?.activities ?? [];
+  const provider = detail?.session?.provider ?? detail?.attempt.providerSession?.provider ?? null;
+  const providerKind = providerPresentation(provider).kind;
   const pendingIntervention = detail?.interventions.find(
     (intervention) => intervention.state === "pending",
   );
   return (
-    <section className="task-activity-pane" aria-labelledby="task-activity-title">
+    <section
+      className="task-activity-pane"
+      data-provider={providerKind}
+      aria-labelledby="task-activity-title"
+    >
       <div className="task-activity-scroll">
         <header className="task-activity-heading">
           <div>
-            <p className="eyebrow-label">Codex App Server</p>
+            <ProviderIdentity dictionary={dictionary} provider={provider} />
             <h2 id="task-activity-title">{dictionary.detail.activity.title}</h2>
           </div>
           <span>{activities.length}</span>
