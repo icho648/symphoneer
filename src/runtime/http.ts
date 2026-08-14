@@ -115,6 +115,15 @@ export class RuntimeHttpServer {
       }
 
       if (
+        request.method === "GET" &&
+        url.pathname === "/v1/assistant/status" &&
+        !this.#assistantHandler
+      ) {
+        sendJson(response, 200, { state: "disabled", reason: "missing_config" });
+        return;
+      }
+
+      if (
         url.pathname.startsWith("/v1/assistant/") &&
         this.#assistantHandler &&
         (await this.#assistantHandler(request, response, url))

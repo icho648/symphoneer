@@ -994,6 +994,19 @@ test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loop
   await reader.cancel().catch(() => undefined);
 });
 
+test("Runtime HTTP reports Assistant disabled when no handler is installed", async (t) => {
+  const root = await runtimeFixture(t);
+  const server = new RuntimeHttpServer(runtime(root, "runtime:assistant-disabled"));
+  const endpoint = await server.listen();
+  try {
+    const response = await fetch(`${endpoint.url}/v1/assistant/status`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { state: "disabled", reason: "missing_config" });
+  } finally {
+    await server.close();
+  }
+});
+
 test("JSONL replay fails closed for corrupt and unknown records", async (t) => {
   const corruptRoot = await runtimeFixture(t);
   const eventPath = resolve(corruptRoot, "events/domain-events.jsonl");
