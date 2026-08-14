@@ -118,28 +118,44 @@
     @apply mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-faint;
   }
 
-  .chrome-context {
-    @apply flex min-w-0 items-center justify-center gap-1.5;
+  .board-chrome {
+    @apply flex h-10 shrink-0 items-center justify-between gap-2 rounded-[10px] border border-line bg-toolbar px-2.5 backdrop-blur-2xl;
   }
 
-  .chrome-context-chip {
-    @apply grid min-w-0 gap-0.5 rounded-[7px] border border-line bg-panel/45 px-2 py-1;
+  .board-chrome-brand {
+    @apply flex min-w-0 items-center gap-2;
   }
 
-  .chrome-context-chip small {
-    @apply truncate text-[9px] uppercase tracking-[0.08em] text-faint;
+  .board-chrome-brand img {
+    @apply size-6 shrink-0 rounded-[6px] shadow-[0_0_0_0.5px_var(--line)];
   }
 
-  .chrome-context-chip strong {
-    @apply truncate text-[10px] font-medium text-muted;
+  .board-chrome-brand strong {
+    @apply truncate text-[12px] font-semibold tracking-[-0.01em];
   }
 
-  .chrome-context-chip.is-success strong {
-    @apply text-success;
+  .board-chrome-status {
+    @apply flex shrink-0 items-center gap-1 text-[9px] font-medium text-success;
   }
 
-  .chrome-context-chip.is-danger strong {
+  .board-chrome-status > span {
+    @apply size-1.5 rounded-full bg-success;
+  }
+
+  .board-chrome-status.is-offline {
     @apply text-danger;
+  }
+
+  .board-chrome-status.is-offline > span {
+    @apply bg-danger;
+  }
+
+  .board-chrome-controls {
+    @apply flex shrink-0 items-center gap-1;
+  }
+
+  .board-chrome-reconnect {
+    @apply grid size-6 shrink-0 cursor-pointer place-items-center rounded-[6px] border border-line bg-panel/55 text-[14px] text-muted transition hover:border-signal/30 hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
   }
 
   .task-overview-body {
@@ -163,6 +179,24 @@
     grid-template-columns: 48px minmax(0, 1fr);
   }
 
+  .assistant-rail {
+    @apply flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden;
+  }
+
+  .assistant-rail.is-collapsed {
+    @apply items-center;
+  }
+
+  .assistant-rail.is-collapsed .board-chrome {
+    @apply size-10 justify-center p-0;
+  }
+
+  .assistant-rail.is-collapsed .board-chrome-brand strong,
+  .assistant-rail.is-collapsed .board-chrome-status,
+  .assistant-rail.is-collapsed .board-chrome-controls {
+    display: none;
+  }
+
   .task-deck {
     @apply flex min-h-0 min-w-0 flex-col overflow-hidden;
   }
@@ -184,7 +218,7 @@
   }
 
   .assistant-column {
-    @apply flex min-h-0 min-w-0 flex-col overflow-hidden;
+    @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden;
   }
 
   .assistant-collapsed-toggle,
