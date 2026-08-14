@@ -163,7 +163,7 @@
   }
 
   .task-overview-panel {
-    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-hidden;
   }
 
   .task-workbench {
@@ -172,7 +172,7 @@
   }
 
   .task-workbench:has(.assistant-column) {
-    grid-template-columns: minmax(270px, 31%) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 4fr) minmax(0, 8fr);
   }
 
   .task-workbench.assistant-is-closed {
@@ -241,7 +241,7 @@
   }
 
   .assistant-slot-header {
-    @apply flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3;
+    @apply flex shrink-0 items-start justify-between gap-3 border-b border-line px-3 py-3;
   }
 
   .assistant-identity {
@@ -275,7 +275,7 @@
   }
 
   .assistant-slot-status {
-    @apply flex shrink-0 items-center gap-1.5 border-b border-line bg-panel-raised/35 px-4 py-2 text-[10px] text-muted;
+    @apply flex shrink-0 items-center gap-1.5 border-b border-line bg-panel-raised/35 px-3 py-2 text-[10px] text-muted;
   }
 
   .assistant-status-dot {
@@ -335,7 +335,7 @@
   }
 
   .assistant-thread-viewport {
-    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4;
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3;
   }
 
   .assistant-empty {
@@ -411,7 +411,8 @@
   }
 
   .assistant-aui-user-content {
-    @apply grid max-w-[92%] justify-items-end gap-1.5;
+    width: calc(100% - 2rem);
+    @apply grid max-w-none justify-items-end gap-1.5;
   }
 
   .assistant-aui-assistant {
@@ -423,11 +424,12 @@
   }
 
   .assistant-aui-bubble-user {
-    @apply max-w-full bg-selection text-selection-text;
+    @apply w-full max-w-full bg-selection text-selection-text;
   }
 
   .assistant-aui-bubble-assistant {
-    @apply border border-line bg-panel-raised/45 text-ink;
+    width: calc(100% - 2rem);
+    @apply max-w-none border border-line bg-panel-raised/45 text-ink;
   }
 
   .assistant-thread-footer {
@@ -548,11 +550,12 @@
   }
 
   .task-overview-toolbar {
-    @apply flex min-w-0 shrink-0 items-center gap-2 pb-2;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    @apply grid h-10 min-w-0 shrink-0 items-center gap-2;
   }
 
   .task-overview-toolbar-meta {
-    @apply flex shrink-0 items-center gap-2;
+    @apply col-span-3 flex min-w-0 items-center justify-end gap-2;
   }
 
   .task-overview-notice {
@@ -560,7 +563,7 @@
   }
 
   .task-queue-search {
-    @apply relative min-w-36 max-w-72 flex-1;
+    @apply relative col-span-3 min-w-0;
   }
 
   .task-queue-search > svg {
@@ -572,7 +575,7 @@
   }
 
   .task-queue-summary {
-    @apply min-w-0 flex-1 truncate font-mono text-[10px] text-faint;
+    @apply col-span-2 min-w-0 truncate font-mono text-[10px] text-faint;
   }
 
   .task-alert {
@@ -588,7 +591,7 @@
   }
 
   .project-group-list {
-    @apply flex min-h-0 flex-1 flex-col gap-2 overflow-auto pb-2;
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-auto pb-2;
   }
 
   .project-group {
@@ -1355,7 +1358,7 @@
 
 @media (max-width: 1050px) {
   .task-workbench {
-    grid-template-columns: minmax(235px, 34%) minmax(0, 1fr);
+    grid-template-columns: minmax(280px, 4fr) minmax(0, 8fr);
   }
 
   .task-workbench.assistant-is-closed {
@@ -1364,10 +1367,6 @@
 }
 
 @media (max-width: 760px) {
-  .chrome-context {
-    display: none;
-  }
-
   .macos-nav-item {
     justify-content: flex-start;
   }
@@ -1402,6 +1401,25 @@
   .task-deck {
     min-height: 560px;
     overflow: visible;
+  }
+
+  .task-overview-toolbar {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .task-queue-search,
+  .task-queue-summary,
+  .task-overview-toolbar-meta {
+    grid-column: 1 / -1;
+  }
+
+  .task-overview-toolbar-meta {
+    justify-content: stretch;
+  }
+
+  .task-overview-toolbar-meta > button {
+    flex: 1;
   }
 
   .task-deck-heading {
