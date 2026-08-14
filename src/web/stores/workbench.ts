@@ -236,7 +236,11 @@ export const useWorkbench = create<WorkbenchState>()((set, get) => {
         if (!command) return;
         const body = await getRuntimeClient().execute(command);
         get().setSnapshot(body.snapshot);
-        if (intent.kind === "handoff_attempt" && attempt?.providerSession) {
+        if (
+          intent.kind === "handoff_attempt" &&
+          attempt?.providerSession &&
+          (attempt.providerSession.provider ?? "codex-app-server") === "codex-app-server"
+        ) {
           await getRuntimeClient().openCodexThread(attempt.providerSession.threadId);
         }
         if (intent.kind === "delete_attempt") {

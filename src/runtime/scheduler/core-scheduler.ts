@@ -150,6 +150,7 @@ export class CoreScheduler {
     threadId: string;
     turnId: string;
     updatedAt: string;
+    provider?: NonNullable<AttemptSnapshot["providerSession"]>["provider"];
     idempotencyKey: string;
   }): AttemptSnapshot {
     const normalized = {

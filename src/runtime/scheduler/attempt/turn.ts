@@ -5,7 +5,13 @@ import { CoreError } from "../types.ts";
 
 export function attachTurn(
   state: SchedulerState,
-  request: { attemptId: string; threadId: string; turnId: string; updatedAt: string },
+  request: {
+    attemptId: string;
+    threadId: string;
+    turnId: string;
+    updatedAt: string;
+    provider?: NonNullable<AttemptSnapshot["providerSession"]>["provider"];
+  },
 ): AttemptSnapshot {
   const attempt = state.attempts.get(request.attemptId);
   if (!attempt) throw new CoreError("not_found", `Attempt ${request.attemptId} does not exist`);
@@ -29,6 +35,13 @@ export function attachTurn(
   if (attempt.providerSession && attempt.providerSession.threadId !== request.threadId) {
     throw new CoreError("conflict", `Attempt ${request.attemptId} must resume its retained Thread`);
   }
+  if (
+    attempt.providerSession?.provider &&
+    request.provider &&
+    attempt.providerSession.provider !== request.provider
+  ) {
+    throw new CoreError("conflict", `Attempt ${request.attemptId} cannot switch Executors`);
+  }
   const threadOwner = state.activeThreads.get(request.threadId);
   if (state.pausedThreads.has(request.threadId)) {
     throw new CoreError("conflict", "Thread is retained by a paused Attempt");
@@ -40,7 +53,13 @@ export function attachTurn(
     ...attempt,
     status: "streaming_turn",
     activeTurn: { threadId: request.threadId, turnId: request.turnId },
-    providerSession: { threadId: request.threadId, lastTurnId: request.turnId },
+    providerSession: {
+      ...((request.provider ?? attempt.providerSession?.provider)
+        ? { provider: request.provider ?? attempt.providerSession?.provider }
+        : {}),
+      threadId: request.threadId,
+      lastTurnId: request.turnId,
+    },
     updatedAt,
   });
   if (activeTurn) state.activeTurns.delete(activeTurn.turnId);

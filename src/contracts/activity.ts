@@ -53,7 +53,7 @@ export const ExecutionSessionTurnSchema = z.object({
 export const ExecutionSessionSchema = z.object({
   schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
   attemptId: NonEmptyString,
-  provider: z.literal("codex-app-server"),
+  provider: z.enum(["codex-app-server", "claude-code", "fake"]),
   threadId: NonEmptyString,
   turns: z.array(ExecutionSessionTurnSchema),
   capturedAt: Timestamp,

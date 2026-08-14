@@ -6,6 +6,7 @@ import {
   ActivityPayloadSchema,
   CONTRACT_SCHEMA_VERSION,
   ExecutionActivitySchema,
+  ExecutionSessionSchema,
 } from "@symphoneer/contracts";
 
 test("Codex and Pi activity projections share one bounded display contract", () => {
@@ -27,6 +28,22 @@ test("Codex and Pi activity projections share one bounded display contract", () 
   assert.equal(codex.kind, "command");
   assert.equal(pi.kind, "tool");
   assert.throws(() => ActivityPayloadSchema.parse({ ...pi, kind: "provider_session" }));
+});
+
+test("execution sessions retain the observed Executor identity", () => {
+  for (const provider of ["fake", "codex-app-server", "claude-code"] as const) {
+    assert.equal(
+      ExecutionSessionSchema.parse({
+        schemaVersion: CONTRACT_SCHEMA_VERSION,
+        attemptId: "attempt-1",
+        provider,
+        threadId: "session-1",
+        turns: [],
+        capturedAt: "2026-08-14T12:00:00.000Z",
+      }).provider,
+      provider,
+    );
+  }
 });
 
 test("an activity occurrence gains Attempt identity only when persisted", () => {

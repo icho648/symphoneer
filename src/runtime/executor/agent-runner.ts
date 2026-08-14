@@ -1,8 +1,9 @@
 import type {
   ActivityOccurrence,
-  CodexReasoningEffort,
-  CodexSandbox,
   ExecutionSession,
+  ExecutorModel,
+  ExecutorReasoningEffort,
+  ExecutorSandbox,
   TaskSummary,
   WorkspaceReference,
 } from "@symphoneer/contracts";
@@ -12,8 +13,9 @@ export interface AgentWorkerRequest {
   task: TaskSummary;
   workspace: WorkspaceReference;
   model?: string;
-  sandbox?: CodexSandbox;
-  effort?: CodexReasoningEffort;
+  sandbox?: ExecutorSandbox;
+  effort?: ExecutorReasoningEffort;
+  sessionId?: string;
 }
 
 export interface AgentTurnRequest {
@@ -52,10 +54,12 @@ export type AgentRunEvent =
       threadId: string;
       turnId: string;
       provider: {
-        name: "codex-app-server" | "fake";
+        name: "codex-app-server" | "claude-code" | "fake";
         version: string;
         schema: string;
         inputFingerprint: string;
+        model?: string;
+        permissionMode?: string;
       };
     }
   | {
@@ -103,4 +107,10 @@ export interface AttemptWorker {
 
 export interface AgentRunner {
   openWorker(request: AgentWorkerRequest): Promise<AttemptWorker>;
+  listModels?(): Promise<ExecutorModel[]>;
+  readSession?(
+    threadId: string,
+    attemptId: string,
+    capturedAt: string,
+  ): Promise<ExecutionSession | null>;
 }

@@ -35,16 +35,35 @@ export const RawWorkflowConfigSchema = z
       .default({ timeout_ms: 60_000 }),
     agent: z
       .object({
+        executor: z.enum(["codex-app-server", "claude-code"]).default("codex-app-server"),
         max_concurrent_agents: positiveInteger.default(10),
         max_turns: positiveInteger.default(20),
         max_retry_backoff_ms: positiveInteger.default(300_000),
         max_concurrent_agents_by_state: z.record(z.string(), z.unknown()).default({}),
       })
       .default({
+        executor: "codex-app-server",
         max_concurrent_agents: 10,
         max_turns: 20,
         max_retry_backoff_ms: 300_000,
         max_concurrent_agents_by_state: {},
+      }),
+    claude: z
+      .object({
+        command: z.string().trim().min(1).default("claude"),
+        argv: z.array(z.string().min(1)).default([]),
+        model: z.string().trim().min(1).optional(),
+        permission_mode: z
+          .enum(["acceptEdits", "auto", "bypassPermissions", "manual", "dontAsk", "plan"])
+          .optional(),
+        turn_timeout_ms: positiveInteger.default(3_600_000),
+        stall_timeout_ms: z.int().nonnegative().default(300_000),
+      })
+      .default({
+        command: "claude",
+        argv: [],
+        turn_timeout_ms: 3_600_000,
+        stall_timeout_ms: 300_000,
       }),
     codex: z
       .object({
@@ -84,4 +103,13 @@ export const RawWorkflowConfigSchema = z
       })
       .default({ eligibility: { required_labels: [], excluded_labels: [] }, verification: [] }),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((config, context) => {
+    if (config.agent.executor === "claude-code" && !config.claude.permission_mode) {
+      context.addIssue({
+        code: "custom",
+        path: ["claude", "permission_mode"],
+        message: "claude.permission_mode is required for the claude-code Executor",
+      });
+    }
+  });

@@ -128,25 +128,37 @@ const RuntimeCommandBaseSchema = z.object({
 
 export const RuntimeStartModeSchema = z.enum(["single-agent", "team"]);
 export type RuntimeStartMode = z.infer<typeof RuntimeStartModeSchema>;
-export const CodexSandboxSchema = z.enum(["danger-full-access", "read-only", "workspace-write"]);
-export type CodexSandbox = z.infer<typeof CodexSandboxSchema>;
-export const CodexReasoningEffortSchema = NonEmptyString;
-export type CodexReasoningEffort = z.infer<typeof CodexReasoningEffortSchema>;
-export const CodexModelSchema = z.object({
+export const ExecutorSandboxSchema = z.enum(["danger-full-access", "read-only", "workspace-write"]);
+export type ExecutorSandbox = z.infer<typeof ExecutorSandboxSchema>;
+export const ExecutorReasoningEffortSchema = NonEmptyString;
+export type ExecutorReasoningEffort = z.infer<typeof ExecutorReasoningEffortSchema>;
+export const ExecutorModelSchema = z.object({
   id: NonEmptyString,
   model: NonEmptyString,
   displayName: NonEmptyString,
   description: z.string(),
   isDefault: z.boolean(),
-  defaultReasoningEffort: CodexReasoningEffortSchema,
+  defaultReasoningEffort: ExecutorReasoningEffortSchema,
   supportedReasoningEfforts: z.array(
     z.object({
-      reasoningEffort: CodexReasoningEffortSchema,
+      reasoningEffort: ExecutorReasoningEffortSchema,
       description: z.string(),
     }),
   ),
 });
-export type CodexModel = z.infer<typeof CodexModelSchema>;
+export type ExecutorModel = z.infer<typeof ExecutorModelSchema>;
+/** @deprecated Use ExecutorSandbox. */
+export const CodexSandboxSchema = ExecutorSandboxSchema;
+/** @deprecated Use ExecutorSandbox. */
+export type CodexSandbox = ExecutorSandbox;
+/** @deprecated Use ExecutorReasoningEffort. */
+export const CodexReasoningEffortSchema = ExecutorReasoningEffortSchema;
+/** @deprecated Use ExecutorReasoningEffort. */
+export type CodexReasoningEffort = ExecutorReasoningEffort;
+/** @deprecated Use ExecutorModel. */
+export const CodexModelSchema = ExecutorModelSchema;
+/** @deprecated Use ExecutorModel. */
+export type CodexModel = ExecutorModel;
 
 export const RuntimeCommandSchema = z.discriminatedUnion("kind", [
   RuntimeCommandBaseSchema.extend({

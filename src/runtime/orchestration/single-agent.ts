@@ -22,8 +22,9 @@ import type {
   InterventionResponse,
   RunHandle,
 } from "../executor/agent-runner.ts";
-import { sessionExecutionActivities } from "../executor/codex-app-server/activities.ts";
+import { ClaudeCodeAdapter } from "../executor/claude-code/runner.ts";
 import { CodexAppServerAdapter } from "../executor/codex-app-server/runner.ts";
+import { sessionExecutionActivities } from "../executor/session-activities.ts";
 import {
   type CorePolicy,
   CoreScheduler,
@@ -80,7 +81,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   #projectRoot: string | undefined;
   #workspaceRoot: string;
   readonly #now: () => Date;
-  readonly #runnerFactory: (workflow: ProjectProfile) => AgentRunner;
+  readonly #runnerFactory: (
+    workflow: ProjectProfile,
+    provider?: "codex-app-server" | "claude-code",
+  ) => AgentRunner;
   readonly #operatorLog: OperatorLog;
   readonly #runs = new Map<string, ActiveRun>();
   readonly #jobs = new Set<Promise<void>>();
@@ -102,7 +106,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     workspaceRoot: string;
     projectRoot?: string;
     now?: () => Date;
-    runnerFactory?: (workflow: ProjectProfile) => AgentRunner;
+    runnerFactory?: (
+      workflow: ProjectProfile,
+      provider?: "codex-app-server" | "claude-code",
+    ) => AgentRunner;
     operatorLogPath?: string;
   }) {
     this.#tracker = options.tracker;
@@ -110,7 +117,8 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     this.#workspaceRoot = resolve(options.workspaceRoot);
     this.#now = options.now ?? (() => new Date());
     this.#runnerFactory =
-      options.runnerFactory ?? ((workflow) => createAgentRunner(workflow, this.#now));
+      options.runnerFactory ??
+      ((workflow, provider) => createAgentRunner(workflow, this.#now, provider));
     this.#operatorLog = new OperatorLog(
       options.operatorLogPath ?? resolve(options.dataDir, "operator.jsonl"),
     );
@@ -172,17 +180,19 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       throw new RuntimeError("conflict", "Project root is required to list Codex models");
     }
     const workflow = await loadWorkflow(this.#projectRoot, this.#projectRoot, this.#workspaceRoot);
-    return createAgentRunner(workflow, this.#now).listModels();
+    return (await createAgentRunner(workflow, this.#now).listModels?.()) ?? [];
   }
 
   async readSession(attempt: AttemptSnapshot): Promise<ExecutionSession | null> {
     const threadId = attempt.providerSession?.threadId;
     if (!threadId || !this.#projectRoot) return null;
     const workflow = await loadWorkflow(this.#projectRoot, this.#projectRoot, this.#workspaceRoot);
-    return createAgentRunner(workflow, this.#now).readSession(
-      threadId,
-      attempt.id,
-      this.#timestamp(),
+    return (
+      (await createAgentRunner(workflow, this.#now, providerForAttempt(attempt)).readSession?.(
+        threadId,
+        attempt.id,
+        this.#timestamp(),
+      )) ?? null
     );
   }
 
@@ -274,6 +284,9 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   async handoff(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
     const run = this.#runs.get(input.attempt.id);
     if (!run) throw new RuntimeError("conflict", "Attempt has no active Worker to hand off");
+    if (run.workflow.config.agent.executor !== "codex-app-server") {
+      throw new RuntimeError("unsupported", "Claude Code Attempts cannot be handed off to Codex");
+    }
     run.handoffRequested = true;
     await run.settled.promise;
     if (input.log.projection.getAttempt(input.attempt.id)?.status !== "paused") {
@@ -547,7 +560,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         attemptId,
         task: live.task,
         workspace: run.workspace,
-        ...(workflow.config.codex.model ? { model: workflow.config.codex.model } : {}),
+        ...configuredModelSetting(workflow),
         ...settings,
       });
       if (await this.#stopRunIfNeeded(run)) return;
@@ -648,11 +661,13 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       this.#runs.set(attempt.id, run);
       await this.#recordAttempt(run);
       if (await this.#stopRunIfNeeded(run)) return;
-      run.worker = await this.#runnerFactory(workflow).openWorker({
+      const provider = providerForAttempt(attempt);
+      run.worker = await this.#runnerFactory(workflow, provider).openWorker({
         attemptId: attempt.id,
         task: live.task,
         workspace: run.workspace,
-        ...(workflow.config.codex.model ? { model: workflow.config.codex.model } : {}),
+        ...configuredModelSetting(workflow, provider),
+        sessionId: threadId,
         ...settings,
       });
       if (await this.#stopRunIfNeeded(run)) return;
@@ -712,7 +727,9 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       });
       if (run.stopping) return;
       if (completion.outcome !== "completed") {
-        throw new Error(`Codex Turn did not complete: ${completion.error ?? completion.outcome}`);
+        throw new Error(
+          `Executor Turn did not complete: ${completion.error ?? completion.outcome}`,
+        );
       }
       run.turnCount += 1;
       threadId = run.attempt.providerSession?.threadId;
@@ -825,6 +842,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         attemptId: run.attempt.id,
         threadId: event.threadId,
         turnId: event.turnId,
+        provider: event.provider.name,
         updatedAt,
         idempotencyKey: `single-agent:turn:${run.attempt.id}:${event.turnId}`,
       }) ??
@@ -832,7 +850,11 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         ...run.attempt,
         status: "streaming_turn",
         activeTurn: { threadId: event.threadId, turnId: event.turnId },
-        providerSession: { threadId: event.threadId, lastTurnId: event.turnId },
+        providerSession: {
+          provider: event.provider.name,
+          threadId: event.threadId,
+          lastTurnId: event.turnId,
+        },
         updatedAt,
       });
     await this.#recordAttempt(run);
@@ -1258,7 +1280,25 @@ function locateTask(task: TaskSummary): TaskLocator {
   return { repository: `${parts[0]}/${parts[1]}`, issueNumber };
 }
 
-function createAgentRunner(workflow: ProjectProfile, now: () => Date): CodexAppServerAdapter {
+function createAgentRunner(
+  workflow: ProjectProfile,
+  now: () => Date,
+  provider = workflow.config.agent.executor,
+): AgentRunner {
+  if (provider === "claude-code") {
+    if (!workflow.config.claude.permissionMode) {
+      throw new Error("WORKFLOW.md requires claude.permission_mode");
+    }
+    return new ClaudeCodeAdapter({
+      command: workflow.config.claude.command,
+      argv: workflow.config.claude.argv,
+      ...(workflow.config.claude.model ? { model: workflow.config.claude.model } : {}),
+      permissionMode: workflow.config.claude.permissionMode,
+      turnTimeoutMs: workflow.config.claude.turnTimeoutMs,
+      stallTimeoutMs: workflow.config.claude.stallTimeoutMs,
+      now,
+    });
+  }
   const [command, ...args] = workflow.config.codex.command.trim().split(/\s+/);
   if (!command) throw new Error("WORKFLOW.md has an empty Codex command");
   return new CodexAppServerAdapter({
@@ -1279,6 +1319,22 @@ function createAgentRunner(workflow: ProjectProfile, now: () => Date): CodexAppS
     stallTimeoutMs: workflow.config.codex.stallTimeoutMs,
     now,
   });
+}
+
+function configuredModelSetting(
+  workflow: ProjectProfile,
+  provider = workflow.config.agent.executor,
+): { model?: string } {
+  const model =
+    provider === "claude-code" ? workflow.config.claude.model : workflow.config.codex.model;
+  return model ? { model } : {};
+}
+
+function providerForAttempt(attempt: AttemptSnapshot): "codex-app-server" | "claude-code" {
+  const provider = attempt.providerSession?.provider;
+  if (provider === undefined || provider === "codex-app-server") return "codex-app-server";
+  if (provider === "claude-code") return provider;
+  throw new RuntimeError("unsupported", "Fake Executor Sessions cannot resume in production");
 }
 
 function retainedWorkspaceForTask(log: EventLog, taskId: string): WorkspaceReference | undefined {

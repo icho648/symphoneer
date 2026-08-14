@@ -56,6 +56,7 @@ export function ExecutionComposer() {
   const intervention = detail?.interventions.find((item) => item.state === "pending") ?? null;
   const inputRequired = intervention?.kind === "input";
   const threadId = attempt?.providerSession?.threadId;
+  const provider = attempt?.providerSession?.provider ?? (threadId ? "codex-app-server" : null);
   const pausable = attempt != null && attempt.finishedAt == null && attempt.status !== "paused";
   const canStart =
     !attempt &&
@@ -220,7 +221,8 @@ export function ExecutionComposer() {
             <Pause /> {dictionary.detail.requestPause}
           </Button>
         )}
-        {threadId && (
+        {provider && <small>{provider}</small>}
+        {threadId && provider === "codex-app-server" && (
           <Button
             disabled={busy}
             size="xs"

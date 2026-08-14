@@ -1,9 +1,9 @@
 import type {
   AttemptSnapshot,
   CodexModel,
-  CodexReasoningEffort,
-  CodexSandbox,
   ExecutionSession,
+  ExecutorReasoningEffort,
+  ExecutorSandbox,
   ReviewDecision,
   RuntimeCommand,
   TaskSummary,
@@ -32,8 +32,8 @@ export interface OrchestrationMode {
     attempt: AttemptSnapshot;
     prompt: string;
     model?: string;
-    sandbox?: CodexSandbox;
-    effort?: CodexReasoningEffort;
+    sandbox?: ExecutorSandbox;
+    effort?: ExecutorReasoningEffort;
     log: EventLog;
   }): Promise<void>;
   handoff?(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void>;

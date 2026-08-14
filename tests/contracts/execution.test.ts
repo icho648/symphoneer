@@ -66,6 +66,13 @@ test("Attempt and Workspace boundaries reject conflicting active ownership", () 
   assert.throws(() =>
     AttemptSnapshotSchema.parse({ ...attempt, controller: "codex", providerSession: null }),
   );
+  assert.throws(() =>
+    AttemptSnapshotSchema.parse({
+      ...attempt,
+      controller: "codex",
+      providerSession: { ...attempt.providerSession, provider: "claude-code" },
+    }),
+  );
   assert.throws(() => AttemptSnapshotSchema.parse({ ...attempt, activeTurn: null }));
   assert.throws(() =>
     AttemptSnapshotSchema.parse({ ...attempt, updatedAt: "2026-08-02T11:59:59.000Z" }),

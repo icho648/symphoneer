@@ -16,9 +16,58 @@ test("the repository root WORKFLOW.md loads into a validated effective config", 
   assert.deepEqual(workflow.config.symphoneer.eligibility.requiredLabels, ["symphoneer:ready"]);
   assert.deepEqual(workflow.config.symphoneer.eligibility.excludedLabels, ["symphoneer:review"]);
   assert.equal(workflow.config.agent.maxConcurrentAgents, 1);
+  assert.equal(workflow.config.agent.executor, "codex-app-server");
   assert.equal(workflow.config.workspace.root, workspaceRoot);
   assert.equal(workflow.config.hooks.timeoutMs, 60_000);
   assert.match(workflow.promptTemplate, /\{\{ issue\.identifier \}\}/);
+});
+
+test("Claude Code workflow selection is explicit and fails closed", async (t) => {
+  const directory = await mkdtemp(resolve(tmpdir(), "symphoneer-claude-workflow-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = resolve(directory, "WORKFLOW.md");
+  const workflow = (agent: string, claude = "") => `---
+tracker:
+  kind: github
+  active_states: [open]
+  terminal_states: [closed]
+agent:
+${agent}
+${claude}
+---
+prompt
+`;
+
+  await writeFile(
+    path,
+    workflow(
+      "  executor: claude-code",
+      "claude:\n  command: claude\n  argv: [--no-chrome]\n  model: sonnet\n  permission_mode: acceptEdits",
+    ),
+  );
+  const configured = await loadWorkflow({ path });
+  assert.equal(configured.config.agent.executor, "claude-code");
+  assert.deepEqual(configured.config.claude, {
+    command: "claude",
+    argv: ["--no-chrome"],
+    model: "sonnet",
+    permissionMode: "acceptEdits",
+    turnTimeoutMs: 3_600_000,
+    stallTimeoutMs: 300_000,
+  });
+
+  for (const source of [
+    workflow("  executor: unknown"),
+    workflow("  executor: claude-code", "claude:\n  permission_mode: invalid"),
+    workflow("  executor: claude-code", 'claude:\n  command: ""\n  permission_mode: acceptEdits'),
+    workflow("  executor: claude-code", "claude:\n  command: claude"),
+  ]) {
+    await writeFile(path, source);
+    await assert.rejects(
+      loadWorkflow({ path }),
+      (error) => error instanceof WorkflowError && error.code === "workflow_validation_error",
+    );
+  }
 });
 
 test("workflow validation returns typed errors and keeps adapter config provider-owned", async (t) => {

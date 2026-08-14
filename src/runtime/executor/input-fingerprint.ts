@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { AgentRunRequest } from "../agent-runner.ts";
+import type { AgentRunRequest } from "./agent-runner.ts";
 
 export function fingerprint(request: AgentRunRequest): string {
   const promptDigest = createHash("sha256").update(request.prompt).digest("hex");
