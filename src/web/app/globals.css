@@ -411,7 +411,7 @@
   }
 
   .assistant-aui-user-content {
-    width: 100%;
+    width: calc(100% - 2rem);
     @apply grid max-w-none justify-items-end gap-1.5;
   }
 
@@ -428,7 +428,7 @@
   }
 
   .assistant-aui-bubble-assistant {
-    width: 100%;
+    width: calc(100% - 2rem);
     @apply max-w-none border border-line bg-panel-raised/45 text-ink;
   }
 
