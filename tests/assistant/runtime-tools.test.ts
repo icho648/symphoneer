@@ -84,7 +84,7 @@ async function recordActiveAttempt(host: Awaited<ReturnType<typeof startHost>>) 
     state: "open",
     labels: [],
     dispatchable: true,
-    workflowStatus: "ready",
+    workflowStatus: "backlog",
     blocked: null,
   };
   const attempt: AttemptSnapshot = {

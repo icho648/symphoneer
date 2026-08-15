@@ -94,7 +94,7 @@ export async function executeCommand(
       if (!workflow) throw new RuntimeError("unsupported", "Workflow commands are not enabled");
       const task = log.projection.getTask(command.task.id);
       if (!task) throw new RuntimeError("not_found", `Task ${command.task.id} was not found`);
-      if (task.workflowStatus !== "backlog" && task.workflowStatus !== "ready") {
+      if (task.workflowStatus !== "backlog") {
         throw new RuntimeError("conflict", "Task has already started or finished");
       }
       if (!task.dispatchable) {
@@ -138,9 +138,6 @@ async function setTaskStatusCommand(
       `Cannot change ${task.workflowStatus} to ${workflowStatus} through a human status command`,
     );
   }
-  if (workflowStatus === "ready" && !task.dispatchable) {
-    throw new RuntimeError("conflict", "Task is not eligible for Ready");
-  }
   await recordTaskStatus(log, task.id, workflowStatus, null, {
     source: "human",
     commit: true,
@@ -158,7 +155,6 @@ async function setTaskStatusCommand(
 
 function manualStatusTransitionAllowed(current: WorkflowStatus, next: WorkflowStatus): boolean {
   if (current === next) return true;
-  if (current === "backlog" && next === "ready") return true;
   return current === "in_review" && next === "done";
 }
 
@@ -358,10 +354,10 @@ async function requestAttemptCommand(
       log.projection.attemptsForTask(task.id).length === 0 &&
       (task.workflowStatus === "in_progress" || task.workflowStatus === "in_review")
     ) {
-      await recordTaskStatus(log, task.id, "ready", null, {
+      await recordTaskStatus(log, task.id, "backlog", null, {
         source: "human",
         commit: true,
-        idempotencyKey: `workflow-status:delete:${command.idempotencyKey}:ready`,
+        idempotencyKey: `workflow-status:delete:${command.idempotencyKey}:backlog`,
       });
     }
     return deleted;

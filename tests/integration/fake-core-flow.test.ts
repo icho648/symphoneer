@@ -29,7 +29,7 @@ test("the Fake Runner drives one deterministic core Attempt without Provider cla
     state: "open",
     labels: ["symphoneer:ready"],
     dispatchable: true,
-    workflowStatus: "ready",
+    workflowStatus: "backlog",
     blocked: null,
   };
   const workspace = createWorkspaceReference({

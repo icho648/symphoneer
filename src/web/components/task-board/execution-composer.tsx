@@ -61,10 +61,7 @@ export function ExecutionComposer() {
   const provider = attempt?.providerSession?.provider ?? (threadId ? "codex-app-server" : null);
   const presentation = providerPresentation(provider);
   const pausable = attempt != null && attempt.finishedAt == null && attempt.status !== "paused";
-  const canStart =
-    !attempt &&
-    task.dispatchable &&
-    (task.workflowStatus === "backlog" || task.workflowStatus === "ready");
+  const canStart = !attempt && task.dispatchable && task.workflowStatus === "backlog";
   const canApplySettings = intervention == null && attempt?.activeTurn == null;
   const showSettings = canStart || Boolean(threadId);
   const showCodexSettings = showSettings && (canStart || presentation.supportsCodexSettings);
@@ -158,19 +155,17 @@ export function ExecutionComposer() {
             </Button>
           </>
         )}
-        {!attempt &&
-          !task.dispatchable &&
-          (task.workflowStatus === "backlog" || task.workflowStatus === "ready") && (
-            <Button
-              disabled={connection === "offline" || busy}
-              size="xs"
-              title={dictionary.detail.activity.enableDispatchHint}
-              type="button"
-              onClick={() => void run({ kind: "enable_task_dispatch" })}
-            >
-              <Tag /> {dictionary.detail.activity.enableDispatch}
-            </Button>
-          )}
+        {!attempt && !task.dispatchable && task.workflowStatus === "backlog" && (
+          <Button
+            disabled={connection === "offline" || busy}
+            size="xs"
+            title={dictionary.detail.activity.enableDispatchHint}
+            type="button"
+            onClick={() => void run({ kind: "enable_task_dispatch" })}
+          >
+            <Tag /> {dictionary.detail.activity.enableDispatch}
+          </Button>
+        )}
         {showComposer && !inputRequired && (
           <Button
             aria-controls="task-execution-panel"

@@ -36,11 +36,10 @@ test("task board groups tasks by Runtime project identity instead of parsing tra
   assert.equal(taskBelongsToProject(task(), project), false);
 });
 
-test("execution queue prioritizes attention, running, ready, backlog, then done", () => {
+test("execution queue prioritizes attention, running, backlog, then done", () => {
   const tasks = [
     task({ id: "done", workflowStatus: "done" }),
     task({ id: "backlog", workflowStatus: "backlog" }),
-    task({ id: "ready", workflowStatus: "ready" }),
     task({ id: "running", workflowStatus: "in_progress" }),
     task({ id: "review", workflowStatus: "in_review" }),
     task({
@@ -52,11 +51,10 @@ test("execution queue prioritizes attention, running, ready, backlog, then done"
 
   assert.deepEqual(
     tasks.sort(compareExecutionPriority).map((item) => item.id),
-    ["blocked", "review", "running", "ready", "backlog", "done"],
+    ["blocked", "review", "running", "backlog", "done"],
   );
   assert.equal(taskNeedsAttention(tasks[0] as TaskSummary), true);
   assert.equal(taskNeedsAttention(task({ workflowStatus: "in_review" })), true);
-  assert.equal(taskNeedsAttention(task({ workflowStatus: "ready" })), false);
 });
 
 test("task board records a human decision instead of only moving the card to done", () => {

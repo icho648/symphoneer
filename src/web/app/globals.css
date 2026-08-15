@@ -730,10 +730,6 @@
     @apply absolute left-0 top-1 size-1.5 rounded-full bg-muted;
   }
 
-  .task-card-summary.is-ready::before {
-    @apply bg-signal;
-  }
-
   .task-card-summary.is-in_progress::before {
     @apply bg-amber;
   }

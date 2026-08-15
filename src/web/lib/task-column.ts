@@ -14,9 +14,8 @@ export function compareExecutionPriority(left: TaskSummary, right: TaskSummary):
     return {
       in_review: 1,
       in_progress: 2,
-      ready: 3,
-      backlog: 4,
-      done: 5,
+      backlog: 3,
+      done: 4,
     }[task.workflowStatus];
   };
   return rank(left) - rank(right) || left.identifier.localeCompare(right.identifier);

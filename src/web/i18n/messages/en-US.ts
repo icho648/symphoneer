@@ -179,7 +179,6 @@ export const enUS = {
   },
   columns: {
     backlog: { label: "Backlog", hint: "Not started" },
-    ready: { label: "Ready", hint: "Ready to be picked up" },
     inProgress: { label: "In progress", hint: "Actively being worked on" },
     inReview: { label: "In review", hint: "Awaiting human confirmation" },
     done: { label: "Done", hint: "Completed by Symphoneer" },

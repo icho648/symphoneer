@@ -23,7 +23,7 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
-  workflowStatus: "ready",
+  workflowStatus: "backlog",
   blocked: null,
   createdAt: "2026-08-03T12:00:00Z",
   updatedAt: "2026-08-03T12:00:01Z",
@@ -57,4 +57,11 @@ test("TaskSummary defaults the local WorkflowStatus for legacy Tracker payloads"
   assert.equal(parsed.workflowStatus, "backlog");
   assert.equal(parsed.blocked, null);
   assert.equal(parsed.state, "open");
+});
+
+test("TaskSummary normalizes the retired Ready WorkflowStatus to Backlog", () => {
+  assert.equal(
+    TaskSummarySchema.parse({ ...task, workflowStatus: "ready" }).workflowStatus,
+    "backlog",
+  );
 });

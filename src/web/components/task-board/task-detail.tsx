@@ -217,7 +217,6 @@ function orchestrationStates(
 function workflowStatusLabel(status: WorkflowStatus, dictionary: Dictionary): string {
   return {
     backlog: dictionary.columns.backlog.label,
-    ready: dictionary.columns.ready.label,
     in_progress: dictionary.columns.inProgress.label,
     in_review: dictionary.columns.inReview.label,
     done: dictionary.columns.done.label,

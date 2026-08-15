@@ -192,7 +192,7 @@ test("dirty worktree pause, restart recovery, and resume share the latest observ
     state: "open",
     labels: ["symphoneer:ready"],
     dispatchable: true,
-    workflowStatus: "ready",
+    workflowStatus: "backlog",
     blocked: null,
   };
   const driver = new GitWorktreeDriver({

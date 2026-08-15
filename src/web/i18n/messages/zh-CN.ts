@@ -178,7 +178,6 @@ export const zhCN = {
   },
   columns: {
     backlog: { label: "Backlog", hint: "尚未开始" },
-    ready: { label: "Ready", hint: "可以开始执行" },
     inProgress: { label: "In progress", hint: "正在执行" },
     inReview: { label: "In review", hint: "等待人工确认" },
     done: { label: "Done", hint: "Symphoneer 已完成" },

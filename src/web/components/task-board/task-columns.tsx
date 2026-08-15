@@ -261,7 +261,6 @@ export function TaskColumns() {
 function statusLabel(task: TaskSummary, dictionary: Dictionary): string {
   const labels = {
     backlog: dictionary.columns.backlog.label,
-    ready: dictionary.columns.ready.label,
     in_progress: dictionary.columns.inProgress.label,
     in_review: dictionary.columns.inReview.label,
     done: dictionary.columns.done.label,
@@ -292,9 +291,7 @@ function TaskCard({
     ? latestWorkflow(snapshot?.teamRuns.filter((run) => run.attemptId === attempt.id) ?? [])
     : null;
   const warnings = [
-    !attempt &&
-    (task.workflowStatus === "backlog" || task.workflowStatus === "ready") &&
-    !task.dispatchable
+    !attempt && task.workflowStatus === "backlog" && !task.dispatchable
       ? dictionary.taskCard.dispatchBlocked
       : null,
     attempt?.failure ?? null,
@@ -353,7 +350,7 @@ function TaskCard({
           >
             {dictionary.taskCard.clearBlocked}
           </Button>
-        ) : !attempt && (task.workflowStatus === "backlog" || task.workflowStatus === "ready") ? (
+        ) : !attempt && task.workflowStatus === "backlog" ? (
           <Button
             className="task-card-action task-card-start"
             disabled={connection === "offline" || !task.dispatchable}

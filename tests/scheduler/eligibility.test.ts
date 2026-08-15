@@ -17,7 +17,7 @@ const baseTask: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
-  workflowStatus: "ready",
+  workflowStatus: "backlog",
   blocked: null,
 };
 

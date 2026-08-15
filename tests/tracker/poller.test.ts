@@ -53,15 +53,6 @@ test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
   assert.equal(listCalls, 1);
   assert.equal(service.snapshot().tasks[0]?.workflowStatus, "backlog");
 
-  const ready = await service.execute({
-    kind: "set_task_status",
-    idempotencyKey: "poller-ready",
-    expectedEventSequence: service.snapshot().runtime.lastEventSequence,
-    taskId: task.id,
-    workflowStatus: "ready",
-  });
-  assert.equal(ready.snapshot.tasks[0]?.workflowStatus, "ready");
-
   current = { ...current, state: "closed", updatedAt: "2026-08-07T10:00:00Z" };
   const refreshed = await service.execute({
     kind: "refresh_tracker",
@@ -69,7 +60,7 @@ test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
     expectedEventSequence: service.snapshot().runtime.lastEventSequence,
   });
   assert.equal(refreshed.snapshot.tasks[0]?.state, "closed");
-  assert.equal(refreshed.snapshot.tasks[0]?.workflowStatus, "ready");
+  assert.equal(refreshed.snapshot.tasks[0]?.workflowStatus, "backlog");
   await service.stop();
 });
 
