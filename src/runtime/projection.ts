@@ -251,6 +251,17 @@ export class RuntimeProjection {
       ),
       activities: [...this.#activities.values()]
         .filter((activity) => activity.attemptId === attempt.id)
+        .map((activity) =>
+          activity.status === "running" && attempt.finishedAt != null
+            ? {
+                ...activity,
+                status:
+                  attempt.status === "succeeded"
+                    ? ("completed" as const)
+                    : ("interrupted" as const),
+              }
+            : activity,
+        )
         .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt)),
       session: this.#sessions.get(attempt.id) ?? null,
     });

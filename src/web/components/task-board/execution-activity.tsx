@@ -39,7 +39,9 @@ export function ExecutionActivityFeed() {
     })),
   );
   if (!selectedTask) return null;
-  const blockedReason = selectedTask.blocked?.reason ?? null;
+  const attemptFinished = detail?.attempt.finishedAt != null;
+  const attemptFailure = attemptFinished ? detail?.attempt.failure : null;
+  const blockedReason = attemptFinished ? null : (selectedTask.blocked?.reason ?? null);
   const activities = detail?.activities ?? [];
   const provider = detail?.session?.provider ?? detail?.attempt.providerSession?.provider ?? null;
   const providerKind = providerPresentation(provider).kind;
@@ -67,6 +69,15 @@ export function ExecutionActivityFeed() {
               !
             </span>
             <span>{blockedReason}</span>
+          </div>
+        )}
+
+        {attemptFailure && (
+          <div className="task-alert border-line-strong bg-panel-raised text-muted" role="status">
+            <span>
+              <strong>{dictionary.detail.activity.attemptResult}</strong>
+              {` · ${attemptFailure}`}
+            </span>
           </div>
         )}
 
@@ -168,9 +179,13 @@ function ActivityContent({
             <ol className="task-plan-steps">
               {steps.map((step, index) => {
                 const value = asRecord(step);
+                const status =
+                  activity.status === "interrupted" && value?.status === "inProgress"
+                    ? "interrupted"
+                    : String(value?.status ?? "pending");
                 return (
                   <li key={`${String(value?.text)}-${index}`}>
-                    <span className={`is-${String(value?.status ?? "pending")}`} />
+                    <span className={`is-${status}`} />
                     {String(value?.text ?? "")}
                   </li>
                 );
@@ -232,11 +247,13 @@ function ActivityContent({
     const state =
       activity.status === "running"
         ? "input-available"
-        : activity.status === "failed"
-          ? "output-error"
-          : activity.status === "declined"
-            ? "output-denied"
-            : "output-available";
+        : activity.status === "interrupted"
+          ? "output-interrupted"
+          : activity.status === "failed"
+            ? "output-error"
+            : activity.status === "declined"
+              ? "output-denied"
+              : "output-available";
     return (
       <Tool className="task-ai-tool" defaultOpen={activity.status === "failed"}>
         <ToolHeader state={state} toolName={activity.title} type="dynamic-tool" />

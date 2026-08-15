@@ -14,7 +14,7 @@ export const ActivityPayloadSchema = z.object({
     "warning",
     "error",
   ]),
-  status: z.enum(["info", "running", "completed", "failed", "declined"]),
+  status: z.enum(["info", "running", "completed", "failed", "declined", "interrupted"]),
   title: NonEmptyString,
   content: z.string().nullable(),
   details: z.record(z.string(), JsonValueSchema),

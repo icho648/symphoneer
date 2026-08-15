@@ -209,6 +209,38 @@ test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Veri
   assert.equal(snapshot.verifications[0]?.status, "passed");
 });
 
+test("terminal Attempts do not project running execution activities", async (t) => {
+  const service = runtime(await runtimeFixture(t), "runtime:terminal-activity");
+  t.after(() => service.stop());
+  await service.start();
+  await service.recordTask(task);
+  await service.recordAttempt(attempt, { workspace });
+  await service.recordExecutionActivity({
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "activity:attempt-15:plan-1",
+    attemptId: attempt.id,
+    itemId: "plan-1",
+    kind: "plan",
+    status: "running",
+    title: "Execution plan",
+    content: null,
+    details: { steps: [] },
+    occurredAt: "2026-08-04T08:00:30.000Z",
+  });
+  await service.recordAttempt(
+    {
+      ...attempt,
+      status: "canceled_by_reconciliation",
+      updatedAt: "2026-08-04T08:00:31.000Z",
+      finishedAt: "2026-08-04T08:00:31.000Z",
+      failure: "Task is no longer eligible",
+    },
+    { workspace: { ...workspace, state: "retained", ownerAttemptId: null } },
+  );
+
+  assert.equal(service.attemptDetail(attempt.id)?.activities[0]?.status, "interrupted");
+});
+
 test("Runtime imports a missing Codex session once and persists the complete record", async (t) => {
   const root = await runtimeFixture(t);
   const initial = runtime(root, "runtime:activity-history-initial");
