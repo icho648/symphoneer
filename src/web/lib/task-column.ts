@@ -1,4 +1,4 @@
-import type { RuntimeProject, TaskSummary } from "@symphoneer/contracts";
+import type { AttemptSnapshot, RuntimeProject, TaskSummary } from "@symphoneer/contracts";
 
 export function taskBelongsToProject(task: TaskSummary, project: RuntimeProject): boolean {
   return task.projectId === project.id;
@@ -6,6 +6,10 @@ export function taskBelongsToProject(task: TaskSummary, project: RuntimeProject)
 
 export function taskNeedsAttention(task: TaskSummary): boolean {
   return task.blocked !== null || task.workflowStatus === "in_review";
+}
+
+export function taskCanStart(task: TaskSummary, attempt: AttemptSnapshot | null): boolean {
+  return attempt === null && task.workflowStatus === "backlog" && task.dispatchable;
 }
 
 export function compareExecutionPriority(left: TaskSummary, right: TaskSummary): number {

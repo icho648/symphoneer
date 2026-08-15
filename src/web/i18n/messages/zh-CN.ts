@@ -163,7 +163,6 @@ export const zhCN = {
     noWorkflow: "Workflow 尚未启动",
     notStarted: "尚未启动",
     runtimeOffline: "Runtime 离线",
-    dispatchBlocked: "调度门禁未通过",
     humanAction: "需要人工处理",
     workflowStatus: "Workflow 状态",
     blocked: "已阻塞",

@@ -4,6 +4,7 @@ import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
 import {
   compareExecutionPriority,
   taskBelongsToProject,
+  taskCanStart,
   taskNeedsAttention,
 } from "../../src/web/lib/task-column.ts";
 import { buildCommand } from "../../src/web/stores/runtime-commands.ts";
@@ -55,6 +56,12 @@ test("execution queue prioritizes attention, running, backlog, then done", () =>
   );
   assert.equal(taskNeedsAttention(tasks[0] as TaskSummary), true);
   assert.equal(taskNeedsAttention(task({ workflowStatus: "in_review" })), true);
+});
+
+test("only dispatchable Backlog tasks expose a start action", () => {
+  assert.equal(taskCanStart(task(), null), true);
+  assert.equal(taskCanStart(task({ dispatchable: false }), null), false);
+  assert.equal(taskCanStart(task({ workflowStatus: "in_progress" }), null), false);
 });
 
 test("task board records a human decision instead of only moving the card to done", () => {

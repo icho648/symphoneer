@@ -164,7 +164,6 @@ export const enUS = {
     noWorkflow: "Workflow has not started",
     notStarted: "Not started",
     runtimeOffline: "Runtime offline",
-    dispatchBlocked: "Dispatch gate is closed",
     humanAction: "Human action required",
     workflowStatus: "Workflow status",
     blocked: "Blocked",

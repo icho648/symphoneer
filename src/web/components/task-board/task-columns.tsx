@@ -7,6 +7,7 @@ import { type Dictionary, interpolate } from "../../i18n/index.ts";
 import {
   compareExecutionPriority,
   taskBelongsToProject,
+  taskCanStart,
   taskNeedsAttention,
 } from "../../lib/task-column";
 import { useWorkbench } from "../../stores/workbench.ts";
@@ -291,9 +292,6 @@ function TaskCard({
     ? latestWorkflow(snapshot?.teamRuns.filter((run) => run.attemptId === attempt.id) ?? [])
     : null;
   const warnings = [
-    !attempt && task.workflowStatus === "backlog" && !task.dispatchable
-      ? dictionary.taskCard.dispatchBlocked
-      : null,
     attempt?.failure ?? null,
     workflow?.pendingHumanInput ? dictionary.taskCard.humanAction : null,
   ].filter((value): value is string => value != null);
@@ -350,16 +348,15 @@ function TaskCard({
           >
             {dictionary.taskCard.clearBlocked}
           </Button>
-        ) : !attempt && task.workflowStatus === "backlog" ? (
+        ) : taskCanStart(task, attempt) ? (
           <Button
             className="task-card-action task-card-start"
-            disabled={connection === "offline" || !task.dispatchable}
+            disabled={connection === "offline"}
             size="xs"
-            title={!task.dispatchable ? dictionary.taskCard.dispatchBlocked : undefined}
             type="button"
             onClick={() => startWorkflow(task)}
           >
-            {task.dispatchable ? dictionary.workflow.start : dictionary.taskCard.dispatchBlocked}
+            {dictionary.workflow.start}
           </Button>
         ) : null}
       </div>
