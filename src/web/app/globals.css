@@ -751,7 +751,7 @@
   }
 
   .task-card-alert {
-    @apply inline-flex min-w-0 max-w-48 items-center gap-1 truncate rounded-full bg-danger/10 px-2 py-0.5 text-[9px] text-danger;
+    @apply inline-flex min-w-0 max-w-full items-center gap-1 truncate rounded-full bg-danger/10 px-2 py-0.5 text-[9px] text-danger;
   }
 
   .task-card-alert > span {
