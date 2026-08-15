@@ -412,24 +412,30 @@
 
   .assistant-aui-user-content {
     width: calc(100% - 2rem);
-    @apply grid max-w-none justify-items-end gap-1.5;
+    @apply flex flex-col items-end gap-1.5;
   }
 
   .assistant-aui-assistant {
-    @apply grid gap-2;
+    @apply flex flex-col items-start gap-2;
   }
 
   .assistant-aui-bubble {
-    @apply max-w-[92%] whitespace-pre-wrap rounded-[9px] px-3 py-2 text-[12px] leading-relaxed;
+    overflow-wrap: anywhere;
+    @apply flex flex-col whitespace-pre-wrap rounded-[9px] px-3 py-2 text-[12px] leading-relaxed;
+  }
+
+  .assistant-aui-bubble > p {
+    width: max-content;
+    max-width: 100%;
   }
 
   .assistant-aui-bubble-user {
-    @apply w-full max-w-full bg-selection text-selection-text;
+    @apply max-w-full bg-selection text-selection-text;
   }
 
   .assistant-aui-bubble-assistant {
-    width: calc(100% - 2rem);
-    @apply max-w-none border border-line bg-panel-raised/45 text-ink;
+    max-width: calc(100% - 2rem);
+    @apply border border-line bg-panel-raised/45 text-ink;
   }
 
   .assistant-thread-footer {
