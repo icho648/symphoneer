@@ -12,6 +12,15 @@ export function taskCanStart(task: TaskSummary, attempt: AttemptSnapshot | null)
   return attempt === null && task.workflowStatus === "backlog" && task.dispatchable;
 }
 
+export function visibleTaskLabels(labels: readonly string[]): string[] {
+  return labels.filter((label) => !label.startsWith("symphoneer:"));
+}
+
+export function blockedReasonSummary(reason: string): string {
+  const headline = reason.trim().split(/\r?\n/, 1)[0]?.split(": ", 1)[0] ?? reason;
+  return headline.length > 72 ? `${headline.slice(0, 71)}…` : headline;
+}
+
 export function compareExecutionPriority(left: TaskSummary, right: TaskSummary): number {
   const rank = (task: TaskSummary): number => {
     if (task.blocked) return 0;

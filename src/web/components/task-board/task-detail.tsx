@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import type { Dictionary } from "../../i18n/index.ts";
 import { providerPresentation } from "../../lib/provider-presentation.ts";
+import { visibleTaskLabels } from "../../lib/task-column.ts";
 import {
   selectActiveAttempt,
   selectSelectedAttempts,
@@ -31,6 +32,7 @@ export function TaskOverview() {
   const [bodyExpanded, setBodyExpanded] = useState(false);
   const [creatingAttempt, setCreatingAttempt] = useState(false);
   if (!task) return null;
+  const labels = visibleTaskLabels(task.labels);
   const hasActiveAttempt = attempts.some(
     (item) => item.controller === "codex" || (item.finishedAt == null && item.status !== "paused"),
   );
@@ -124,7 +126,7 @@ export function TaskOverview() {
               <h1 id="task-view-title">{task.title}</h1>
               <p className="task-issue-source">GitHub · {task.state}</p>
             </div>
-            {task.labels.length > 0 && <span>{task.labels.join(" · ")}</span>}
+            {labels.length > 0 && <span>{labels.join(" · ")}</span>}
           </header>
           <h2 id="task-issue-title">{dictionary.detail.issueDescription}</h2>
           <pre className={bodyExpanded ? "is-expanded" : ""}>

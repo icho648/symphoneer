@@ -5,10 +5,12 @@ import { useShallow } from "zustand/react/shallow";
 import { type Dictionary, interpolate } from "../../i18n/index.ts";
 
 import {
+  blockedReasonSummary,
   compareExecutionPriority,
   taskBelongsToProject,
   taskCanStart,
   taskNeedsAttention,
+  visibleTaskLabels,
 } from "../../lib/task-column";
 import { useWorkbench } from "../../stores/workbench.ts";
 import { Button } from "../ui/button";
@@ -295,6 +297,7 @@ function TaskCard({
     attempt?.failure ?? null,
     workflow?.pendingHumanInput ? dictionary.taskCard.humanAction : null,
   ].filter((value): value is string => value != null);
+  const labels = visibleTaskLabels(task.labels);
 
   return (
     <article className={`task-card-wrap ${selected ? "is-selected" : ""}`}>
@@ -311,13 +314,14 @@ function TaskCard({
         <span className="task-card-heading">
           <strong className="task-card-title">{task.title}</strong>
           <span className="task-card-meta">
-            {task.labels.length > 0 && (
-              <span className="task-card-labels">{task.labels.join(" · ")}</span>
-            )}
+            {labels.length > 0 && <span className="task-card-labels">{labels.join(" · ")}</span>}
             {task.blocked && (
-              <span className="task-card-alert">
+              <span className="task-card-alert" title={task.blocked.reason}>
                 <span aria-hidden="true">!</span>
-                {interpolateBlocked(dictionary.taskCard.blockedReason, task.blocked.reason)}
+                {interpolateBlocked(
+                  dictionary.taskCard.blockedReason,
+                  blockedReasonSummary(task.blocked.reason),
+                )}
               </span>
             )}
             {warnings.length > 0 && !task.blocked && (
@@ -342,6 +346,7 @@ function TaskCard({
           <Button
             className="task-card-action"
             size="xs"
+            title={dictionary.taskCard.recheckBlockedHint}
             variant="outline"
             type="button"
             onClick={() => void setTaskStatus(task, task.workflowStatus)}

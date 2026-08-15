@@ -167,9 +167,11 @@ export const enUS = {
     humanAction: "Human action required",
     workflowStatus: "Workflow status",
     blocked: "Blocked",
-    blockedReason: "Blocked because: {reason}",
+    blockedReason: "Blocked · {reason}",
     markDone: "Confirm Done",
-    clearBlocked: "Clear blocked marker",
+    clearBlocked: "Recheck",
+    recheckBlockedHint:
+      "Clear the local blocked state and let the scheduler evaluate the task again",
     modes: {
       single: "Single Agent",
       workflow: "Workflow",

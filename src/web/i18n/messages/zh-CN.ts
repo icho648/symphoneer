@@ -166,9 +166,10 @@ export const zhCN = {
     humanAction: "需要人工处理",
     workflowStatus: "Workflow 状态",
     blocked: "已阻塞",
-    blockedReason: "阻塞原因：{reason}",
+    blockedReason: "已阻塞 · {reason}",
     markDone: "确认完成",
-    clearBlocked: "清除阻塞标记",
+    clearBlocked: "重新检查",
+    recheckBlockedHint: "清除本地阻塞状态，并让调度器重新判断任务是否可执行",
     modes: {
       single: "Single Agent",
       workflow: "Workflow 编排",

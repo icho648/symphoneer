@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
 import {
+  blockedReasonSummary,
   compareExecutionPriority,
   taskBelongsToProject,
   taskCanStart,
   taskNeedsAttention,
+  visibleTaskLabels,
 } from "../../src/web/lib/task-column.ts";
 import { buildCommand } from "../../src/web/stores/runtime-commands.ts";
 
@@ -62,6 +64,14 @@ test("only dispatchable Backlog tasks expose a start action", () => {
   assert.equal(taskCanStart(task(), null), true);
   assert.equal(taskCanStart(task({ dispatchable: false }), null), false);
   assert.equal(taskCanStart(task({ workflowStatus: "in_progress" }), null), false);
+});
+
+test("task cards hide system labels and summarize blocked reasons", () => {
+  assert.deepEqual(visibleTaskLabels(["symphoneer:ready", "bug", "symphoneer:review"]), ["bug"]);
+  assert.equal(
+    blockedReasonSummary("pnpm install failed with code 1: Lockfile verification failed"),
+    "pnpm install failed with code 1",
+  );
 });
 
 test("task board records a human decision instead of only moving the card to done", () => {
