@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-CN" data-lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Symphoneer — 本地优先的 Coding Agent 交付工作台</title>
+    <meta
+      name="description"
+      content="Symphoneer 以 GitHub Issue 为任务入口，以 OpenAI Symphony 为调度核心，把合格任务推进到独立验证和人工决定。非官方、本地优先、早期开发。"
+    />
+    <link rel="canonical" href="https://icho648.github.io/symphoneer/" />
+    <meta property="og:title" content="Symphoneer" />
+    <meta
+      property="og:description"
+      content="指挥一次合格交付，而不是再造一个 Agent。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://icho648.github.io/symphoneer/" />
+    <meta property="og:image" content="https://icho648.github.io/symphoneer/brand/symphoneer-icon.png" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" type="image/png" href="brand/symphoneer-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">
+      <span class="zh">跳到正文</span>
+      <span class="en">Skip to content</span>
+    </a>
+
+    <header class="top">
+      <a class="brand" href="#top">
+        <img alt="" src="brand/symphoneer-icon.png" width="32" height="32" />
+        <span>Symphoneer</span>
+      </a>
+      <nav aria-label="Primary">
+        <a href="#beliefs"><span class="zh">原则</span><span class="en">Beliefs</span></a>
+        <a href="#loop"><span class="zh">流程</span><span class="en">Loop</span></a>
+        <a href="#architecture"><span class="zh">结构</span><span class="en">Architecture</span></a>
+        <a href="#start"><span class="zh">启动</span><span class="en">Start</span></a>
+      </nav>
+      <div class="top-actions">
+        <fieldset class="lang">
+          <legend class="sr-only">Language</legend>
+          <button type="button" data-lang="zh" aria-pressed="true">中</button>
+          <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        </fieldset>
+        <a class="btn btn-ghost" href="https://github.com/icho648/symphoneer">GitHub</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <p class="kicker">
+          <span class="zh">非官方 · 本地优先 · 早期开发</span>
+          <span class="en">Unofficial · local-first · early</span>
+        </p>
+        <h1>
+          <span class="zh">指挥一次合格交付<br />不是再造一个 Agent</span>
+          <span class="en">Conduct a qualified delivery.<br />Don't rebuild another agent.</span>
+        </h1>
+        <p class="lede">
+          <span class="zh">
+            Symphoneer 是本地优先的 Coding Agent 交付工作台：以 Tracker Task 为入口，以
+            OpenAI Symphony 为调度核心，以 Codex App Server 为首版执行者，把合格任务推进到独立验证和人工决定。
+          </span>
+          <span class="en">
+            A local-first coding-agent delivery workbench. Tracker tasks are the source of truth,
+            OpenAI Symphony is the scheduler, and Codex App Server is the first executor.
+            Qualified work moves to independent verification and a human decision.
+          </span>
+        </p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#start">
+            <span class="zh">本地启动</span>
+            <span class="en">Run locally</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/icho648/symphoneer">
+            <span class="zh">打开仓库</span>
+            <span class="en">Open the repo</span>
+          </a>
+        </div>
+        <p class="honesty">
+          <span class="zh">尚无发行版。确定性测试覆盖自动调度主线；真实 GitHub / Codex Smoke 在获得匹配证据前仍为 Not verified。</span>
+          <span class="en">No release yet. Deterministic tests cover the scheduler spine; live GitHub / Codex smoke remains Not verified until matching evidence exists.</span>
+        </p>
+
+        <figure class="shot">
+          <img
+            alt="Symphoneer 深色模式：左侧交付 Assistant 与右侧 GitHub Issue 任务队列"
+            src="screenshots/task-board.png"
+            width="1800"
+            height="1125"
+          />
+          <figcaption>
+            <span class="zh">本地执行面板（深色）：交付 Assistant 与 Tracker Task 队列在同一工作台。</span>
+            <span class="en">Dark local board: Delivery Assistant and the Tracker task queue on one workbench.</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="beliefs" class="beliefs">
+        <p class="section-kicker">
+          <span class="zh">核心原则</span>
+          <span class="en">Core beliefs</span>
+        </p>
+        <h2>
+          <span class="zh">任务是乐谱，Agent 只是声部</span>
+          <span class="en">The task is the score. The agent is a part.</span>
+        </h2>
+        <ul>
+          <li>
+            <h3>Task-first</h3>
+            <p>
+              <span class="zh">持久身份是 Tracker Task。Attempt 是一次可重试的执行，Thread 是运行上下文，不是业务任务。</span>
+              <span class="en">The durable identity is the Tracker task. An Attempt is one retryable execution. A Thread is runtime context, not the business task.</span>
+            </p>
+          </li>
+          <li>
+            <h3>Human authority</h3>
+            <p>
+              <span class="zh">自动化扩大执行能力，不替代资格、接管、验收、Merge 和 Close。</span>
+              <span class="en">Automation expands execution. It does not replace eligibility, handoff, acceptance, merge, or close.</span>
+            </p>
+          </li>
+          <li>
+            <h3>Evidence-linked</h3>
+            <p>
+              <span class="zh">完成声明必须能追溯到独立检查、精确版本和不可变 artifact。Turn 成功不等于验收完成。</span>
+              <span class="en">A completion claim must trace to independent checks, an exact revision, and an immutable artifact. A successful turn is not acceptance.</span>
+            </p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="loop" class="loop">
+        <div class="loop-copy">
+          <p class="section-kicker">
+            <span class="zh">交付主线</span>
+            <span class="en">Delivery loop</span>
+          </p>
+          <h2>
+            <span class="zh">Issue 进，审查出</span>
+            <span class="en">Issues in. Review out.</span>
+          </h2>
+          <p>
+            <span class="zh">现有 Coding Agent 工作把 Issue、会话、Workspace、Diff、测试、PR 和 Review 拆在不同入口。Symphoneer 只回答四件事：任务有没有执行资格、Agent 做了什么、哪些结果被真实验证、下一步由谁负责。</span>
+            <span class="en">Coding-agent work usually scatters issues, threads, workspaces, diffs, tests, PRs, and review across different surfaces. Symphoneer answers four questions: is the task eligible, what did the agent do, what was independently verified, and who acts next.</span>
+          </p>
+        </div>
+        <ol class="staff" aria-label="Delivery loop">
+          <li>
+            <span class="beat">01</span>
+            <strong>Tracker Task</strong>
+            <small>GitHub Issue</small>
+          </li>
+          <li>
+            <span class="beat">02</span>
+            <strong>Dispatch</strong>
+            <small>
+              <span class="zh">资格与并发</span>
+              <span class="en">Eligibility</span>
+            </small>
+          </li>
+          <li>
+            <span class="beat">03</span>
+            <strong>Attempt</strong>
+            <small>Worker / Thread</small>
+          </li>
+          <li>
+            <span class="beat">04</span>
+            <strong>Workspace</strong>
+            <small>Git worktree</small>
+          </li>
+          <li>
+            <span class="beat">05</span>
+            <strong>Codex</strong>
+            <small>App Server</small>
+          </li>
+          <li>
+            <span class="beat">06</span>
+            <strong>Verification</strong>
+            <small>
+              <span class="zh">独立检查</span>
+              <span class="en">Independent checks</span>
+            </small>
+          </li>
+          <li>
+            <span class="beat">07</span>
+            <strong>Human</strong>
+            <small>Review / Merge</small>
+          </li>
+        </ol>
+        <figure class="shot shot-follow">
+          <img
+            alt="Symphoneer 深色模式任务详情：Issue 描述、成功 Attempt、Workspace 与 Codex 执行活动"
+            src="screenshots/task-detail.png"
+            width="1800"
+            height="1125"
+          />
+          <figcaption>
+            <span class="zh">进入 Review 的 Task（深色）：Attempt、Workspace、Codex 活动与人工确认。</span>
+            <span class="en">A task in review (dark): Attempt, Workspace, Codex activity, and human confirmation.</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="architecture" class="architecture">
+        <p class="section-kicker">
+          <span class="zh">进程边界</span>
+          <span class="en">Process boundaries</span>
+        </p>
+        <h2>
+          <span class="zh">一个 Runtime，三张面孔</span>
+          <span class="en">One runtime. Three faces.</span>
+        </h2>
+        <div class="arch-grid">
+          <article>
+            <h3>Runtime</h3>
+            <p>
+              <span class="zh">Symphony 调度、Tracker 同步、Workspace 租约、Verification 与 JSONL 投影。默认 loopback HTTP。</span>
+              <span class="en">Symphony scheduling, tracker sync, workspace leases, verification, and JSONL projections. Loopback HTTP by default.</span>
+            </p>
+          </article>
+          <article>
+            <h3>Web</h3>
+            <p>
+              <span class="zh">主操作面。Vite SPA 只经 Runtime Client 读投影，不持有调度状态。</span>
+              <span class="en">The primary surface. The Vite SPA reads projections through the runtime client and does not own scheduler state.</span>
+            </p>
+          </article>
+          <article>
+            <h3>CLI / MCP</h3>
+            <p>
+              <span class="zh">同一 Client。MCP 只提供查询和受控操作，由 Host 按需 STDIO 拉起。</span>
+              <span class="en">The same client. MCP exposes queries and controlled commands, spawned over STDIO by the host.</span>
+            </p>
+          </article>
+          <article>
+            <h3>Contracts</h3>
+            <p>
+              <span class="zh">跨进程的版本化 Schema。Core 只依赖小而稳定的 Interface，先一个真实 Adapter 加一个 Fake。</span>
+              <span class="en">Versioned schemas across processes. Cores depend on small interfaces: one real adapter and one fake first.</span>
+            </p>
+          </article>
+        </div>
+        <p class="stack">
+          TypeScript · Node 22 · pnpm · Vite · Zod · Symphony SPEC · Codex App Server · MCP · Git worktree
+        </p>
+      </section>
+
+      <section id="not-this" class="not-this">
+        <p class="section-kicker">
+          <span class="zh">明确非目标</span>
+          <span class="en">Explicit non-goals</span>
+        </p>
+        <h2>
+          <span class="zh">不替代 GitHub，也不重写 Agent Loop</span>
+          <span class="en">It does not replace GitHub or rewrite the agent loop</span>
+        </h2>
+        <ul>
+          <li>
+            <span class="zh">不重写 Agent Loop，也不替代 GitHub Issues、Pull Request、Code Review 或 Merge。</span>
+            <span class="en">It does not rewrite the agent loop, and it does not replace GitHub Issues, pull requests, code review, or merge.</span>
+          </li>
+          <li>
+            <span class="zh">不是通用 Workflow Engine、分布式调度器或多租户控制面。</span>
+            <span class="en">It is not a generic workflow engine, a distributed scheduler, or a multi-tenant control plane.</span>
+          </li>
+          <li>
+            <span class="zh">不为未来 Provider、Electron、数据库或队列预装空 Interface。</span>
+            <span class="en">It does not pre-install empty interfaces for future providers, Electron, databases, or queues.</span>
+          </li>
+          <li>
+            <span class="zh">Turn 或 Attempt 成功不会自动变成验收完成；<code>symphoneer:review</code> 才是进入 Review 的 Tracker 事实。</span>
+            <span class="en">A successful turn or attempt does not auto-promote to accepted. <code>symphoneer:review</code> is the tracker fact that enters review.</span>
+          </li>
+        </ul>
+      </section>
+
+      <section id="start" class="start">
+        <p class="section-kicker">Get started</p>
+        <h2>
+          <span class="zh">在本机拉起 Runtime 和 Web</span>
+          <span class="en">Bring up Runtime and Web on the machine</span>
+        </h2>
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span>zsh</span>
+            <button type="button" class="copy" data-copy="git clone https://github.com/icho648/symphoneer.git
+cd symphoneer
+pnpm install
+pnpm dev">
+              <span class="zh">复制</span>
+              <span class="en">Copy</span>
+            </button>
+          </div>
+          <pre><code>git clone https://github.com/icho648/symphoneer.git
+cd symphoneer
+pnpm install
+pnpm dev</code></pre>
+        </div>
+        <p class="hint">
+          <span class="zh">需要 Node ≥ 22.18。MCP 由 Codex 等 Host 按需 <code>pnpm mcp:serve</code>，不要和 <code>pnpm dev</code> 抢同一个进程。</span>
+          <span class="en">Node ≥ 22.18. Hosts such as Codex spawn <code>pnpm mcp:serve</code> on demand — do not fold MCP into the <code>pnpm dev</code> foreground process.</span>
+        </p>
+        <div class="start-links">
+          <a href="https://github.com/icho648/symphoneer">GitHub</a>
+          <a href="https://github.com/icho648/symphoneer/blob/main/docs/design-docs/product-boundary.md">
+            <span class="zh">产品边界</span>
+            <span class="en">Product boundary</span>
+          </a>
+          <a href="https://github.com/icho648/symphoneer/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a>
+          <a href="https://github.com/icho648/symphoneer/issues">Issues</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <p>
+        <span class="zh">Symphoneer 是非官方项目，不以 OpenAI 官方项目或品牌名义发布，也不暗示 OpenAI 认可或维护本项目。</span>
+        <span class="en">Symphoneer is unofficial. It is not published as an OpenAI project or brand, and it does not imply OpenAI endorsement or maintenance.</span>
+      </p>
+      <p>
+        <a href="https://github.com/icho648/symphoneer">icho648/symphoneer</a>
+      </p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
