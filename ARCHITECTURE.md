@@ -14,6 +14,7 @@ ARCHITECTURE.md              当前物理结构和依赖
 .nvmrc                       本地与 CI 共用的 Node 版本下界
 .github/
   workflows/check.yml        Pull Request / main 上的 `pnpm check` CI
+  workflows/pages.yml        将 site/ 发布到 GitHub Pages
 WORKFLOW.md                  进入 Git 的 ProjectProfile（repository-owned 配置与 Prompt）
 .symphoneer/
   orchestrations/            OrchestrationDefinition JSON IR（当前 PIR）
@@ -118,6 +119,15 @@ src/
     lib/                      loopback URL、Intl 格式化和 cn() 工具边界
     app/globals.css           Tailwind CSS v4 语义主题 token 与可访问性基础样式
     public/                   静态品牌资源
+site/                        GitHub Pages 静态展示页（不进入 Runtime 依赖）
+  index.html
+  styles.css
+  script.js
+  brand/
+    symphoneer-icon.png
+  screenshots/
+    task-board.png
+    task-detail.png
 scripts/
   check-project.mjs          链接、Agent 导航、Plan、测试位置、依赖与 Codemap 路径检查
   dev.ts                     Runtime 与 Vite Web 的产品级前台 launcher（`pnpm up` / `pnpm dev`，纳入 tsc）
@@ -148,7 +158,7 @@ docs/
   plans/completed/           已完成的历史协调计划
 ```
 
-当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 和 runtime-tools 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client`、`src/runtime-tools` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为对应的 `@symphoneer/*` package，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；本地 Orchestration checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库、队列、部署配置或生成流水线。根 `WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）；根文件缺失时 loader 兼容旧 `.symphoneer/WORKFLOW.md` 并记录弃用操作。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；确定性 Fake Tracker 测试覆盖生产 tick 自动 dispatch 和同 Worker 多 Turn；真实 GitHub fixture/Codex Turn、MCP Host、MCP Apps Host 和真实安装目录发现仍为 `Not verified`。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
+当前没有 workspace 安装布局、`packages/` 或 `apps/` 目录；Runtime、CLI、Web、MCP 和 runtime-tools 各有进程边界 manifest，`src/contracts`、`src/runtime`、`src/runtime-client`、`src/runtime-tools` 和 `src/mcp` 通过根 `package.json` 的 `link:` 依赖暴露为对应的 `@symphoneer/*` package，依赖仍由根统一安装，因此只有根 `node_modules`；`pnpm-workspace.yaml` 只记录依赖构建脚本的授权决定。CI 通过 `.github/workflows/check.yml` 在 Pull Request 与 `main` 上运行 `pnpm install --frozen-lockfile` 与 `pnpm check`；`.github/workflows/pages.yml` 把 `site/` 静态展示页发布到 GitHub Pages，不进入 Runtime 依赖。本地 Orchestration checkpoint 使用 Runtime 数据目录中的 SQLite，Domain Event 与 artifact 仍使用 JSONL/immutable store，没有外部数据库或队列。根 `WORKFLOW.md` 的 Verification `timeout_ms` 为 300000（5 分钟）；根文件缺失时 loader 兼容旧 `.symphoneer/WORKFLOW.md` 并记录弃用操作。`src/web/tsconfig.json` 与根配置共享 `exactOptionalPropertyTypes`、`noUncheckedIndexedAccess`、`verbatimModuleSyntax`、`erasableSyntaxOnly`；仅保留 `skipLibCheck: true`，因为 React 类型包在关闭该选项时会产生与产品代码无关的第三方诊断。Runtime 持久化使用 Host 注入的数据目录；开发模式下 Vite 代理到 Runtime，Standalone 模式由 Runtime 同源托管 Vite 静态 UI、API 与 SSE。`/healthz` 直接报告 Runtime 进程的 PID、启动时间和运行时长；确定性 Fake Tracker 测试覆盖生产 tick 自动 dispatch 和同 Worker 多 Turn；真实 GitHub fixture/Codex Turn、MCP Host、MCP Apps Host 和真实安装目录发现仍为 `Not verified`。`scripts/dev.ts` 是产品级 launcher（与 `docs/design-docs/system-boundaries.md` 一致），纳入根 `tsc` 覆盖，不是未被类型检查的开发脚本旁路。
 
 ## 当前代码依赖
 

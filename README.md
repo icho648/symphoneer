@@ -1,6 +1,8 @@
 # Symphoneer
 
 > 一个以 OpenAI Symphony 为运行核心的非官方、本地优先 Coding Agent 交付工作台。
+>
+> 展示页：[icho648.github.io/symphoneer](https://icho648.github.io/symphoneer/)
 
 ## 项目状态
 
