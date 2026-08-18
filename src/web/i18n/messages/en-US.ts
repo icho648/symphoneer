@@ -169,6 +169,10 @@ export const enUS = {
     blocked: "Blocked",
     blockedReason: "Blocked · {reason}",
     markDone: "Confirm Done",
+    markReady: "Mark ready",
+    markReadyHint: "Add the symphoneer:ready label so the task can start",
+    openReview: "Open review",
+    openReviewHint: "Open the GitHub pull request for this task",
     clearBlocked: "Recheck",
     recheckBlockedHint:
       "Clear the local blocked state and let the scheduler evaluate the task again",

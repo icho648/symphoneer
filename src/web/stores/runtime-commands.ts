@@ -11,7 +11,7 @@ export type CommandIntent =
   | { kind: "handoff_attempt" }
   | ({ kind: "send_attempt_input"; prompt: string } & CodexRunSettings)
   | { kind: "delete_attempt" }
-  | { kind: "enable_task_dispatch" }
+  | { kind: "enable_task_dispatch"; task?: TaskSummary }
   | {
       kind: "respond_intervention";
       interventionId: string;

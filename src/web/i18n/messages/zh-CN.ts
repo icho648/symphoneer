@@ -168,6 +168,10 @@ export const zhCN = {
     blocked: "已阻塞",
     blockedReason: "已阻塞 · {reason}",
     markDone: "确认完成",
+    markReady: "标记 Ready",
+    markReadyHint: "给 Issue 添加 symphoneer:ready 标签，以便开始执行",
+    openReview: "去 Review",
+    openReviewHint: "打开这个任务对应的 GitHub Pull Request",
     clearBlocked: "重新检查",
     recheckBlockedHint: "清除本地阻塞状态，并让调度器重新判断任务是否可执行",
     modes: {

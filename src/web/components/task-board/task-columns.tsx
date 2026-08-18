@@ -7,8 +7,9 @@ import { type Dictionary, interpolate } from "../../i18n/index.ts";
 import {
   blockedReasonSummary,
   compareExecutionPriority,
+  type TaskCardAction,
   taskBelongsToProject,
-  taskCanStart,
+  taskCardAction,
   taskNeedsAttention,
   visibleTaskLabels,
 } from "../../lib/task-column";
@@ -280,11 +281,22 @@ function TaskCard({
   selected: boolean;
   task: TaskSummary;
 }) {
-  const { connection, dictionary, openTask, setTaskStatus, snapshot, startWorkflow } = useWorkbench(
+  const {
+    connection,
+    dictionary,
+    openReview,
+    openTask,
+    sendCommand,
+    setTaskStatus,
+    snapshot,
+    startWorkflow,
+  } = useWorkbench(
     useShallow((state) => ({
       connection: state.connection,
       dictionary: state.dictionary,
+      openReview: state.openReview,
       openTask: state.openTask,
+      sendCommand: state.sendCommand,
       setTaskStatus: state.setTaskStatus,
       snapshot: state.snapshot,
       startWorkflow: state.startWorkflow,
@@ -342,31 +354,94 @@ function TaskCard({
         </span>
       </button>
       <div className="task-card-actions">
-        {task.blocked ? (
-          <Button
-            className="task-card-action"
-            size="xs"
-            title={dictionary.taskCard.recheckBlockedHint}
-            variant="outline"
-            type="button"
-            onClick={() => void setTaskStatus(task, task.workflowStatus)}
-          >
-            {dictionary.taskCard.clearBlocked}
-          </Button>
-        ) : taskCanStart(task, attempt) ? (
-          <Button
-            className="task-card-action task-card-start"
-            disabled={connection === "offline"}
-            size="xs"
-            type="button"
-            onClick={() => startWorkflow(task)}
-          >
-            {dictionary.workflow.start}
-          </Button>
-        ) : null}
+        <TaskCardNextAction
+          action={taskCardAction(task, attempt)}
+          connection={connection}
+          dictionary={dictionary}
+          onMarkReady={() => void sendCommand({ kind: "enable_task_dispatch", task })}
+          onOpenReview={() => void openReview(task)}
+          onRecheck={() => void setTaskStatus(task, task.workflowStatus)}
+          onStart={() => startWorkflow(task)}
+        />
       </div>
     </article>
   );
+}
+
+function TaskCardNextAction({
+  action,
+  connection,
+  dictionary,
+  onMarkReady,
+  onOpenReview,
+  onRecheck,
+  onStart,
+}: {
+  action: TaskCardAction | null;
+  connection: "online" | "offline";
+  dictionary: Dictionary;
+  onMarkReady: () => void;
+  onOpenReview: () => void;
+  onRecheck: () => void;
+  onStart: () => void;
+}) {
+  if (action?.kind === "recheck") {
+    return (
+      <Button
+        className="task-card-action"
+        size="xs"
+        title={dictionary.taskCard.recheckBlockedHint}
+        type="button"
+        variant="outline"
+        onClick={onRecheck}
+      >
+        {dictionary.taskCard.clearBlocked}
+      </Button>
+    );
+  }
+  if (action?.kind === "mark_ready") {
+    return (
+      <Button
+        className="task-card-action"
+        disabled={connection === "offline"}
+        size="xs"
+        title={dictionary.taskCard.markReadyHint}
+        type="button"
+        variant="outline"
+        onClick={onMarkReady}
+      >
+        {dictionary.taskCard.markReady}
+      </Button>
+    );
+  }
+  if (action?.kind === "start") {
+    return (
+      <Button
+        className="task-card-action task-card-start"
+        disabled={connection === "offline"}
+        size="xs"
+        type="button"
+        onClick={onStart}
+      >
+        {dictionary.workflow.start}
+      </Button>
+    );
+  }
+  if (action?.kind === "open_review") {
+    return (
+      <Button
+        className="task-card-action"
+        size="xs"
+        title={dictionary.taskCard.openReviewHint}
+        type="button"
+        variant="outline"
+        onClick={onOpenReview}
+      >
+        {dictionary.taskCard.openReview}
+      </Button>
+    );
+  }
+  return null;
 }
 
 function latestAttempt(

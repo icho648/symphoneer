@@ -17,6 +17,7 @@ export interface RuntimeControlPlane {
   snapshot(): RuntimeSnapshot;
   events(afterSequence?: number): RuntimeEvent[];
   attemptDetail(attemptId: string): RuntimeAttemptDetail | null;
+  reviewTarget(taskId: string, projectId?: string): Promise<{ url: string }>;
   subscribe(listener: (event: RuntimeEvent) => void): () => void;
   execute(commandInput: unknown): Promise<RuntimeCommandResult>;
 }

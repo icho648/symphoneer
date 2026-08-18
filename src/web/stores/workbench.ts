@@ -16,6 +16,7 @@ import {
   interpolate,
   type Locale,
 } from "../i18n/index.ts";
+import { taskReviewHref } from "../lib/task-column.ts";
 import {
   buildCommand,
   type CodexRunSettings,
@@ -37,6 +38,7 @@ type WorkbenchState = {
   locale: Locale;
   loadCodexModels: (projectId?: string) => Promise<void>;
   notice: string;
+  openReview: (task: TaskSummary) => Promise<void>;
   openTask: (task: TaskSummary, attempt: AttemptSnapshot | null) => void;
   pendingStartTaskId: string | null;
   projects: RuntimeProject[];
@@ -180,6 +182,20 @@ export const useWorkbench = create<WorkbenchState>()((set, get) => {
       void loadActiveAttempt();
     },
 
+    openReview: async (task) => {
+      try {
+        const href =
+          taskReviewHref(task) ??
+          (await getRuntimeClient().reviewTarget(task.id, task.projectId)).url;
+        window.open(href, "_blank", "noopener,noreferrer");
+      } catch (error) {
+        set({
+          notice: error instanceof Error ? error.message : get().dictionary.board.commandFailed,
+        });
+        window.open(task.source.url, "_blank", "noopener,noreferrer");
+      }
+    },
+
     openTask: (task, attempt) => {
       set({
         activeAttemptId: attempt?.id ?? null,
@@ -211,7 +227,8 @@ export const useWorkbench = create<WorkbenchState>()((set, get) => {
     sendCommand: async (intent) => {
       const state = get();
       if (!state.snapshot) return;
-      const task = selectedTask();
+      const task =
+        intent.kind === "enable_task_dispatch" && intent.task ? intent.task : selectedTask();
       const attempt = state.detail?.attempt;
       const isStart = intent.kind === "start_run";
       const isDispatchUpdate = intent.kind === "enable_task_dispatch";

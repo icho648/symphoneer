@@ -201,6 +201,48 @@ export class GitHubIssuesAdapter implements Tracker {
     return this.#readIssue(issueNumber, options);
   }
 
+  async findReviewUrl(
+    nativeId: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<string | null> {
+    if (!/^[1-9]\d*$/.test(nativeId)) throw invalidResponse();
+    const issueNumber = Number(nativeId);
+    const snapshot = await this.#readIssue(issueNumber, options);
+    const fromBody = linkedPullRequestUrl(snapshot.task.body, this.#repository);
+    if (fromBody) return fromBody;
+
+    const comments = await this.#getJson(
+      `https://api.github.com/repos/${this.#repository}/issues/${issueNumber}/comments?per_page=100`,
+      options.signal,
+    );
+    if (Array.isArray(comments)) {
+      for (const comment of comments) {
+        const body = isRecord(comment) && typeof comment.body === "string" ? comment.body : null;
+        const fromComment = linkedPullRequestUrl(body, this.#repository);
+        if (fromComment) return fromComment;
+      }
+    }
+
+    const fromTimeline = pullUrlFromTimeline(
+      await this.#getJson(
+        `https://api.github.com/repos/${this.#repository}/issues/${issueNumber}/timeline?per_page=100`,
+        options.signal,
+      ),
+      this.#repository,
+    );
+    if (fromTimeline) return fromTimeline;
+
+    const owner = this.#repository.split("/")[0];
+    const pulls = await this.#getJson(
+      `https://api.github.com/repos/${this.#repository}/pulls?state=all&head=${owner}:symphoneer/issue-${issueNumber}&per_page=5`,
+      options.signal,
+    );
+    if (Array.isArray(pulls) && isRecord(pulls[0]) && typeof pulls[0].html_url === "string") {
+      return linkedPullRequestUrl(pulls[0].html_url, this.#repository);
+    }
+    return null;
+  }
+
   async #readIssue(
     issueNumber: number,
     options: { expectedUpdatedAt?: string; signal?: AbortSignal },
@@ -244,6 +286,28 @@ export class GitHubIssuesAdapter implements Tracker {
     return toTaskSnapshot(this.#repository, payload, response.headers.get("etag"));
   }
 
+  async #getJson(url: string, signal?: AbortSignal): Promise<unknown> {
+    let response: Response;
+    try {
+      response = await this.#fetch(url, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${this.#token}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        ...(signal === undefined ? {} : { signal }),
+      });
+    } catch {
+      throw new GitHubAdapterError("network_error", true, "GitHub Issue read failed");
+    }
+    if (!response.ok) throw await this.#httpError(response);
+    try {
+      return await response.json();
+    } catch {
+      throw invalidResponse();
+    }
+  }
+
   async #httpError(response: Response): Promise<GitHubAdapterError> {
     if (response.status === 404) {
       return new GitHubAdapterError("not_found", false, "GitHub Issue was not found");
@@ -278,4 +342,29 @@ export class GitHubIssuesAdapter implements Tracker {
       `GitHub Issue read failed with status ${response.status}`,
     );
   }
+}
+
+function linkedPullRequestUrl(text: string | null | undefined, repository: string): string | null {
+  if (!text) return null;
+  const matches = text.matchAll(/https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/gi);
+  for (const match of matches) {
+    if (`${match[1]}/${match[2]}`.toLowerCase() === repository.toLowerCase()) {
+      return `https://github.com/${match[1]}/${match[2]}/pull/${match[3]}`;
+    }
+  }
+  return null;
+}
+
+function pullUrlFromTimeline(events: unknown, repository: string): string | null {
+  if (!Array.isArray(events)) return null;
+  let found: string | null = null;
+  for (const event of events) {
+    if (!isRecord(event) || event.event !== "cross-referenced") continue;
+    const source = isRecord(event.source) ? event.source : null;
+    const issue = source && isRecord(source.issue) ? source.issue : null;
+    if (!issue?.pull_request || typeof issue.html_url !== "string") continue;
+    const url = linkedPullRequestUrl(issue.html_url, repository);
+    if (url) found = url;
+  }
+  return found;
 }

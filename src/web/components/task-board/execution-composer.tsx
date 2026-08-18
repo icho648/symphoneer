@@ -159,11 +159,11 @@ export function ExecutionComposer() {
           <Button
             disabled={connection === "offline" || busy}
             size="xs"
-            title={dictionary.detail.activity.enableDispatchHint}
+            title={dictionary.taskCard.markReadyHint}
             type="button"
-            onClick={() => void run({ kind: "enable_task_dispatch" })}
+            onClick={() => void run({ kind: "enable_task_dispatch", task })}
           >
-            <Tag /> {dictionary.detail.activity.enableDispatch}
+            <Tag /> {dictionary.taskCard.markReady}
           </Button>
         )}
         {showComposer && !inputRequired && (

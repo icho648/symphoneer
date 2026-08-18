@@ -226,6 +226,19 @@ export class RuntimeHttpServer {
       sendJson(response, 200, detail);
       return;
     }
+    const reviewSuffix = "/review-target";
+    if (url.pathname.startsWith("/v1/tasks/") && url.pathname.endsWith(reviewSuffix)) {
+      const taskId = decodeURIComponent(
+        url.pathname.slice("/v1/tasks/".length, -reviewSuffix.length),
+      );
+      if (!taskId) throw new RuntimeError("invalid_request", "Task ID is required");
+      sendJson(
+        response,
+        200,
+        await this.#service.reviewTarget(taskId, url.searchParams.get("projectId") ?? undefined),
+      );
+      return;
+    }
 
     if (this.#uiDistDir && !isApiPath(url.pathname)) {
       if (!this.#sessionToken) {
