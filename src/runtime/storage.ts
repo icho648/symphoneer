@@ -1,18 +1,88 @@
 import { createHash } from "node:crypto";
-import { mkdir, open, readFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 
 import {
+  type AttemptSnapshot,
+  AttemptSnapshotSchema,
   type DomainEventEnvelope,
   DomainEventEnvelopeSchema,
   type RuntimeEvent,
   RuntimeEventSchema,
 } from "@symphoneer/contracts";
+import { z } from "zod";
 import { RuntimeError } from "./errors.ts";
 import { isKnownDomainEventType } from "./events.ts";
 
 const isMissing = (error: unknown): error is NodeJS.ErrnoException =>
   error instanceof Error && "code" in error && error.code === "ENOENT";
+
+const AttemptIndexSchema = z.object({
+  schemaVersion: z.literal(1),
+  attempts: z.array(AttemptSnapshotSchema),
+});
+
+export class AttemptIndexStore {
+  readonly #path: string;
+  #tail: Promise<unknown> = Promise.resolve();
+
+  constructor(root: string) {
+    this.#path = resolve(root, "attempts.json");
+  }
+
+  read(): Promise<AttemptSnapshot[]> {
+    return this.#serialize(() => this.#read());
+  }
+
+  upsert(attempt: AttemptSnapshot): Promise<void> {
+    return this.#serialize(async () => {
+      const attempts = await this.#read();
+      const next = attempts.filter((item) => item.id !== attempt.id);
+      next.push(AttemptSnapshotSchema.parse(attempt));
+      await this.#write(next);
+    });
+  }
+
+  delete(attemptId: string): Promise<void> {
+    return this.#serialize(async () => {
+      const attempts = await this.#read();
+      await this.#write(attempts.filter((attempt) => attempt.id !== attemptId));
+    });
+  }
+
+  replace(attempts: readonly AttemptSnapshot[]): Promise<void> {
+    return this.#serialize(() => this.#write([...attempts]));
+  }
+
+  #read(): Promise<AttemptSnapshot[]> {
+    return readFile(this.#path, "utf8")
+      .then((contents) => AttemptIndexSchema.parse(JSON.parse(contents)).attempts)
+      .catch((error) => {
+        if (isMissing(error)) return [];
+        throw error;
+      });
+  }
+
+  async #write(attempts: AttemptSnapshot[]): Promise<void> {
+    await mkdir(dirname(this.#path), { recursive: true });
+    const temporary = `${this.#path}.tmp`;
+    await writeFile(
+      temporary,
+      `${JSON.stringify({ schemaVersion: 1, attempts }, null, 2)}\n`,
+      "utf8",
+    );
+    await rename(temporary, this.#path);
+  }
+
+  #serialize<T>(operation: () => Promise<T>): Promise<T> {
+    const current = this.#tail.then(operation);
+    this.#tail = current.then(
+      () => undefined,
+      () => undefined,
+    );
+    return current;
+  }
+}
 
 export class JsonlEventStore {
   readonly #path: string;

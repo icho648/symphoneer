@@ -10,7 +10,7 @@ import {
   PROJECTION_SCHEMA_VERSION,
   Timestamp,
 } from "./shared.ts";
-import { TaskSummarySchema, WorkflowStatusSchema } from "./task.ts";
+import { TaskSummarySchema } from "./task.ts";
 import {
   AgentRunSnapshotSchema,
   FakeTeamScenarioSchema,
@@ -74,6 +74,34 @@ export const RuntimeRepositoryCandidateSchema = z.object({
 
 export type RuntimeRepositoryCandidate = z.infer<typeof RuntimeRepositoryCandidateSchema>;
 
+export const IssuePhaseSchema = z.enum(["backlog", "ready", "review", "closed"]);
+export type IssuePhase = z.infer<typeof IssuePhaseSchema>;
+
+export const ExecutionStateSchema = z.enum([
+  "idle",
+  "preparing",
+  "running",
+  "waiting_input",
+  "retry_wait",
+  "stopping",
+]);
+export type ExecutionState = z.infer<typeof ExecutionStateSchema>;
+
+export const DisplayStateSchema = z.enum(["backlog", "ready", "in_progress", "in_review", "done"]);
+export type DisplayState = z.infer<typeof DisplayStateSchema>;
+
+export const AttemptOutcomeSchema = z.enum(["succeeded", "failed", "interrupted"]);
+export type AttemptOutcome = z.infer<typeof AttemptOutcomeSchema>;
+
+export const RuntimeTaskSchema = TaskSummarySchema.extend({
+  issuePhase: IssuePhaseSchema,
+  blocked: z.boolean(),
+  executionState: ExecutionStateSchema,
+  displayState: DisplayStateSchema,
+  lastAttemptOutcome: AttemptOutcomeSchema.nullable(),
+});
+export type RuntimeTask = z.infer<typeof RuntimeTaskSchema>;
+
 export const RuntimeProjectPathSelectionSchema = z.object({
   path: NonEmptyString.nullable(),
   repositories: z.array(RuntimeRepositoryCandidateSchema),
@@ -85,7 +113,7 @@ export const RuntimeSnapshotSchema = z.object({
   schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
   projectionVersion: z.literal(PROJECTION_SCHEMA_VERSION),
   runtime: RuntimeConnectionSchema,
-  tasks: z.array(TaskSummarySchema),
+  tasks: z.array(RuntimeTaskSchema),
   attempts: z.array(AttemptSnapshotSchema),
   verifications: z.array(VerificationResultSchema),
   reviews: z.array(ReviewDecisionSchema),
@@ -109,6 +137,7 @@ export const RuntimeAttemptDetailSchema = z.object({
   teamEvents: z.array(TeamProcessEventSchema),
   activities: z.array(ExecutionActivitySchema).default([]),
   session: ExecutionSessionSchema.nullable().default(null),
+  historyStatus: z.enum(["unattached", "available", "unavailable"]),
 });
 
 export type RuntimeAttemptDetail = z.infer<typeof RuntimeAttemptDetailSchema>;
@@ -207,11 +236,6 @@ export const RuntimeCommandSchema = z.discriminatedUnion("kind", [
     decidedBy: NonEmptyString,
     decision: z.enum(["approved", "rejected", "answered", "canceled"]),
     response: z.string().optional(),
-  }),
-  RuntimeCommandBaseSchema.extend({
-    kind: z.literal("set_task_status"),
-    taskId: NonEmptyString,
-    workflowStatus: WorkflowStatusSchema,
   }),
   RuntimeCommandBaseSchema.extend({
     kind: z.literal("enable_task_dispatch"),

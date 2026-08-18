@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
+import type { AttemptSnapshot, RuntimeTask } from "@symphoneer/contracts";
 import {
   blockedReasonSummary,
   compareExecutionPriority,
@@ -12,7 +12,7 @@ import {
 } from "../../src/web/lib/task-column.ts";
 import { buildCommand } from "../../src/web/stores/runtime-commands.ts";
 
-const task = (overrides: Partial<TaskSummary> = {}): TaskSummary =>
+const task = (overrides: Partial<RuntimeTask> = {}): RuntimeTask =>
   ({
     schemaVersion: 2,
     id: "task-1",
@@ -22,10 +22,13 @@ const task = (overrides: Partial<TaskSummary> = {}): TaskSummary =>
     state: "open",
     labels: [],
     dispatchable: true,
-    workflowStatus: "backlog",
-    blocked: null,
+    issuePhase: "ready",
+    blocked: false,
+    executionState: "idle",
+    displayState: "ready",
+    lastAttemptOutcome: null,
     ...overrides,
-  }) as TaskSummary;
+  }) as RuntimeTask;
 
 test("task board groups tasks by Runtime project identity instead of parsing tracker URLs", () => {
   const project = {
@@ -42,14 +45,13 @@ test("task board groups tasks by Runtime project identity instead of parsing tra
 
 test("execution queue prioritizes attention, running, backlog, then done", () => {
   const tasks = [
-    task({ id: "done", workflowStatus: "done" }),
-    task({ id: "backlog", workflowStatus: "backlog" }),
-    task({ id: "running", workflowStatus: "in_progress" }),
-    task({ id: "review", workflowStatus: "in_review" }),
+    task({ id: "done", issuePhase: "closed", displayState: "done" }),
+    task({ id: "backlog", issuePhase: "backlog", displayState: "backlog" }),
+    task({ id: "running", executionState: "running", displayState: "in_progress" }),
+    task({ id: "review", issuePhase: "review", displayState: "in_review" }),
     task({
       id: "blocked",
-      workflowStatus: "backlog",
-      blocked: { reason: "Workspace conflict", since: "2026-08-08T00:00:00.000Z" },
+      blocked: true,
     }),
   ];
 
@@ -57,21 +59,33 @@ test("execution queue prioritizes attention, running, backlog, then done", () =>
     tasks.sort(compareExecutionPriority).map((item) => item.id),
     ["blocked", "review", "running", "backlog", "done"],
   );
-  assert.equal(taskNeedsAttention(tasks[0] as TaskSummary), true);
-  assert.equal(taskNeedsAttention(task({ workflowStatus: "in_review" })), true);
+  assert.equal(taskNeedsAttention(tasks[0] as RuntimeTask), true);
+  assert.equal(taskNeedsAttention(task({ issuePhase: "review", displayState: "in_review" })), true);
 });
 
 test("only dispatchable Backlog tasks expose a start action", () => {
   assert.equal(taskCanStart(task(), null), true);
   assert.equal(taskCanStart(task({ dispatchable: false }), null), false);
-  assert.equal(taskCanStart(task({ workflowStatus: "in_progress" }), null), false);
+  assert.equal(
+    taskCanStart(task({ executionState: "running", displayState: "in_progress" }), null),
+    false,
+  );
 });
 
 test("task card actions move the delivery flow forward instead of restating the gate", () => {
-  assert.deepEqual(taskCardAction(task({ dispatchable: false }), null), { kind: "mark_ready" });
+  assert.deepEqual(
+    taskCardAction(
+      task({ issuePhase: "backlog", displayState: "backlog", dispatchable: false }),
+      null,
+    ),
+    { kind: "mark_ready" },
+  );
   assert.deepEqual(taskCardAction(task(), null), { kind: "start" });
   assert.deepEqual(
-    taskCardAction(task({ workflowStatus: "in_review", dispatchable: false }), null),
+    taskCardAction(
+      task({ issuePhase: "review", displayState: "in_review", dispatchable: false }),
+      null,
+    ),
     {
       kind: "open_review",
     },
@@ -80,7 +94,8 @@ test("task card actions move the delivery flow forward instead of restating the 
     taskCardAction(
       task({
         body: "Opened https://github.com/example/repo/pull/51 for review.",
-        workflowStatus: "in_review",
+        issuePhase: "review",
+        displayState: "in_review",
         dispatchable: false,
       }),
       null,
@@ -96,14 +111,18 @@ test("task card actions move the delivery flow forward instead of restating the 
           url: "https://github.com/example/repo/pull/15",
         },
         identifier: "#15",
-        workflowStatus: "in_review",
+        issuePhase: "review",
+        displayState: "in_review",
         dispatchable: false,
       }),
       null,
     ),
     { kind: "open_review", href: "https://github.com/example/repo/pull/15" },
   );
-  assert.equal(taskCardAction(task({ workflowStatus: "in_progress" }), null), null);
+  assert.equal(
+    taskCardAction(task({ executionState: "running", displayState: "in_progress" }), null),
+    null,
+  );
 });
 
 test("task cards hide system labels and summarize blocked reasons", () => {
@@ -136,7 +155,7 @@ test("task board records a human decision instead of only moving the card to don
       { kind: "record_review", evidenceIds: ["verification-1"] },
       { expectedEventSequence: 12, idempotencyKey: "review-1" },
       attempt,
-      task({ workflowStatus: "in_review" }),
+      task({ issuePhase: "review", displayState: "in_review" }),
     ),
     {
       kind: "record_review",

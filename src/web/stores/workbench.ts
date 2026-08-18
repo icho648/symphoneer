@@ -4,8 +4,7 @@ import type {
   RuntimeAttemptDetail,
   RuntimeProject,
   RuntimeSnapshot,
-  TaskSummary,
-  WorkflowStatus,
+  RuntimeTask,
 } from "@symphoneer/contracts";
 import type { DefaultRuntimeClient } from "@symphoneer/runtime-client";
 import { create } from "zustand";
@@ -38,8 +37,8 @@ type WorkbenchState = {
   locale: Locale;
   loadCodexModels: (projectId?: string) => Promise<void>;
   notice: string;
-  openReview: (task: TaskSummary) => Promise<void>;
-  openTask: (task: TaskSummary, attempt: AttemptSnapshot | null) => void;
+  openReview: (task: RuntimeTask) => Promise<void>;
+  openTask: (task: RuntimeTask, attempt: AttemptSnapshot | null) => void;
   pendingStartTaskId: string | null;
   projects: RuntimeProject[];
   refresh: () => Promise<void>;
@@ -47,9 +46,9 @@ type WorkbenchState = {
   selectedTaskId: string | null;
   sendCommand: (intent: CommandIntent) => Promise<void>;
   setSnapshot: (snapshot: RuntimeSnapshot) => void;
-  setTaskStatus: (task: TaskSummary, status: WorkflowStatus) => Promise<void>;
+  recheckTask: (task: RuntimeTask) => Promise<void>;
   snapshot: RuntimeSnapshot | null;
-  startWorkflow: (task: TaskSummary, settings?: CodexRunSettings) => void;
+  startWorkflow: (task: RuntimeTask, settings?: CodexRunSettings) => void;
   taskOpen: boolean;
   toggleAssistant: () => void;
 };
@@ -296,16 +295,14 @@ export const useWorkbench = create<WorkbenchState>()((set, get) => {
       void get().sendCommand({ kind: "start_run", mode: "single-agent", task, ...settings });
     },
 
-    setTaskStatus: async (task, workflowStatus) => {
+    recheckTask: async (task) => {
       const snapshot = get().snapshot;
       if (!snapshot) return;
       try {
-        const body = await getRuntimeClient().setTaskStatus({
+        const body = await getRuntimeClient().refreshTracker({
           ...(task.projectId ? { projectId: task.projectId } : {}),
-          taskId: task.id,
-          workflowStatus,
           expectedEventSequence: snapshot.runtime.lastEventSequence,
-          idempotencyKey: `web:set_task_status:${task.id}:${workflowStatus}:${crypto.randomUUID()}`,
+          idempotencyKey: `web:refresh_tracker:${task.id}:${crypto.randomUUID()}`,
         });
         get().setSnapshot(body.snapshot);
         set({ notice: get().dictionary.board.commandAccepted });
@@ -375,7 +372,7 @@ export function configureWorkbench(dictionary: Dictionary, locale: Locale) {
   useWorkbench.setState({ dictionary, locale });
 }
 
-export function selectSelectedTask(state: WorkbenchState): TaskSummary | null {
+export function selectSelectedTask(state: WorkbenchState): RuntimeTask | null {
   return state.snapshot?.tasks.find((task) => task.id === state.selectedTaskId) ?? null;
 }
 

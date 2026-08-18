@@ -3,11 +3,11 @@ import {
   AgentRunSnapshotSchema,
   type AttemptSnapshot,
   AttemptSnapshotSchema,
-  BlockedTaskSchema,
   type ExecutionActivity,
   ExecutionActivitySchema,
   type ExecutionSession,
   ExecutionSessionSchema,
+  type ExecutionState,
   InterventionSchema,
   ReviewDecisionSchema,
   type RuntimeAttemptDetail,
@@ -23,12 +23,12 @@ import {
   type TeamRunSnapshot,
   TeamRunSnapshotSchema,
   VerificationResultSchema,
-  WorkflowStatusSchema,
   type WorkspaceReference,
   WorkspaceReferenceSchema,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "./errors.ts";
 import { eventPayload } from "./events.ts";
+import { deriveRuntimeTask } from "./task-state.ts";
 
 const payloadValue = (event: RuntimeEvent, key: string): unknown => {
   const value = eventPayload(event.event)[key];
@@ -37,8 +37,6 @@ const payloadValue = (event: RuntimeEvent, key: string): unknown => {
   }
   return value;
 };
-
-const currentWorkflowStatus = (value: unknown): unknown => (value === "ready" ? "backlog" : value);
 
 export class RuntimeProjection {
   readonly #tasks = new Map<string, ReturnType<typeof TaskSummarySchema.parse>>();
@@ -58,32 +56,15 @@ export class RuntimeProjection {
     switch (event.type) {
       case "task.upserted": {
         const task = TaskSummarySchema.parse(payloadValue(stored, "task"));
-        const existing = this.#tasks.get(task.id);
-        this.#tasks.set(
-          task.id,
-          TaskSummarySchema.parse(
-            existing
-              ? { ...task, workflowStatus: existing.workflowStatus, blocked: existing.blocked }
-              : task,
-          ),
-        );
+        this.#tasks.set(task.id, task);
         break;
       }
-      case "task.status.changed": {
-        const taskId = event.taskId;
-        if (!taskId) throw new RuntimeError("corrupt_event", "Task status event misses taskId");
-        const task = this.#tasks.get(taskId);
-        if (!task) throw new RuntimeError("not_found", `Task ${taskId} was not found`);
-        this.#tasks.set(
-          taskId,
-          TaskSummarySchema.parse({
-            ...task,
-            workflowStatus: WorkflowStatusSchema.parse(
-              currentWorkflowStatus(payloadValue(stored, "workflowStatus")),
-            ),
-            blocked: BlockedTaskSchema.nullable().parse(payloadValue(stored, "blocked")),
-          }),
-        );
+      case "task.status.changed":
+      case "task.changed":
+      case "attempt.changed":
+      case "attempt.activity.changed":
+      case "attempt.session.changed": {
+        // Legacy status events and payload-free change notifications do not own current facts.
         break;
       }
       case "attempt.recorded":
@@ -198,12 +179,19 @@ export class RuntimeProjection {
     }
   }
 
-  snapshot(runtime: RuntimeConnection): RuntimeSnapshot {
+  snapshot(
+    runtime: RuntimeConnection,
+    executionState: (taskId: string) => ExecutionState = () => "idle",
+  ): RuntimeSnapshot {
     return RuntimeSnapshotSchema.parse({
       schemaVersion: runtime.schemaVersion,
       projectionVersion: 1,
       runtime,
-      tasks: [...this.#tasks.values()].sort((a, b) => a.identifier.localeCompare(b.identifier)),
+      tasks: [...this.#tasks.values()]
+        .map((task) =>
+          deriveRuntimeTask(task, executionState(task.id), this.attemptsForTask(task.id)),
+        )
+        .sort((a, b) => a.identifier.localeCompare(b.identifier)),
       attempts: [...this.#attempts.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
       verifications: [...this.#verifications.values()].sort((a, b) =>
         b.startedAt.localeCompare(a.startedAt),
@@ -264,6 +252,11 @@ export class RuntimeProjection {
         )
         .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt)),
       session: this.#sessions.get(attempt.id) ?? null,
+      historyStatus: this.#sessions.has(attempt.id)
+        ? "available"
+        : attempt.providerSession
+          ? "unavailable"
+          : "unattached",
     });
   }
 
@@ -281,6 +274,38 @@ export class RuntimeProjection {
 
   tasks(): TaskSummary[] {
     return [...this.#tasks.values()];
+  }
+
+  recordTask(task: TaskSummary): void {
+    const parsed = TaskSummarySchema.parse(task);
+    this.#tasks.set(parsed.id, parsed);
+  }
+
+  recordAttempt(attempt: AttemptSnapshot): void {
+    const parsed = AttemptSnapshotSchema.parse(attempt);
+    this.#attempts.set(parsed.id, parsed);
+  }
+
+  recordActivity(activity: ExecutionActivity): void {
+    const parsed = ExecutionActivitySchema.parse(activity);
+    this.#activities.set(parsed.id, parsed);
+  }
+
+  recordSession(session: ExecutionSession): void {
+    const parsed = ExecutionSessionSchema.parse(session);
+    this.#sessions.set(parsed.attemptId, parsed);
+  }
+
+  recordWorkspace(workspace: WorkspaceReference): void {
+    this.#saveWorkspace(workspace);
+  }
+
+  deleteAttempt(attemptId: string): void {
+    this.#attempts.delete(attemptId);
+    this.#sessions.delete(attemptId);
+    for (const [id, activity] of this.#activities) {
+      if (activity.attemptId === attemptId) this.#activities.delete(id);
+    }
   }
 
   getTeamRun(teamRunId: string): TeamRunSnapshot | undefined {

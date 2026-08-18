@@ -38,8 +38,6 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
-  workflowStatus: "backlog",
-  blocked: null,
 };
 
 const workspace: WorkspaceReference = {

@@ -10,8 +10,6 @@ import {
   type RuntimeEvent,
   type RuntimeSnapshot,
   TaskSummarySchema,
-  type WorkflowStatus,
-  WorkflowStatusSchema,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "../errors.ts";
 import type { OrchestrationMode } from "../orchestration/mode.ts";
@@ -20,7 +18,7 @@ import type { TrackerSyncResult } from "../tracker/synchronizer.ts";
 import type { Tracker } from "../tracker/tracker.ts";
 import type { EventLog } from "./event-log.ts";
 import { commandMessage, isCommandEvent } from "./helpers.ts";
-import { recordAttempt, recordExecutionSession, recordTaskStatus } from "./recording.ts";
+import { recordAttempt, recordExecutionSession } from "./recording.ts";
 
 export type StartRunCommand = Extract<RuntimeCommand, { kind: "start_run" }>;
 export type TeamCommand = Exclude<
@@ -36,7 +34,6 @@ export type TeamCommand = Exclude<
       | "delete_attempt"
       | "respond_intervention"
       | "record_review"
-      | "set_task_status"
       | "enable_task_dispatch"
       | "refresh_tracker"
       | "start_run";
@@ -86,17 +83,12 @@ export async function executeCommand(
     }
 
     let stored: RuntimeEvent;
-    if (command.kind === "set_task_status") {
-      stored = await setTaskStatusCommand(log, command);
-    } else if (command.kind === "enable_task_dispatch") {
+    if (command.kind === "enable_task_dispatch") {
       stored = await enableTaskDispatchCommand(log, command, tracker);
     } else if (command.kind === "start_run") {
       if (!workflow) throw new RuntimeError("unsupported", "Workflow commands are not enabled");
       const task = log.projection.getTask(command.task.id);
       if (!task) throw new RuntimeError("not_found", `Task ${command.task.id} was not found`);
-      if (task.workflowStatus !== "backlog") {
-        throw new RuntimeError("conflict", "Task has already started or finished");
-      }
       if (!task.dispatchable) {
         throw new RuntimeError("conflict", "Task is not eligible for execution");
       }
@@ -123,39 +115,6 @@ export async function executeCommand(
     }
     return commandResult(stored.sequence, commandMessage(command), snapshot());
   });
-}
-
-async function setTaskStatusCommand(
-  log: EventLog,
-  command: Extract<RuntimeCommand, { kind: "set_task_status" }>,
-): Promise<RuntimeEvent> {
-  const task = log.projection.getTask(command.taskId);
-  if (!task) throw new RuntimeError("not_found", `Task ${command.taskId} was not found`);
-  const workflowStatus = WorkflowStatusSchema.parse(command.workflowStatus);
-  if (!manualStatusTransitionAllowed(task.workflowStatus, workflowStatus)) {
-    throw new RuntimeError(
-      "conflict",
-      `Cannot change ${task.workflowStatus} to ${workflowStatus} through a human status command`,
-    );
-  }
-  await recordTaskStatus(log, task.id, workflowStatus, null, {
-    source: "human",
-    commit: true,
-    idempotencyKey: `workflow-status:command:${command.idempotencyKey}`,
-  });
-  return log.commit({
-    type: "runtime.command.requested",
-    source: "human",
-    aggregate: { kind: "task", id: task.id },
-    taskId: task.id,
-    idempotencyKey: command.idempotencyKey,
-    payload: { commandKind: command.kind, taskId: task.id, workflowStatus },
-  });
-}
-
-function manualStatusTransitionAllowed(current: WorkflowStatus, next: WorkflowStatus): boolean {
-  if (current === next) return true;
-  return current === "in_review" && next === "done";
 }
 
 async function executeRefreshTrackerCommand(
@@ -212,13 +171,14 @@ async function enableTaskDispatchCommand(
     throw new RuntimeError("conflict", "Tracker returned a different Task after dispatch update");
   }
   await log.commit({
-    type: "task.upserted",
+    type: "task.changed",
     source: "adapter",
     aggregate: { kind: "task", id: updated.id },
     taskId: updated.id,
-    idempotencyKey: `enable-task-dispatch:${command.idempotencyKey}`,
-    payload: { task: updated },
+    idempotencyKey: `enable-task-dispatch:change:${command.idempotencyKey}`,
+    payload: { taskId: updated.id },
   });
+  log.projection.recordTask(updated);
   return log.commit({
     type: "runtime.command.requested",
     source: "human",
@@ -348,18 +308,7 @@ async function requestAttemptCommand(
         taskId: attempt.taskId,
       },
     });
-    const task = log.projection.getTask(attempt.taskId);
-    if (
-      task &&
-      log.projection.attemptsForTask(task.id).length === 0 &&
-      (task.workflowStatus === "in_progress" || task.workflowStatus === "in_review")
-    ) {
-      await recordTaskStatus(log, task.id, "backlog", null, {
-        source: "human",
-        commit: true,
-        idempotencyKey: `workflow-status:delete:${command.idempotencyKey}:backlog`,
-      });
-    }
+    await log.attempts.delete(attempt.id);
     return deleted;
   }
   return log.commit({
@@ -436,7 +385,7 @@ async function recordReviewCommand(
   if (command.decision === "merge_close" && latestAttempt?.id !== attempt.id) {
     throw new RuntimeError("conflict", "Only the latest Attempt can complete its Task");
   }
-  if (command.decision === "merge_close" && task.workflowStatus !== "in_review") {
+  if (command.decision === "merge_close" && !task.labels.includes("symphoneer:review")) {
     throw new RuntimeError("conflict", "Only In review tasks can be marked Done");
   }
   const stored = await log.commit({
@@ -448,13 +397,6 @@ async function recordReviewCommand(
     idempotencyKey: command.idempotencyKey,
     payload: { commandKind: command.kind, review },
   });
-  if (command.decision === "merge_close") {
-    await recordTaskStatus(log, task.id, "done", null, {
-      source: "human",
-      commit: true,
-      idempotencyKey: `workflow-status:review:${command.idempotencyKey}:done`,
-    });
-  }
   await orchestration?.review?.({ review, log });
   return stored;
 }

@@ -221,7 +221,7 @@ export class RuntimeHttpServer {
     const attemptPrefix = "/v1/attempts/";
     if (url.pathname.startsWith(attemptPrefix)) {
       const attemptId = decodeURIComponent(url.pathname.slice(attemptPrefix.length));
-      const detail = this.#service.attemptDetail(attemptId);
+      const detail = await this.#service.attemptDetail(attemptId);
       if (!detail) throw new RuntimeError("not_found", "Attempt was not found");
       sendJson(response, 200, detail);
       return;

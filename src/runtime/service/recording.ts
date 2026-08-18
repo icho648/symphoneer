@@ -1,10 +1,7 @@
-import type { DomainEventEnvelope } from "@symphoneer/contracts";
 import {
   type ActivityOccurrence,
   type AttemptSnapshot,
   AttemptSnapshotSchema,
-  type BlockedTask,
-  BlockedTaskSchema,
   CONTRACT_SCHEMA_VERSION,
   type ExecutionActivity,
   ExecutionActivitySchema,
@@ -19,75 +16,29 @@ import {
   TaskSummarySchema,
   type VerificationResult,
   VerificationResultSchema,
-  type WorkflowStatus,
-  WorkflowStatusSchema,
   type WorkspaceReference,
   WorkspaceReferenceSchema,
 } from "@symphoneer/contracts";
-import { RuntimeError } from "../errors.ts";
 import type { EventLog } from "./event-log.ts";
-import { attemptEventType, workspaceEventType } from "./helpers.ts";
+import { workspaceEventType } from "./helpers.ts";
 
 export async function recordTask(
   log: EventLog,
   taskInput: TaskSummary,
   idempotencyKey?: string,
+  commit = false,
 ): Promise<RuntimeEvent> {
   const task = TaskSummarySchema.parse(taskInput);
-  const event = await log.append({
-    type: "task.upserted",
+  const event = await (commit ? log.commit : log.append).call(log, {
+    type: "task.changed",
     source: "adapter",
     aggregate: { kind: "task", id: task.id },
     taskId: task.id,
-    payload: { task },
-    idempotencyKey: idempotencyKey ?? `task:${task.id}:${task.updatedAt ?? ""}`,
+    payload: { taskId: task.id },
+    idempotencyKey: `task-change:${idempotencyKey ?? `${task.id}:${task.updatedAt ?? ""}`}`,
   });
-  await reconcileTrackerStatus(log, task);
+  log.projection.recordTask(task);
   return event;
-}
-
-export async function reconcileTrackerStatus(
-  log: EventLog,
-  task: TaskSummary,
-  commit = false,
-): Promise<void> {
-  const current = log.projection.getTask(task.id);
-  if (current?.workflowStatus === "in_progress" && task.labels.includes("symphoneer:review")) {
-    await recordTaskStatus(log, task.id, "in_review", null, {
-      source: "adapter",
-      idempotencyKey: `workflow-status:tracker:${task.id}:${current.workflowStatus}:in-review:${task.updatedAt ?? ""}`,
-      commit,
-    });
-  }
-}
-
-export async function recordTaskStatus(
-  log: EventLog,
-  taskId: string,
-  workflowStatus: WorkflowStatus,
-  blocked: BlockedTask | null = null,
-  options: {
-    source?: DomainEventEnvelope["source"];
-    idempotencyKey?: string;
-    commit?: boolean;
-  } = {},
-): Promise<RuntimeEvent | null> {
-  const task = log.projection.getTask(taskId);
-  if (!task) throw new RuntimeError("not_found", `Task ${taskId} was not found`);
-  const status = WorkflowStatusSchema.parse(workflowStatus);
-  const marker = BlockedTaskSchema.nullable().parse(blocked);
-  if (task.workflowStatus === status && JSON.stringify(task.blocked) === JSON.stringify(marker)) {
-    return null;
-  }
-  const event = {
-    type: "task.status.changed",
-    source: options.source ?? "runtime",
-    aggregate: { kind: "task", id: taskId },
-    taskId,
-    payload: { workflowStatus: status, blocked: marker },
-    ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
-  } as const;
-  return options.commit ? log.commit(event) : log.append(event);
 }
 
 export async function recordAttempt(
@@ -99,50 +50,18 @@ export async function recordAttempt(
   const workspace = options.workspace
     ? WorkspaceReferenceSchema.parse(options.workspace)
     : undefined;
+  await log.attempts.upsert(attempt);
   const event = await (options.commit ? log.commit : log.append).call(log, {
-    type: attemptEventType(attempt),
+    type: "attempt.changed",
     source: "symphony-core",
     aggregate: { kind: "attempt", id: attempt.id },
     taskId: attempt.taskId,
     attemptId: attempt.id,
-    payload: { attempt, ...(workspace ? { workspace } : {}) },
-    idempotencyKey: options.idempotencyKey ?? `attempt:${attempt.id}:${attempt.updatedAt}`,
+    payload: { attemptId: attempt.id },
+    idempotencyKey: `attempt-change:${options.idempotencyKey ?? `${attempt.id}:${attempt.updatedAt}`}`,
   });
-  const task = log.projection.getTask(attempt.taskId);
-  if (task) {
-    if (
-      attempt.status !== "finishing" &&
-      attempt.finishedAt == null &&
-      (task.workflowStatus === "backlog" || task.workflowStatus === "in_review")
-    ) {
-      await recordTaskStatus(log, task.id, "in_progress", null, {
-        source: "symphony-core",
-        idempotencyKey: `workflow-status:attempt:${attempt.id}:in-progress:${attempt.updatedAt}`,
-        commit: options.commit ?? false,
-      });
-    } else if (attempt.finishedAt == null && task.blocked !== null) {
-      await recordTaskStatus(log, task.id, task.workflowStatus, null, {
-        source: "symphony-core",
-        idempotencyKey: `workflow-status:attempt:${attempt.id}:unblocked:${attempt.updatedAt}`,
-        commit: options.commit ?? false,
-      });
-    } else if (attempt.finishedAt != null && attempt.status !== "succeeded") {
-      await recordTaskStatus(
-        log,
-        task.id,
-        task.workflowStatus,
-        {
-          reason: attempt.failure ?? "Attempt failed",
-          since: attempt.finishedAt,
-        },
-        {
-          source: "symphony-core",
-          idempotencyKey: `workflow-status:attempt:${attempt.id}:blocked`,
-          commit: options.commit ?? false,
-        },
-      );
-    }
-  }
+  log.projection.recordAttempt(attempt);
+  if (workspace) log.projection.recordWorkspace(workspace);
   return event;
 }
 
@@ -152,14 +71,16 @@ export async function recordExecutionActivity(
   commit = false,
 ): Promise<RuntimeEvent> {
   const activity = ExecutionActivitySchema.parse(activityInput);
-  return (commit ? log.commit : log.append).call(log, {
-    type: "attempt.activity.recorded",
+  const event = await (commit ? log.commit : log.append).call(log, {
+    type: "attempt.activity.changed",
     source: "adapter",
     aggregate: { kind: "attempt", id: activity.attemptId },
     attemptId: activity.attemptId,
-    payload: { activity },
-    idempotencyKey: `activity:${activity.id}:${activity.status}:${activity.occurredAt}`,
+    payload: { activityId: activity.id },
+    idempotencyKey: `activity-change:${activity.id}:${activity.status}:${activity.occurredAt}`,
   });
+  log.projection.recordActivity(activity);
+  return event;
 }
 
 export function recordAgentActivity(
@@ -186,14 +107,16 @@ export async function recordExecutionSession(
   commit = false,
 ): Promise<RuntimeEvent> {
   const session = ExecutionSessionSchema.parse(sessionInput);
-  return (commit ? log.commit : log.append).call(log, {
-    type: "attempt.session.recorded",
+  const event = await (commit ? log.commit : log.append).call(log, {
+    type: "attempt.session.changed",
     source: "adapter",
     aggregate: { kind: "attempt", id: session.attemptId },
     attemptId: session.attemptId,
-    payload: { session },
-    idempotencyKey: `session:${session.attemptId}:${session.threadId}:${session.capturedAt}`,
+    payload: { attemptId: session.attemptId },
+    idempotencyKey: `session-change:${session.attemptId}:${session.threadId}:${session.capturedAt}`,
   });
+  log.projection.recordSession(session);
+  return event;
 }
 
 export async function recordWorkspace(
@@ -254,16 +177,6 @@ export async function recordReview(
     payload: { review },
     idempotencyKey: idempotencyKey ?? `review:${review.id}`,
   });
-  if (review.decision === "merge_close") {
-    const attempt = log.projection.getAttempt(review.attemptId);
-    const task = attempt ? log.projection.getTask(attempt.taskId) : undefined;
-    if (task && task.workflowStatus === "in_review") {
-      await recordTaskStatus(log, task.id, "done", null, {
-        source: "human",
-        idempotencyKey: `workflow-status:review:${review.id}:done`,
-      });
-    }
-  }
   return event;
 }
 

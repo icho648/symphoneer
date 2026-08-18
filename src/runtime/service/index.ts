@@ -16,7 +16,6 @@ export {
   recordIntervention,
   recordReview,
   recordTask,
-  recordTaskStatus,
   recordVerification,
   recordWorkspace,
 } from "./recording.ts";

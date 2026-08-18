@@ -8,6 +8,7 @@ import {
   AttemptSnapshotSchema,
   CONTRACT_SCHEMA_VERSION,
   type ExecutionSession,
+  type ExecutionState,
   InterventionSchema,
   type RuntimeCommand,
   type TaskSummary,
@@ -40,7 +41,6 @@ import {
   recordExecutionSession,
   recordIntervention,
   recordTask,
-  recordTaskStatus,
   recordWorkspace,
 } from "../service/recording.ts";
 import type { Tracker } from "../tracker/tracker.ts";
@@ -133,6 +133,25 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     this.#projectRoot = projectRoot ? resolve(projectRoot) : undefined;
   }
 
+  executionState(taskId: string): ExecutionState {
+    const run = [...this.#runs.values()].find((candidate) => candidate.task.id === taskId);
+    if (run?.stopping || (this.#stopping && this.#runningTasks.has(taskId))) return "stopping";
+    if (
+      run?.handle &&
+      [...this.#interventions.values()].some((item) => item.handle === run.handle)
+    ) {
+      return "waiting_input";
+    }
+    if (run) {
+      return run.attempt.status === "streaming_turn" || run.attempt.status === "finishing"
+        ? "running"
+        : "preparing";
+    }
+    if (this.#retryTimers.has(taskId)) return "retry_wait";
+    if (this.#runningTasks.has(taskId)) return "preparing";
+    return "idle";
+  }
+
   tick(input: { tasks: readonly TaskSummary[]; log: EventLog }): Promise<void> {
     const startedAt = Date.now();
     const tick = this.#tickTail.then(async () => {
@@ -165,7 +184,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       [...this.#runs.values()].map((run) =>
         run.stopping || run.attempt.finishedAt !== null
           ? run.settled.promise
-          : this.#pause(run, true),
+          : this.#interrupt(run, true),
       ),
     );
     await Promise.allSettled([...this.#jobs]);
@@ -427,7 +446,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       if (
         claimed.has(task.id) ||
         this.#runningTasks.has(task.id) ||
-        log.projection.getTask(task.id)?.blocked ||
+        task.labels.includes("symphoneer:blocked") ||
         !evaluateEligibility(task, corePolicy(workflow)).eligible
       ) {
         continue;
@@ -570,20 +589,6 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     } catch (error) {
       if (run) {
         if (!run.stopping) await this.#fail(run, error);
-      } else {
-        const current = log.projection.getTask(task.id);
-        if (current) {
-          await recordTaskStatus(
-            log,
-            current.id,
-            current.workflowStatus,
-            { reason: errorMessage(error), since: this.#timestamp() },
-            {
-              source: "symphony-core",
-              idempotencyKey: `single-agent:task:${current.id}:blocked:${errorMessage(error)}`,
-            },
-          ).catch(() => undefined);
-        }
       }
     }
   }
@@ -678,15 +683,6 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     } catch (error) {
       started?.reject(error);
       if (run) await this.#fail(run, error);
-      else {
-        await recordTaskStatus(
-          log,
-          task.id,
-          task.workflowStatus,
-          { reason: errorMessage(error), since: this.#timestamp() },
-          { source: "symphony-core" },
-        ).catch(() => undefined);
-      }
     }
   }
 
@@ -845,6 +841,12 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
         },
         updatedAt,
       });
+    if (run.attempt.providerSession?.provider === "claude-code") {
+      run.attempt = AttemptSnapshotSchema.parse({
+        ...run.attempt,
+        providerSession: { ...run.attempt.providerSession, cwd: run.workspace.path },
+      });
+    }
     await this.#recordAttempt(run);
   }
 
@@ -911,6 +913,26 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     run.settled.resolve();
   }
 
+  async #interrupt(run: ActiveRun, commit = false): Promise<void> {
+    run.stopping = true;
+    await run.handle?.interrupt().catch(() => undefined);
+    await run.handle?.completion.catch(() => undefined);
+    await run.worker?.close().catch(() => undefined);
+    await this.#retain(run, commit);
+    const interruptedAt = this.#atLeastNow(run.attempt.updatedAt);
+    run.attempt = AttemptSnapshotSchema.parse({
+      ...run.attempt,
+      status: "interrupted",
+      activeTurn: null,
+      updatedAt: interruptedAt,
+      finishedAt: interruptedAt,
+      failure: "Symphoneer stopped before the Attempt finished",
+    });
+    await this.#recordAttempt(run, commit);
+    this.#runs.delete(run.attempt.id);
+    run.settled.resolve();
+  }
+
   async #fail(run: ActiveRun, error: unknown): Promise<void> {
     await run.handle?.interrupt().catch(() => undefined);
     await run.handle?.completion.catch(() => undefined);
@@ -968,21 +990,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       this.#scheduleTick(run.log, run.attempt.taskId, retry.dueAtMs);
       return;
     }
-    const task = run.log.projection.getTask(run.attempt.taskId);
-    if (!task) return;
-    await recordTaskStatus(
-      run.log,
-      task.id,
-      task.workflowStatus,
-      {
-        reason: `Automatic Attempt limit reached (${run.workflow.config.agent.maxAttempts}); retry explicitly to continue`,
-        since: run.attempt.finishedAt ?? this.#timestamp(),
-      },
-      {
-        source: "symphony-core",
-        idempotencyKey: `single-agent:attempt-limit:${run.attempt.id}`,
-      },
-    );
+    // The failed Attempt is the durable signal; the Tracker phase remains authoritative.
   }
 
   async #reloadWorkflow(): Promise<ProjectProfile> {
@@ -1046,7 +1054,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
           log,
           AttemptSnapshotSchema.parse({
             ...attempt,
-            status: "canceled_by_reconciliation",
+            status: "interrupted",
             activeTurn: null,
             updatedAt: finishedAt,
             finishedAt,
@@ -1063,7 +1071,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
           log,
           AttemptSnapshotSchema.parse({
             ...attempt,
-            status: "canceled_by_reconciliation",
+            status: "interrupted",
             activeTurn: null,
             updatedAt: finishedAt,
             finishedAt,
@@ -1188,7 +1196,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
 
   async #stopRunIfNeeded(run: ActiveRun): Promise<boolean> {
     if (!this.#stopping) return false;
-    if (!run.stopping) await this.#pause(run, true);
+    if (!run.stopping) await this.#interrupt(run, true);
     return true;
   }
 

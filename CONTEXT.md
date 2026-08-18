@@ -1,14 +1,12 @@
 # Symphoneer Domain Language
 
-## Task workflow
+## Task and execution state
 
-- `backlog`: eligible or ineligible work that has not started.
-- `in_progress`: work owned by an active Attempt.
-- `in_review`: execution finished and awaits a human decision.
-- `done`: the human-approved terminal state.
-- `blocked`: an independent marker explaining why progress cannot continue; it is not a workflow state.
+- `issuePhase`: Tracker-derived `backlog | ready | review | closed`.
+- `blocked`: an independent Tracker label, not a workflow lane.
+- `executionState`: live Runtime ownership: `idle | preparing | running | waiting_input | retry_wait | stopping`.
+- `displayState`: UI-only derivation. Priority is closed, live ownership, review, ready, then backlog.
+- `lastAttemptOutcome`: durable `succeeded | failed | interrupted` history badge; it never changes the Issue phase.
 
-`dispatchable` is Tracker-derived eligibility. The `symphoneer:ready` label may contribute to that
-eligibility, but `ready` is not a Task workflow state.
-
-Workspace and Assistant readiness are separate lifecycle concepts and may still use `ready`.
+`in_progress` therefore means the current Runtime owns execution. A Provider Session reference or an
+unfinished historical Attempt does not prove that work is running.

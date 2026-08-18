@@ -20,7 +20,7 @@ import type {
   WorkflowCommand,
 } from "../service/commands.ts";
 import type { EventLog } from "../service/event-log.ts";
-import { recordTaskStatus } from "../service/recording.ts";
+import { recordAttempt, recordTask } from "../service/recording.ts";
 import type {
   TeamOrchestrator,
   TeamResumeInput,
@@ -123,14 +123,7 @@ export class WorkflowRuntimeCoordinator {
     if (log.projection.getAttempt(attemptId)) {
       throw new RuntimeError("conflict", `Attempt ${attemptId} already exists`);
     }
-    await log.commit({
-      type: "task.upserted",
-      source: "adapter",
-      aggregate: { kind: "task", id: task.id },
-      taskId: task.id,
-      idempotencyKey: `fake-team-task:${task.id}:${task.updatedAt ?? ""}`,
-      payload: { task },
-    });
+    await recordTask(log, task, `fake-team-task:${task.id}:${task.updatedAt ?? ""}`, true);
     const now = this.#now().toISOString();
     const workspace = WorkspaceReferenceSchema.parse(
       command.workspace ?? {
@@ -170,19 +163,7 @@ export class WorkflowRuntimeCoordinator {
       attemptId,
       payload: { workspace },
     });
-    await log.commit({
-      type: "attempt.recorded",
-      source: "symphony-core",
-      aggregate: { kind: "attempt", id: attempt.id },
-      taskId: task.id,
-      attemptId,
-      payload: { attempt, workspace },
-    });
-    await recordTaskStatus(log, task.id, "in_progress", null, {
-      source: "symphony-core",
-      commit: true,
-      idempotencyKey: `workflow-status:attempt:${attempt.id}:in-progress`,
-    });
+    await recordAttempt(log, attempt, { workspace, commit: true });
     const request: TeamRunRequest = {
       teamRunId,
       attemptId,
@@ -230,27 +211,7 @@ export class WorkflowRuntimeCoordinator {
         finishedAt: teamRun.updatedAt,
         failure: teamRun.status === "completed" ? null : "fake_team_stopped",
       });
-      await log.commit({
-        type: "attempt.finished",
-        source: "symphony-core",
-        aggregate: { kind: "attempt", id: attempt.id },
-        taskId: attempt.taskId,
-        attemptId: attempt.id,
-        payload: { attempt: finished },
-      });
-      if (teamRun.status !== "completed") {
-        await recordTaskStatus(
-          log,
-          attempt.taskId,
-          log.projection.getTask(attempt.taskId)?.workflowStatus ?? "in_progress",
-          { reason: "Team workflow stopped", since: teamRun.updatedAt },
-          {
-            source: "symphony-core",
-            commit: true,
-            idempotencyKey: `workflow-status:team:${teamRun.id}:blocked`,
-          },
-        );
-      }
+      await recordAttempt(log, finished, { commit: true });
     }
   }
 
@@ -287,28 +248,6 @@ export class WorkflowRuntimeCoordinator {
       idempotencyKey: `team-verification:${teamRun.id}`,
       payload: { verification },
     });
-    if (verification.status === "passed") {
-      await recordTaskStatus(log, taskId, "in_review", null, {
-        source: "symphony-core",
-        commit: true,
-        idempotencyKey: `workflow-status:verification:${verification.id}:in-review`,
-      });
-    } else {
-      await recordTaskStatus(
-        log,
-        taskId,
-        log.projection.getTask(taskId)?.workflowStatus ?? "in_progress",
-        {
-          reason: `Verification ${verification.status}`,
-          since: verification.finishedAt ?? verification.startedAt,
-        },
-        {
-          source: "symphony-core",
-          commit: true,
-          idempotencyKey: `workflow-status:verification:${verification.id}:blocked`,
-        },
-      );
-    }
   }
 
   #commandEvent(

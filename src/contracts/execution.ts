@@ -44,6 +44,7 @@ export const AttemptStatusSchema = z.enum([
   "failed",
   "timed_out",
   "stalled",
+  "interrupted",
   "canceled_by_reconciliation",
 ]);
 
@@ -52,6 +53,7 @@ const terminalAttemptStatuses = new Set([
   "failed",
   "timed_out",
   "stalled",
+  "interrupted",
   "canceled_by_reconciliation",
 ]);
 
@@ -77,6 +79,7 @@ export const AttemptSnapshotSchema = z
         provider: z.enum(["codex-app-server", "claude-code", "fake"]).optional(),
         threadId: NonEmptyString,
         lastTurnId: NonEmptyString,
+        cwd: NonEmptyString.optional(),
       })
       .nullable()
       .optional(),

@@ -7,7 +7,7 @@ import {
 import { RuntimeError } from "../errors.ts";
 import type { DomainEventType } from "../events.ts";
 import { RuntimeProjection } from "../projection.ts";
-import { ImmutableArtifactStore, JsonlEventStore } from "../storage.ts";
+import { AttemptIndexStore, ImmutableArtifactStore, JsonlEventStore } from "../storage.ts";
 import { asJsonPayload } from "./helpers.ts";
 
 type EventSource = DomainEventEnvelope["source"];
@@ -23,6 +23,7 @@ export interface EventLogOptions {
 /** Owns append-only replay, idempotency window, projection apply, and listener fan-out. */
 export class EventLog {
   readonly events: JsonlEventStore;
+  readonly attempts: AttemptIndexStore;
   readonly artifacts: ImmutableArtifactStore;
   readonly projection = new RuntimeProjection();
   readonly #now: () => Date;
@@ -35,6 +36,7 @@ export class EventLog {
 
   constructor(options: EventLogOptions) {
     this.events = options.eventStore ?? new JsonlEventStore(options.dataDir);
+    this.attempts = new AttemptIndexStore(options.dataDir);
     this.artifacts = options.artifactStore ?? new ImmutableArtifactStore(options.dataDir);
     this.#now = options.now;
     this.#idFactory = options.idFactory;
@@ -56,8 +58,22 @@ export class EventLog {
     if (this.#started) return;
     this.#storedEvents = await this.events.replay();
     for (const event of this.#storedEvents) {
-      this.projection.apply(event);
+      if (!legacyReplicaEvent(event.event.type)) this.projection.apply(event);
       if (event.event.idempotencyKey) this.#idempotency.set(event.event.idempotencyKey, event);
+    }
+    const indexedAttempts = await this.attempts.read();
+    if (indexedAttempts.length === 0) {
+      const migrated = this.projection.snapshot({
+        schemaVersion: CONTRACT_SCHEMA_VERSION,
+        status: "offline",
+        runtimeId: "runtime:migration",
+        endpoint: "http://127.0.0.1:0",
+        startedAt: this.#now().toISOString(),
+        lastEventSequence: this.#storedEvents.length,
+      }).attempts;
+      if (migrated.length > 0) await this.attempts.replace(migrated);
+    } else {
+      for (const attempt of indexedAttempts) this.projection.recordAttempt(attempt);
     }
     this.#started = true;
   }
@@ -150,4 +166,13 @@ export class EventLog {
     for (const listener of this.#listeners) listener(stored);
     return stored;
   }
+}
+
+function legacyReplicaEvent(type: string): boolean {
+  return (
+    type === "task.upserted" ||
+    type === "task.status.changed" ||
+    type === "attempt.activity.recorded" ||
+    type === "attempt.session.recorded"
+  );
 }

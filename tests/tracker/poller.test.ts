@@ -22,8 +22,6 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
-  workflowStatus: "backlog",
-  blocked: null,
 };
 
 async function dataDir(t: TestContext): Promise<string> {
@@ -32,7 +30,7 @@ async function dataDir(t: TestContext): Promise<string> {
   return root;
 }
 
-test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
+test("TrackerSynchronizer derives display state from current Tracker facts", async (t) => {
   const root = await dataDir(t);
   let current = task;
   let listCalls = 0;
@@ -51,7 +49,7 @@ test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
   await service.start();
   await service.refreshTracker();
   assert.equal(listCalls, 1);
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "backlog");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "ready");
 
   current = { ...current, state: "closed", updatedAt: "2026-08-07T10:00:00Z" };
   const refreshed = await service.execute({
@@ -60,7 +58,7 @@ test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
     expectedEventSequence: service.snapshot().runtime.lastEventSequence,
   });
   assert.equal(refreshed.snapshot.tasks[0]?.state, "closed");
-  assert.equal(refreshed.snapshot.tasks[0]?.workflowStatus, "backlog");
+  assert.equal(refreshed.snapshot.tasks[0]?.displayState, "done");
 
   await service.recordAttempt({
     schemaVersion: CONTRACT_SCHEMA_VERSION,
@@ -81,7 +79,7 @@ test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
     updatedAt: "2026-08-07T10:02:00Z",
   };
   await service.refreshTracker();
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "done");
   await service.stop();
 });
 

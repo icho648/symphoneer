@@ -2,6 +2,7 @@ import type {
   AttemptSnapshot,
   CodexModel,
   ExecutionSession,
+  ExecutionState,
   ExecutorReasoningEffort,
   ExecutorSandbox,
   ReviewDecision,
@@ -12,6 +13,7 @@ import type { InterventionResponse } from "../executor/agent-runner.ts";
 import type { EventLog } from "../service/event-log.ts";
 
 export interface OrchestrationMode {
+  executionState?(taskId: string): ExecutionState;
   stop?(): Promise<void>;
   tick?(input: { tasks: readonly TaskSummary[]; log: EventLog }): Promise<void>;
   listModels?(): Promise<CodexModel[]>;

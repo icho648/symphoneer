@@ -58,7 +58,6 @@ export type RespondInterventionInput = Omit<
   Extract<RuntimeCommand, { kind: "respond_intervention" }>,
   "kind"
 >;
-export type SetTaskStatusInput = Omit<Extract<RuntimeCommand, { kind: "set_task_status" }>, "kind">;
 export type EnableTaskDispatchInput = Omit<
   Extract<RuntimeCommand, { kind: "enable_task_dispatch" }>,
   "kind"
@@ -259,10 +258,6 @@ export class DefaultRuntimeClient {
 
   respondToIntervention(input: RespondInterventionInput): Promise<RuntimeCommandResult> {
     return this.execute({ ...input, kind: "respond_intervention" });
-  }
-
-  setTaskStatus(input: SetTaskStatusInput): Promise<RuntimeCommandResult> {
-    return this.execute({ ...input, kind: "set_task_status" });
   }
 
   enableTaskDispatch(input: EnableTaskDispatchInput): Promise<RuntimeCommandResult> {

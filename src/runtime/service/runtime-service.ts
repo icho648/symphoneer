@@ -109,23 +109,26 @@ export class RuntimeService {
   }
 
   async start(): Promise<void> {
+    if (this.#log.started) return;
     await this.#log.start();
-    await this.#restoreSessions();
+    await this.#interruptOrphanedAttempts();
   }
 
-  async #restoreSessions(): Promise<void> {
-    if (!this.#sessionHistory) return;
+  async #interruptOrphanedAttempts(): Promise<void> {
     const attempts = this.#log.projection.snapshot(this.#connection("online")).attempts;
     for (const attempt of attempts) {
-      if (!attempt.providerSession || this.#log.projection.attemptDetail(attempt.id)?.session) {
-        continue;
-      }
-      try {
-        const session = await this.#sessionHistory(attempt);
-        if (session?.attemptId === attempt.id) await recordExecutionSession(this.#log, session);
-      } catch {
-        // Provider history can be imported later; local event replay must remain available offline.
-      }
+      if (attempt.controller !== "symphoneer" || attempt.finishedAt != null) continue;
+      const interruptedAt = new Date(
+        Math.max(this.#now().getTime(), Date.parse(attempt.updatedAt) + 1),
+      ).toISOString();
+      await recordAttempt(this.#log, {
+        ...attempt,
+        status: "interrupted",
+        activeTurn: null,
+        updatedAt: interruptedAt,
+        finishedAt: interruptedAt,
+        failure: "Symphoneer restarted before the Attempt finished",
+      });
     }
   }
 
@@ -145,7 +148,10 @@ export class RuntimeService {
 
   snapshot(): RuntimeSnapshot {
     this.#log.requireStarted();
-    return this.#log.projection.snapshot(this.#connection("online"));
+    return this.#log.projection.snapshot(
+      this.#connection("online"),
+      (taskId) => this.#defaultOrchestration?.executionState?.(taskId) ?? "idle",
+    );
   }
 
   async listModels(): Promise<CodexModel[]> {
@@ -176,9 +182,22 @@ export class RuntimeService {
     return this.#log.listAfter(afterSequence);
   }
 
-  attemptDetail(attemptId: string) {
+  async attemptDetail(attemptId: string) {
     this.#log.requireStarted();
-    return this.#log.projection.attemptDetail(attemptId.trim());
+    const id = attemptId.trim();
+    let detail = this.#log.projection.attemptDetail(id);
+    if (!detail?.session && detail?.attempt.providerSession && this.#sessionHistory) {
+      try {
+        const session = await this.#sessionHistory(detail.attempt);
+        if (session?.attemptId === id) {
+          this.#log.projection.recordSession(session);
+          detail = this.#log.projection.attemptDetail(id);
+        }
+      } catch {
+        // Provider history is optional; Attempt metadata remains usable when unavailable.
+      }
+    }
+    return detail;
   }
 
   async reviewTarget(taskId: string, _projectId?: string): Promise<{ url: string }> {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -42,10 +42,8 @@ const task: TaskSummary = {
   },
   title: "Build the Runtime and Task Board",
   state: "open",
-  labels: [],
+  labels: ["symphoneer:ready"],
   dispatchable: true,
-  workflowStatus: "backlog",
-  blocked: null,
 };
 
 const workspace: WorkspaceReference = {
@@ -106,11 +104,11 @@ function runtime(root: string, runtimeId: string): RuntimeService {
     dataDir: root,
     runtimeId,
     now: () => new Date("2026-08-04T08:00:00.000Z"),
-    idFactory: () => `event-${++id}`,
+    idFactory: () => `${runtimeId}:event-${++id}`,
   });
 }
 
-test("Runtime projection normalizes historical Ready events to Backlog", () => {
+test("Runtime projection ignores retired local workflow events", () => {
   const projection = new RuntimeProjection();
   const event = {
     schemaVersion: CONTRACT_SCHEMA_VERSION,
@@ -133,10 +131,10 @@ test("Runtime projection normalizes historical Ready events to Backlog", () => {
     },
   } as RuntimeEvent);
 
-  assert.equal(projection.getTask(task.id)?.workflowStatus, "backlog");
+  assert.equal(projection.getTask(task.id)?.state, "open");
 });
 
-test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Verification artifacts", async (t) => {
+test("Runtime persists Attempt indexes and artifacts without replaying Tracker or Provider replicas", async (t) => {
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:test");
   await service.start();
@@ -179,12 +177,22 @@ test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Veri
   await service.recordExecutionSession(session);
   const recorded = await service.recordVerification(verification, { artifact: "check output" });
 
+  const eventsJsonl = await readFile(resolve(root, "events", "domain-events.jsonl"), "utf8");
+  const attemptsJson = await readFile(resolve(root, "attempts.json"), "utf8");
+  assert.doesNotMatch(eventsJsonl, /Build the Runtime and Task Board/);
+  assert.doesNotMatch(eventsJsonl, /Implemented and verified the change/);
+  assert.doesNotMatch(eventsJsonl, /Implement #15/);
+  assert.match(attemptsJson, /"id": "attempt-15"/);
+
   assert.equal(service.health().process.status, "running");
   assert.equal(service.health().process.pid, process.pid);
   assert.equal(service.snapshot().tasks[0]?.id, task.id);
-  assert.equal(service.attemptDetail(attempt.id)?.workspace?.branch, workspace.branch);
-  assert.equal(service.attemptDetail(attempt.id)?.activities[0]?.content, activity.content);
-  assert.equal(service.attemptDetail(attempt.id)?.session?.turns[0]?.items[0]?.type, "userMessage");
+  assert.equal((await service.attemptDetail(attempt.id))?.workspace?.branch, workspace.branch);
+  assert.equal((await service.attemptDetail(attempt.id))?.activities[0]?.content, activity.content);
+  assert.equal(
+    (await service.attemptDetail(attempt.id))?.session?.turns[0]?.items[0]?.type,
+    "userMessage",
+  );
   assert.match(
     service.snapshot().verifications[0]?.artifactRef ?? "",
     /^artifacts\/[a-f0-9]{64}\.json$/,
@@ -201,11 +209,12 @@ test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Veri
   const restarted = runtime(root, "runtime:restarted");
   await restarted.start();
   const snapshot = restarted.snapshot();
-  assert.equal(snapshot.tasks[0]?.identifier, "#15");
-  assert.equal(snapshot.attempts[0]?.status, "preparing_workspace");
-  assert.equal(restarted.attemptDetail(attempt.id)?.workspace?.path, workspace.path);
-  assert.equal(restarted.attemptDetail(attempt.id)?.activities[0]?.id, activity.id);
-  assert.deepEqual(restarted.attemptDetail(attempt.id)?.session, session);
+  assert.equal(snapshot.tasks.length, 0);
+  assert.equal(snapshot.attempts[0]?.status, "interrupted");
+  assert.equal((await restarted.attemptDetail(attempt.id))?.workspace, null);
+  assert.deepEqual((await restarted.attemptDetail(attempt.id))?.activities, []);
+  assert.equal((await restarted.attemptDetail(attempt.id))?.session, null);
+  assert.equal((await restarted.attemptDetail(attempt.id))?.historyStatus, "unattached");
   assert.equal(snapshot.verifications[0]?.status, "passed");
 });
 
@@ -238,10 +247,10 @@ test("terminal Attempts do not project running execution activities", async (t) 
     { workspace: { ...workspace, state: "retained", ownerAttemptId: null } },
   );
 
-  assert.equal(service.attemptDetail(attempt.id)?.activities[0]?.status, "interrupted");
+  assert.equal((await service.attemptDetail(attempt.id))?.activities[0]?.status, "interrupted");
 });
 
-test("Runtime imports a missing Codex session once and persists the complete record", async (t) => {
+test("Runtime reads Codex history lazily without persisting a Provider replica", async (t) => {
   const root = await runtimeFixture(t);
   const initial = runtime(root, "runtime:activity-history-initial");
   const historicalAttempt: AttemptSnapshot = {
@@ -284,13 +293,15 @@ test("Runtime imports a missing Codex session once and persists the complete rec
     },
   });
   await restored.start();
+  assert.equal(reads, 0);
+  assert.equal((await restored.attemptDetail(historicalAttempt.id))?.session?.turns.length, 1);
+  assert.equal((await restored.attemptDetail(historicalAttempt.id))?.historyStatus, "available");
   assert.equal(reads, 1);
-  assert.equal(restored.attemptDetail(historicalAttempt.id)?.session?.turns.length, 1);
   await restored.stop();
 
   const replayed = runtime(root, "runtime:activity-history-replayed");
   await replayed.start();
-  assert.deepEqual(replayed.attemptDetail(historicalAttempt.id)?.session, restoredSession);
+  assert.equal((await replayed.attemptDetail(historicalAttempt.id))?.session, null);
 });
 
 test("Runtime commands are durable, idempotent, and do not fake Provider state", async (t) => {
@@ -432,10 +443,7 @@ test("DesktopRuntimeHost keeps one isolated Symphony runtime per project", async
     (await restarted.listProjects()).map((project) => project.id),
     [bravo.id],
   );
-  assert.deepEqual(
-    restarted.snapshot().tasks.map((candidate) => candidate.id),
-    [taskB.id],
-  );
+  assert.deepEqual(restarted.snapshot().tasks, []);
   await restarted.stop();
 });
 
@@ -443,7 +451,7 @@ test("Runtime records a human ReviewDecision through the public command", async 
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:review-command");
   await service.start();
-  await service.recordTask({ ...task, workflowStatus: "in_review" });
+  await service.recordTask({ ...task, labels: ["symphoneer:review"] });
   const reviewedAttempt: AttemptSnapshot = {
     ...attempt,
     status: "succeeded",
@@ -475,7 +483,7 @@ test("Runtime rejects completion evidence from a historical Attempt", async (t) 
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:historical-review");
   await service.start();
-  await service.recordTask({ ...task, workflowStatus: "in_review" });
+  await service.recordTask({ ...task, labels: ["symphoneer:review"] });
   const historical = {
     ...attempt,
     id: "attempt-15-old",
@@ -506,7 +514,7 @@ test("Runtime rejects completion evidence from a historical Attempt", async (t) 
     }),
     /latest Attempt/i,
   );
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
 });
 
 test("Runtime routes and persists an intervention answer by its global identity", async (t) => {
@@ -570,7 +578,7 @@ test("Runtime rejects the retired Ready WorkflowStatus through its public comman
     workflowStatus: "ready" as const,
   };
   await assert.rejects(service.execute(command));
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "backlog");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "ready");
 });
 
 test("Runtime enables dispatch through the Tracker and immediately updates its projection", async (t) => {
@@ -579,7 +587,6 @@ test("Runtime enables dispatch through the Tracker and immediately updates its p
     ...task,
     labels: [],
     dispatchable: false,
-    workflowStatus: "backlog" as const,
   };
   let enableCalls = 0;
   const tracker: Tracker = {
@@ -611,24 +618,25 @@ test("Runtime enables dispatch through the Tracker and immediately updates its p
   assert.equal(repeated.eventSequence, accepted.eventSequence);
 });
 
-test("Runtime projects the complete WorkflowStatus lifecycle and preserves blocked markers", async (t) => {
+test("Runtime derives display state from Tracker phase, live ownership, and latest Attempt", async (t) => {
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:workflow-lifecycle");
   await service.start();
-  await service.recordTask({ ...task, workflowStatus: "backlog" });
+  await service.recordTask(task);
   await service.recordAttempt(attempt);
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+  assert.equal(service.snapshot().tasks[0]?.issuePhase, "ready");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "ready");
 
   await service.recordVerification(verification, { artifact: "passed" });
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "ready");
   await service.recordTask({ ...task, labels: ["symphoneer:review"] });
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
   await service.recordAttempt({
     ...attempt,
     status: "finishing",
     updatedAt: "2026-08-04T08:01:01.000Z",
   });
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
 
   const succeededAttempt: AttemptSnapshot = {
     ...attempt,
@@ -638,7 +646,8 @@ test("Runtime projects the complete WorkflowStatus lifecycle and preserves block
     failure: null,
   };
   await service.recordAttempt(succeededAttempt);
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+  assert.equal(service.snapshot().tasks[0]?.lastAttemptOutcome, "succeeded");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
 
   await service.execute({
     kind: "record_review",
@@ -651,7 +660,7 @@ test("Runtime projects the complete WorkflowStatus lifecycle and preserves block
     evidenceIds: [verification.id],
     nextAction: null,
   });
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "done");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
 
   const failed = {
     ...attempt,
@@ -661,8 +670,36 @@ test("Runtime projects the complete WorkflowStatus lifecycle and preserves block
     failure: "timeout",
   };
   await service.recordAttempt(failed);
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "done");
-  assert.equal(service.snapshot().tasks[0]?.blocked?.reason, "timeout");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
+  assert.equal(service.snapshot().tasks[0]?.lastAttemptOutcome, "failed");
+});
+
+test("Runtime live ownership overrides Tracker lanes except closed", async (t) => {
+  const root = await runtimeFixture(t);
+  let executionState: "running" | "idle" = "running";
+  const service = new RuntimeService({
+    dataDir: root,
+    defaultOrchestration: {
+      start: async () => undefined,
+      executionState: () => executionState,
+    },
+  });
+  await service.start();
+  await service.recordTask({
+    ...task,
+    labels: ["symphoneer:review", "symphoneer:blocked"],
+  });
+
+  assert.equal(service.snapshot().tasks[0]?.issuePhase, "review");
+  assert.equal(service.snapshot().tasks[0]?.blocked, true);
+  assert.equal(service.snapshot().tasks[0]?.executionState, "running");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_progress");
+
+  executionState = "idle";
+  assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
+  executionState = "running";
+  await service.recordTask({ ...task, state: "closed" });
+  assert.equal(service.snapshot().tasks[0]?.displayState, "done");
 });
 
 test("Runtime delegates Codex handoff and deletes an Attempt only after orchestration cleanup", async (t) => {
@@ -682,7 +719,7 @@ test("Runtime delegates Codex handoff and deletes an Attempt only after orchestr
     },
   });
   await service.start();
-  await service.recordTask({ ...task, workflowStatus: "in_review" });
+  await service.recordTask({ ...task, labels: ["symphoneer:review"] });
   const handoffAttempt: AttemptSnapshot = {
     ...attempt,
     status: "succeeded",
@@ -712,8 +749,8 @@ test("Runtime delegates Codex handoff and deletes an Attempt only after orchestr
     deleted.snapshot.attempts.some((item) => item.id === attempt.id),
     false,
   );
-  assert.equal(deleted.snapshot.tasks[0]?.workflowStatus, "backlog");
-  assert.equal(service.attemptDetail(attempt.id), null);
+  assert.equal(deleted.snapshot.tasks[0]?.displayState, "in_review");
+  assert.equal(await service.attemptDetail(attempt.id), null);
 });
 
 test("production handoff rejects an Attempt without an active Worker", async (t) => {
@@ -872,10 +909,10 @@ test("Runtime hides Codex control and resumes input only after the external Turn
     model: "gpt-5.6-codex",
     sandbox: "workspace-write",
   });
-  assert.deepEqual(service.attemptDetail(paused.id)?.session, session());
+  assert.deepEqual((await service.attemptDetail(paused.id))?.session, session());
 });
 
-test("Runtime blocks timed-out Attempts without changing their WorkflowStatus", async (t) => {
+test("Runtime exposes timed-out Attempts without changing the Tracker-derived lane", async (t) => {
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:workflow-timeout");
   await service.start();
@@ -889,8 +926,8 @@ test("Runtime blocks timed-out Attempts without changing their WorkflowStatus", 
     failure: "agent timeout",
   };
   await service.recordAttempt(timedOut);
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
-  assert.equal(service.snapshot().tasks[0]?.blocked?.reason, "agent timeout");
+  assert.equal(service.snapshot().tasks[0]?.displayState, "ready");
+  assert.equal(service.snapshot().tasks[0]?.lastAttemptOutcome, "failed");
 });
 
 test("Runtime starts the default orchestration mode from the public workflow command", async (t) => {
@@ -906,7 +943,7 @@ test("Runtime starts the default orchestration mode from the public workflow com
     },
   });
   await service.start();
-  const backlogTask = { ...task, workflowStatus: "backlog" as const };
+  const backlogTask = { ...task };
   await service.recordTask(backlogTask);
 
   const accepted = await service.execute({

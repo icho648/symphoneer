@@ -41,7 +41,8 @@ export function ExecutionActivityFeed() {
   if (!selectedTask) return null;
   const attemptFinished = detail?.attempt.finishedAt != null;
   const attemptFailure = attemptFinished ? detail?.attempt.failure : null;
-  const blockedReason = attemptFinished ? null : (selectedTask.blocked?.reason ?? null);
+  const blockedReason =
+    !attemptFinished && selectedTask.blocked ? dictionary.columns.blocked.label : null;
   const activities = detail?.activities ?? [];
   const provider = detail?.session?.provider ?? detail?.attempt.providerSession?.provider ?? null;
   const providerKind = providerPresentation(provider).kind;

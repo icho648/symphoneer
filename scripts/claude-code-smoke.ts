@@ -186,8 +186,6 @@ function smokeTask(): TaskSummary {
     state: "open",
     labels: [],
     dispatchable: false,
-    workflowStatus: "backlog",
-    blocked: null,
   };
 }
 
