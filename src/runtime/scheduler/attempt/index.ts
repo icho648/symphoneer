@@ -236,6 +236,7 @@ export function finishAttempt(
         Date.parse(request.finishedAt) +
         retryDelayMs(kind, attemptNumber, policy.maxRetryBackoffMs),
       error: request.error ?? null,
+      ...(finished.sequence >= policy.maxAttempts ? { automatic: false as const } : {}),
     };
     state.retries.set(finished.taskId, retry);
     state.claims.set(finished.taskId, finished.id);

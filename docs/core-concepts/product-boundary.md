@@ -6,7 +6,7 @@
 
 ## 一句话定位
 
-Symphoneer 是一个本地优先的 Coding Agent 交付工作台：以 Tracker Task 为入口，以 OpenAI Symphony 为调度与协调核心，以 Codex App Server 为首版 Agent Runtime，把合格任务推进到独立验证和人工决定。
+Symphoneer 是一个本地优先的 Coding Agent 交付工作台：以 Tracker Task 为入口，以 OpenAI Symphony 为调度与协调核心，通过配置的 Executor 推进合格任务、项目检查和人工决定。
 
 这是非官方项目，不以 OpenAI 官方项目或品牌名义发布，也不暗示 OpenAI 认可或维护本项目。
 
@@ -23,8 +23,8 @@ Tracker Task（V1 由 GitHub Issue 实现）
 → Eligibility / Dispatch
 → Run Attempt
 → Workspace
-→ Codex Thread / Turn
-→ 独立 Verification
+→ Executor Session / Turn
+→ 项目检查与交付证据
 → Human Review
 ├─→ Merge / Close
 ├─→ 继续或重试
@@ -39,15 +39,15 @@ Tracker Task（V1 由 GitHub Issue 实现）
 | Task | 持久的任务意图和原生状态 | Tracker；GitHub Issue 只是 V1 的一种 Task |
 | Attempt | 针对一个 Task 的一次执行尝试；承载重试、Workspace、运行引用和结果 | Symphoneer Runtime 的 Symphony Core；Symphoneer 保存历史投影 |
 | Workspace | 实际工作目录、仓库、分支、宿主机和所有权；通常由 Git worktree 实现 | Symphoneer Runtime 的 Symphony Core |
-| Thread / Turn / Item | Agent 的上下文、工作轮次和运行事件 | Codex App Server |
-| Verification | 项目原生检查的独立结果和 artifact | Symphoneer |
+| Session / Turn / Item | Agent 的上下文、工作轮次和运行事件 | 当前 Executor |
+| Check Artifact | 项目原生检查的结果和 artifact | Git、项目工具与 Symphoneer 投影 |
 | ReviewDecision | Merge、继续、Follow-up、接管或 Close 的最终决定 | 人 |
 
-`Thread` 使用 Workspace 的路径工作，但不拥有 Workspace 生命周期；`Attempt` 不是普通 Session 状态，而是把 Task、执行现场、运行上下文和证据绑定起来的执行对象。详细权威边界见 [`system-boundaries.md`](system-boundaries.md)。
+原生 Session 使用 Workspace 的路径工作，但不拥有 Workspace 生命周期；`Attempt` 不是普通 Session 状态，而是把 Task、执行现场、运行上下文和证据绑定起来的执行对象。详细权威边界见 [`system-boundaries.md`](system-boundaries.md)。
 
 ## 系统分工
 
-Tracker 保存任务事实，Symphoneer Runtime 负责调度、执行投影与控制，Codex App Server 负责 Agent 运行上下文；V1 通过 GitHub Issues Tracker Adapter 接入。Symphoneer 提供 Task-first 工作台，Codex App 承接深度人工操作。对象权威、进程拓扑和冲突规则只在 [`system-boundaries.md`](system-boundaries.md) 详细定义。
+Tracker 保存任务事实，Symphoneer Runtime 负责调度、Attempt 与执行投影，Executor 负责原生 Session；V1 通过 GitHub Issues Tracker Adapter 接入。Symphoneer 提供 Task-first 工作台，Codex App 承接 Codex 的深度人工操作。对象权威、进程拓扑和冲突规则只在 [`system-boundaries.md`](system-boundaries.md) 详细定义。
 
 ## GitHub 原生能力的采用边界
 
@@ -79,19 +79,19 @@ Intent
 
 ## 人工接管
 
-人工接管是 V1 可选结果，不改变人拥有最终控制权。具体自动推进、暂停、交还与失败条件见 [`../product-specs/delivery-flow.md`](../product-specs/delivery-flow.md) 和 [`system-boundaries.md`](system-boundaries.md)；真实深链与恢复在 Smoke 前为 `Not verified`。
+人工接管是 V1 可选结果，不改变人拥有最终控制权。具体自动推进、暂停、交还与失败条件见 [`delivery-flow.md`](delivery-flow.md) 和 [`system-boundaries.md`](system-boundaries.md)；真实深链与恢复在 Smoke 前为 `Not verified`。
 
 ## 访问面和扩展
 
 - Web Dashboard 是主操作面；CLI 与 MCP 复用同一个 Runtime，其中 MCP 只提供查询和受控操作。
 - Codex App 是完整 Chat、Terminal、Diff 与持续人工引导入口，不由 Symphoneer 复制。
 - 多项目是 Symphoneer Desktop Host 的产品能力：Host 维护项目目录并聚合多个相互隔离的单项目 Symphony Runtime；它不是对 Symphony Core 的多项目改写。
-- Electron 和其他生产 Agent Adapter 后置；Phoenix 只在核心闭环后作为非阻塞诊断扩展。
+- Electron 和其他 Executor Adapter 后置；Phoenix 只在核心闭环后作为非阻塞诊断扩展。
 - Runtime / Web 进程、访问协议、授权和生命周期只在 [`system-boundaries.md`](system-boundaries.md) 定义。
 
 ## Agent Runner Seam
 
-V1 采用 Codex App Server 作为唯一生产 Agent Runtime，并保留一个测试 Fake；不建设通用 Provider 平台。Interface、Provider 引用和安全约束见 [`system-boundaries.md#agent-runner-seam`](system-boundaries.md#agent-runner-seam)，外部协议观察见 [`../references/codex-app-server.md`](../references/codex-app-server.md)。
+Codex App Server 是默认生产 Executor；Claude Code CLI 是第二个真实 Adapter，仍以关联 Issue 的 Smoke 决定可交付状态。测试使用 Fake，不建设通用 Provider 平台。Interface、上下文注入和安全约束见 [`system-boundaries.md#agent-runner-seam`](system-boundaries.md#agent-runner-seam) 与 [`executor-context.md`](executor-context.md)，外部协议观察见 [`../references/codex-app-server.md`](../references/codex-app-server.md)。
 
 ## 明确非目标
 
@@ -102,4 +102,4 @@ V1 采用 Codex App Server 作为唯一生产 Agent Runtime，并保留一个测
 - 复制 Phoenix UI、用综合分数评价 Agent，或自动替用户修改项目规则、权限和 CI。
 - 未经关联 Issue 授权，不在核心交付闭环外追加 LangGraph、数据库、消息队列或 Electron；当前垂直切片的 LangGraph 与本地 checkpoint 由 Issue #40 明确授权。
 
-当前阶段、授权范围和验收由关联 GitHub Issue 决定；仅本地恢复信息见 [active plan](../plans/active/issue-47.md)。本文不复制易漂移的实施进度。当前真实代码结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)。
+当前阶段、授权范围和验收由关联 GitHub Issue 决定；active plan 只在需要本地恢复上下文时使用。本文不复制易漂移的实施进度。当前真实代码结构见 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md)。

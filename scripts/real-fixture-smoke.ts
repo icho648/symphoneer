@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 import { execFile as execFileCallback } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import {
@@ -21,7 +20,6 @@ import {
 
 const execFile = promisify(execFileCallback);
 const repositoryDefault = "icho648/symphoneer-fixtures";
-const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export interface RealFixtureSmokeOptions {
   repository?: string;
@@ -343,7 +341,6 @@ function parseArgs(args: string[]): RealFixtureSmokeOptions {
 }
 
 if (import.meta.main) {
-  await access(resolve(repositoryRoot, "WORKFLOW.md"));
   runRealFixture(parseArgs(process.argv.slice(2)))
     .then((report) => {
       process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

@@ -118,6 +118,7 @@ test("Issue, worktree, Codex, and independent Verification form one minimal clos
     excludedLabels: ["symphoneer:review"],
     maxConcurrentAgents: 1,
     maxConcurrentAgentsByState: { open: 1 },
+    maxAttempts: 3,
     maxRetryBackoffMs: 300_000,
   });
   assert.equal(
@@ -217,6 +218,7 @@ test("dirty worktree pause, restart recovery, and resume share the latest observ
     excludedLabels: ["symphoneer:review"],
     maxConcurrentAgents: 1,
     maxConcurrentAgentsByState: { open: 1 },
+    maxAttempts: 3,
     maxRetryBackoffMs: 300_000,
   });
   scheduler.reserveAttempt({

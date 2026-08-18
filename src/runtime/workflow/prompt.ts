@@ -13,8 +13,12 @@ export async function renderPrompt(
   try {
     return await promptEngine.parseAndRender(workflow.promptTemplate, input);
   } catch (error) {
-    throw new WorkflowError("template_render_error", "Cannot render WORKFLOW.md prompt", {
-      cause: error,
-    });
+    throw new WorkflowError(
+      "template_render_error",
+      "Cannot render .symphoneer/WORKFLOW.md prompt",
+      {
+        cause: error,
+      },
+    );
   }
 }

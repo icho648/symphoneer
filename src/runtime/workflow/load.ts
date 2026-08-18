@@ -12,7 +12,6 @@ const normalize = (values: string[]) => values.map((value) => value.trim().toLow
 
 export async function loadProjectProfile(
   options: {
-    path?: string;
     cwd?: string;
     env?: Readonly<Record<string, string | undefined>>;
     workspaceRoot?: string;
@@ -20,25 +19,13 @@ export async function loadProjectProfile(
   } = {},
 ) {
   const cwd = options.cwd ?? process.cwd();
-  const paths = options.path
-    ? [resolve(cwd, options.path)]
-    : [resolve(cwd, "WORKFLOW.md"), resolve(cwd, ".symphoneer/WORKFLOW.md")];
-  let workflowPath = paths[0] as string;
-  let source: string | undefined;
-  let readError: unknown;
-  for (const candidate of paths) {
-    workflowPath = candidate;
-    try {
-      source = await readFile(candidate, "utf8");
-      break;
-    } catch (error) {
-      readError = error;
-      if (options.path || candidate === paths.at(-1) || !isMissingFile(error)) break;
-    }
-  }
-  if (source === undefined) {
+  const workflowPath = resolve(cwd, ".symphoneer/WORKFLOW.md");
+  let source: string;
+  try {
+    source = await readFile(workflowPath, "utf8");
+  } catch (error) {
     throw new WorkflowError("missing_workflow_file", `Cannot read ${workflowPath}`, {
-      cause: readError,
+      cause: error,
     });
   }
 
@@ -65,7 +52,6 @@ export async function loadProjectProfile(
 
   return {
     path: workflowPath,
-    location: workflowPath === resolve(cwd, "WORKFLOW.md") ? "root" : "legacy",
     promptTemplate: definition.promptTemplate,
     config: {
       tracker: {
@@ -94,6 +80,7 @@ export async function loadProjectProfile(
       agent: {
         executor: raw.agent.executor,
         maxConcurrentAgents: raw.agent.max_concurrent_agents,
+        maxAttempts: raw.agent.max_attempts,
         maxTurns: raw.agent.max_turns,
         maxRetryBackoffMs: raw.agent.max_retry_backoff_ms,
         maxConcurrentAgentsByState: perState,
@@ -130,10 +117,6 @@ export async function loadProjectProfile(
       },
     },
   };
-}
-
-function isMissingFile(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 /** @deprecated Prefer loadProjectProfile */

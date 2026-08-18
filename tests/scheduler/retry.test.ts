@@ -5,10 +5,9 @@ import { CoreError, CoreScheduler, retryDelayMs } from "../../src/runtime/schedu
 import { policy, queueFailedAttempt, retained, task, workspace } from "./fixtures.ts";
 
 test("scheduler restores persisted terminal history into the deterministic retry queue", () => {
-  const scheduler = new CoreScheduler(policy);
   const owned = workspace("24", "attempt-24-1");
   const retainedWorkspace = retained(owned);
-  scheduler.restore({
+  const history: Parameters<CoreScheduler["restore"]>[0] = {
     tasks: [task("24")],
     attempts: [
       {
@@ -29,7 +28,9 @@ test("scheduler restores persisted terminal history into the deterministic retry
       },
     ],
     workspaces: [retainedWorkspace],
-  });
+  };
+  const scheduler = new CoreScheduler(policy);
+  scheduler.restore(history);
 
   assert.deepEqual(scheduler.dueRetries(Date.parse("2026-08-02T12:00:12.000Z")), [
     {
@@ -41,6 +42,43 @@ test("scheduler restores persisted terminal history into the deterministic retry
       error: "runner failed",
     },
   ]);
+
+  const limited = new CoreScheduler({ ...policy, maxAttempts: 1 });
+  limited.restore(history);
+  assert.deepEqual(limited.dueRetries(Date.parse("2026-08-02T12:00:12.000Z")), []);
+  assert.equal(limited.snapshot().retries[0]?.automatic, false);
+  assert.throws(
+    () =>
+      limited.transitionRetry({
+        taskId: "24",
+        refreshedTask: task("24"),
+        nowMs: Date.parse("2026-08-02T12:00:12.000Z"),
+        nextAttempt: {
+          attemptId: "attempt-24-2",
+          sequence: 2,
+          workspace: workspace("24", "attempt-24-2"),
+          startedAt: "2026-08-02T12:00:12.000Z",
+        },
+        idempotencyKey: "automatic-retry-24-2",
+      }),
+    (error) => error instanceof CoreError && error.code === "invalid_transition",
+  );
+  assert.equal(
+    limited.transitionRetry({
+      taskId: "24",
+      refreshedTask: task("24"),
+      nowMs: Date.parse("2026-08-02T12:00:12.000Z"),
+      nextAttempt: {
+        attemptId: "attempt-24-2",
+        sequence: 2,
+        workspace: workspace("24", "attempt-24-2"),
+        startedAt: "2026-08-02T12:00:12.000Z",
+      },
+      idempotencyKey: "manual-retry-24-2",
+      force: true,
+    }).kind,
+    "reserved",
+  );
 });
 
 test("the scheduler owns Attempt sequence, retry provenance, and consecutive backoff", () => {

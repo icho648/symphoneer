@@ -14,6 +14,7 @@ import { FakeAgentRunner } from "../fixtures/fake-agent-runner.ts";
 
 test("the Fake Runner drives one deterministic core Attempt without Provider claims", async () => {
   const workflow = await loadWorkflow({
+    cwd: resolve("tests/fixtures/project"),
     workspaceRoot: resolve(tmpdir(), "symphoneer-integration-workspaces"),
   });
   const task: TaskSummary = {
@@ -51,6 +52,7 @@ test("the Fake Runner drives one deterministic core Attempt without Provider cla
     excludedLabels: workflow.config.symphoneer.eligibility.excludedLabels,
     maxConcurrentAgents: workflow.config.agent.maxConcurrentAgents,
     maxConcurrentAgentsByState: workflow.config.agent.maxConcurrentAgentsByState,
+    maxAttempts: workflow.config.agent.maxAttempts,
     maxRetryBackoffMs: workflow.config.agent.maxRetryBackoffMs,
   });
   const reservation = scheduler.reserveAttempt({

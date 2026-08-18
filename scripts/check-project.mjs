@@ -20,8 +20,8 @@ for (const file of markdownFiles) {
 }
 
 for (const { directory, guidance } of [
-  { directory: "docs/design-docs", guidance: "docs/AGENTS.md" },
-  { directory: "docs/product-specs", guidance: "docs/AGENTS.md" },
+  { directory: "docs/core-concepts", guidance: "docs/AGENTS.md" },
+  { directory: "docs/decisions", guidance: "docs/AGENTS.md" },
   { directory: "docs/references", guidance: "docs/AGENTS.md" },
   { directory: "docs/research", guidance: "docs/research/AGENTS.md" },
   { directory: "docs/plans/active", guidance: "docs/plans/AGENTS.md" },

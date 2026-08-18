@@ -61,6 +61,27 @@ test("TrackerSynchronizer preserves local WorkflowStatus", async (t) => {
   });
   assert.equal(refreshed.snapshot.tasks[0]?.state, "closed");
   assert.equal(refreshed.snapshot.tasks[0]?.workflowStatus, "backlog");
+
+  await service.recordAttempt({
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "attempt-17",
+    taskId: task.id,
+    sequence: 1,
+    startReason: "dispatch",
+    status: "preparing_workspace",
+    controller: "symphoneer",
+    workspaceId: "workspace-17",
+    startedAt: "2026-08-07T10:01:00Z",
+    updatedAt: "2026-08-07T10:01:00Z",
+  });
+  current = {
+    ...current,
+    labels: ["symphoneer:review"],
+    dispatchable: false,
+    updatedAt: "2026-08-07T10:02:00Z",
+  };
+  await service.refreshTracker();
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
   await service.stop();
 });
 

@@ -106,6 +106,7 @@ export class CoreScheduler {
           Date.parse(attempt.finishedAt) +
           retryDelayMs(kind, failureAttempt, this.#policy.maxRetryBackoffMs),
         error: attempt.failure ?? null,
+        ...(attempt.sequence >= this.#policy.maxAttempts ? { automatic: false as const } : {}),
       });
     }
   }
@@ -246,6 +247,7 @@ export class CoreScheduler {
     nowMs: number;
     nextAttempt?: Omit<ReserveAttemptRequest, "task" | "startReason" | "idempotencyKey">;
     idempotencyKey: string;
+    force?: boolean;
   }): RetryTransition {
     const taskId = request.taskId.trim();
     if (!taskId || !Number.isFinite(request.nowMs)) {
@@ -267,6 +269,7 @@ export class CoreScheduler {
       task,
       nowMs: request.nowMs,
       idempotencyKey: request.idempotencyKey,
+      ...(request.force ? { force: true } : {}),
       ...(nextAttempt ? { nextAttempt } : {}),
     };
     return this.#replay.run(

@@ -6,15 +6,15 @@
 
 | 任务 | 先读 | 再按需读取 |
 |---|---|---|
-| 人类项目介绍与 README 维护 | `README.md` | `docs/design-docs/product-boundary.md`、`ARCHITECTURE.md` |
-| 产品定位与非目标 | `docs/design-docs/product-boundary.md` | `docs/design-docs/system-boundaries.md` |
+| 人类项目介绍与 README 维护 | `README.md` | `docs/core-concepts/product-boundary.md`、`ARCHITECTURE.md` |
+| 产品定位与非目标 | `docs/core-concepts/product-boundary.md` | `docs/core-concepts/system-boundaries.md` |
 | 当前阶段、当前增量与验收 | 关联 GitHub Issue | `docs/plans/AGENTS.md`；仅在存在 active plan 时读取对应计划 |
 | 当前物理结构与依赖 | `ARCHITECTURE.md` | 当前 Module 源码与测试 |
-| 人用 CLI / TUI | `src/cli/AGENTS.md` | `ARCHITECTURE.md`、`docs/design-docs/product-boundary.md` |
+| 人用 CLI / TUI | `src/cli/AGENTS.md` | `ARCHITECTURE.md`、`docs/core-concepts/product-boundary.md` |
 | 产品、架构、规格或外部契约 | `docs/AGENTS.md` | 表中对应叶子文档 |
 | 调研输入与历史方案 | `docs/research/AGENTS.md` | 对应日期快照 |
 | 复杂任务与执行计划 | `docs/plans/AGENTS.md` | 仅在任务需要本地恢复上下文时读取 `docs/plans/active/` |
-| 实现结构、测试与工程约束 | 关联 GitHub Issue；若存在则读取 active plan | `ARCHITECTURE.md`、`docs/design-docs/core-beliefs.md`、`docs/design-docs/system-boundaries.md` |
+| 实现结构、测试与工程约束 | 关联 GitHub Issue；若存在则读取 active plan | `ARCHITECTURE.md`、`docs/decisions/design-principles.md`、`docs/core-concepts/system-boundaries.md` |
 
 ## 工作规则（执行主线）
 
@@ -39,7 +39,7 @@
 - 只实现当前关联 Issue 明确授权的 Module、Seam 与验收；active plan 只能补充本地恢复约束，不能扩大 Issue 范围，也不为后续阶段预装依赖或搭空结构。
 - 测试只证明同一验收目标的关键可观察行为：先查现有覆盖，只补最小正向或高风险失败场景，不为数量、覆盖率或内部实现凑用例。
 - 新行为或 Bug 修复先让验收测试在旧实现上失败；通过公共 Module Interface 验证，Mock 只用于外部边界，最终运行 `pnpm check`。若没有新行为或已有覆盖足够，说明不新增测试。
-- 目标仓库不保存软件运行数据；详细存储责任见 `docs/design-docs/system-boundaries.md`。
+- 目标仓库不保存软件运行数据；详细存储责任见 `docs/core-concepts/system-boundaries.md`。
 - 顶层先按稳定 Module 分类；多文件功能统一放进同名目录，内部再按业务行为或生命周期聚类。行为私有内容跟随行为；只有共享不变量留在 Module 根，避免无边界的 `utils/`、`helpers/`、`types/` 桶。
 - 代码目录存在清晰入口时可以使用 `index.ts`：Module 根只暴露稳定 Interface，功能目录可以承载主行为或顶层编排，但不得隐藏导入副作用或无差别暴露内部文件。
 - 文档默认由 `docs/AGENTS.md` 路由；只有内容较多、存在局部规则或需要按需加载时才增加最近层级的 `AGENTS.md`，不创建纯转发 `index.md`。

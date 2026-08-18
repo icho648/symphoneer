@@ -23,10 +23,14 @@ export function transitionRetry(
     nowMs: number;
     nextAttempt?: Omit<ReserveAttemptRequest, "task" | "startReason" | "idempotencyKey">;
     idempotencyKey: string;
+    force?: boolean;
   },
 ): RetryTransition {
   const retry = state.retries.get(request.taskId);
   if (!retry) throw new CoreError("not_found", `Task ${request.taskId} has no queued retry`);
+  if (retry.automatic === false && request.force !== true) {
+    throw new CoreError("invalid_transition", "Attempt limit requires an explicit retry");
+  }
   if (request.nowMs < retry.dueAtMs) return { kind: "not_due", retry };
   if (!request.task) {
     releaseRetry(state, request.taskId, false);
@@ -94,7 +98,7 @@ export function transitionRetry(
 export function dueRetries(state: SchedulerState, nowMs: number): RetryEntry[] {
   return structuredClone(
     [...state.retries.values()]
-      .filter((retry) => retry.dueAtMs <= nowMs)
+      .filter((retry) => retry.automatic !== false && retry.dueAtMs <= nowMs)
       .sort(
         (left, right) => left.dueAtMs - right.dueAtMs || left.taskId.localeCompare(right.taskId),
       ),

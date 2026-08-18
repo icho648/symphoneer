@@ -1,5 +1,6 @@
 import { type RuntimeEvent, type TaskSummary, TaskSummarySchema } from "@symphoneer/contracts";
 import type { EventLog } from "../service/event-log.ts";
+import { reconcileTrackerStatus } from "../service/recording.ts";
 import type { TaskSnapshot, Tracker } from "./tracker.ts";
 
 /** Project-scoped Tracker synchronization dependencies. */
@@ -94,6 +95,7 @@ export async function syncTrackerProjection(
           payload: { task, versionToken: snapshot.versionToken },
         }),
       );
+      await reconcileTrackerStatus(log, task, true);
     }
     cursor = page.nextCursor ?? undefined;
   } while (cursor);

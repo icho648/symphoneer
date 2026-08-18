@@ -37,6 +37,7 @@ export const RawWorkflowConfigSchema = z
       .object({
         executor: z.enum(["codex-app-server", "claude-code"]).default("codex-app-server"),
         max_concurrent_agents: positiveInteger.default(10),
+        max_attempts: positiveInteger.default(3),
         max_turns: positiveInteger.default(20),
         max_retry_backoff_ms: positiveInteger.default(300_000),
         max_concurrent_agents_by_state: z.record(z.string(), z.unknown()).default({}),
@@ -44,6 +45,7 @@ export const RawWorkflowConfigSchema = z
       .default({
         executor: "codex-app-server",
         max_concurrent_agents: 10,
+        max_attempts: 3,
         max_turns: 20,
         max_retry_backoff_ms: 300_000,
         max_concurrent_agents_by_state: {},

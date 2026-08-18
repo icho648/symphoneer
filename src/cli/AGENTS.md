@@ -1,6 +1,6 @@
 # CLI — Agent Guidance
 
-本目录是**人用** CLI / TUI 访问面，不是 Runtime 或 MCP 的进程入口。根 [`../../AGENTS.md`](../../AGENTS.md) 与 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) 继续适用；产品边界见 [`../../docs/design-docs/product-boundary.md`](../../docs/design-docs/product-boundary.md)。
+本目录是**人用** CLI / TUI 访问面，不是 Runtime 或 MCP 的进程入口。根 [`../../AGENTS.md`](../../AGENTS.md) 与 [`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) 继续适用；产品边界见 [`../../docs/core-concepts/product-boundary.md`](../../docs/core-concepts/product-boundary.md)。
 
 ## 职责
 

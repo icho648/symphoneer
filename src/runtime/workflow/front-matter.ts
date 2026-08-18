@@ -19,7 +19,7 @@ export function parseFrontMatter(source: string): {
   if (config === null || Array.isArray(config) || typeof config !== "object") {
     throw new WorkflowError(
       "workflow_front_matter_not_a_map",
-      "WORKFLOW.md front matter must be a map",
+      ".symphoneer/WORKFLOW.md front matter must be a map",
     );
   }
   return { config, promptTemplate: (match[2] ?? "").trim() };

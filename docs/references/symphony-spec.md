@@ -36,8 +36,9 @@
 ## 本项目已决定的扩展
 
 - 固定快照以 Linear 为当前 Tracker 合同；GitHub Issues 是 Symphoneer 的 V1 产品决定，不是从该 SPEC 自动继承的已实现能力。
-- Symphoneer Read Model、Verification、ReviewDecision 和 Human Handoff 超出最小 Scheduler/Runner 的职责，其事实源边界由 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md) 固化。
-- Symphoneer 将 repository-owned contract 放在仓库根 `WORKFLOW.md`；根文件缺失时兼容旧 `.symphoneer/WORKFLOW.md` 并记录弃用。配置在每次生产 tick reload，失败时保留 last-known-good；活跃 Worker 使用启动快照。
+- Symphoneer Read Model、Verification、ReviewDecision 和 Human Handoff 超出最小 Scheduler/Runner 的职责，其事实源边界由 [`../core-concepts/system-boundaries.md`](../core-concepts/system-boundaries.md) 固化。
+- Symphoneer 明确偏离官方默认位置：repository-owned contract 只从 `.symphoneer/WORKFLOW.md` 加载，根 `WORKFLOW.md` 不参与加载。配置在每次生产 tick reload，失败时保留 last-known-good；活跃 Worker 使用启动快照。
+- 固定 SPEC 的 `max_turns` 只限制单次 Agent 进程生命周期，完成后仍可立即继续，失败也可持续退避重试；它没有规定 Task 级总 Attempt、总时长或 Token / 费用预算。Symphoneer 增加 `agent.max_attempts`（默认 `3`）限制自动 Attempt 链；达到上限时保留 Workspace 并等待人显式重试，每次确认只放行一个额外 Attempt。
 - 为适配安装软件的存储责任，Symphoneer Loader 接受 Host 显式注入的绝对 Workspace 根目录并令其优先于 repository 配置；未注入时仍遵守固定 SPEC 的 repository 值、环境变量和系统临时目录缺省。未来 Runtime 必须从操作系统应用数据位置提供该 Host 设置，当前真实安装路径仍为 `Not verified`。
 
-项目采用与当前实现边界见 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md)，Issue #47 本地恢复入口见 [`../plans/active/issue-47.md`](../plans/active/issue-47.md)。真实 Tracker、App Server、Desktop Host 和安全姿态仍为 `Not verified`。
+项目采用与当前实现边界见 [`../core-concepts/system-boundaries.md`](../core-concepts/system-boundaries.md)，具体实施状态以关联 Issue / PR 为准。真实 Tracker、App Server、Desktop Host 和安全姿态仍按匹配证据标记。

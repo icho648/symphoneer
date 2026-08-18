@@ -177,9 +177,11 @@ export function AssistantShell() {
     }
   };
   const statusText = readStatus(status, assistant);
-  const sessionTask = selectedTask?.id === detail?.metadata.taskId ? selectedTask : null;
-  const sessionAttempt =
-    selectedAttempt?.id === detail?.metadata.attemptId ? selectedAttempt : null;
+  const modelLabel =
+    status?.state === "ready"
+      ? (status.models.find((model) => model.id === (detail?.model ?? status.model))?.name ??
+        `${status.provider}/${detail?.model ?? status.model}`)
+      : assistant.optional;
 
   return (
     <div className={`assistant-column ${open ? "is-open" : "is-collapsed"}`}>
@@ -228,9 +230,7 @@ export function AssistantShell() {
           />
           <span>{error || statusText}</span>
           <span className="assistant-status-note">
-            {status?.state === "ready"
-              ? `${status.provider}/${detail?.model ?? status.model}`
-              : assistant.optional}
+            {status?.state === "ready" ? modelLabel : assistant.optional}
           </span>
         </div>
 
@@ -310,8 +310,8 @@ export function AssistantShell() {
             onCreateSession={configureSession}
             onRunError={setError}
             onRunFinished={handleRunFinished}
-            selectedAttempt={sessionAttempt}
-            selectedTask={sessionTask}
+            selectedAttempt={selectedAttempt}
+            selectedTask={selectedTask}
             session={detail}
           />
         ) : (

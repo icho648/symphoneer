@@ -8,7 +8,7 @@ Symphoneer 仍处于早期开发，仓库已提供可运行的 Runtime、Web、C
 
 ## 仓库入口
 
-- Repository contract：[`WORKFLOW.md`](WORKFLOW.md)（缺失时只读兼容 `.symphoneer/WORKFLOW.md`）
+- 受管项目契约：目标仓库 `.symphoneer/WORKFLOW.md`
 - 版本化边界 Schema：[`src/contracts/index.ts`](src/contracts/index.ts)
 - Runtime Core / Workflow / Scheduler / Workspace：[`src/runtime/index.ts`](src/runtime/index.ts)
 - Executor：[`src/runtime/executor/index.ts`](src/runtime/executor/index.ts)
@@ -46,13 +46,13 @@ cwd = "/absolute/path/to/symphoneer"
 
 ## 已确认边界
 
-完整结论只维护在 [`product-boundary.md`](docs/design-docs/product-boundary.md)。这里仅保留最短摘要：
+完整结论只维护在 [`product-boundary.md`](docs/core-concepts/product-boundary.md)。这里仅保留最短摘要：
 
 - 产品围绕 Tracker Task 的交付推进和人工掌控，而不是 Agent 数量组织。
-- Symphoneer Runtime 以固定 Symphony SPEC 为调度与协调核心，Codex App Server 是首版 Agent Runtime。
+- Symphoneer Runtime 以固定 Symphony SPEC 为调度与协调核心，Codex App Server 是默认 Executor，Claude Code 作为第二个真实 Adapter 独立验收。
 - GitHub Issues 是 V1 Tracker；Symphoneer 不替代 Tracker、Pull Request、Code Review 或 Codex App。
 - V1 规划为独立的 Node.js + TypeScript Runtime 与普通 Next.js Web 进程；CLI 和 Web 都是 Runtime 的客户端，不使用 Next.js custom server。
-- Codex App Server 是唯一 V1 生产 Agent Adapter；Claude Agent SDK、OpenCode Server 和 Electron 仅保留后续评估入口。
+- Codex App Server 是默认生产 Executor；Claude Code 是第二个真实 Adapter，仍需独立 Smoke；其他 Adapter 和 Electron 只保留后续评估入口。
 - Web Dashboard 是主操作面，MCP 提供查询和受控操作；Electron 后置。
 - Phoenix 只在 Symphony 交付闭环完成后作为非阻塞诊断扩展。
 - Tracker 全量同步后的生产 tick 自动 reconcile、retry 和 dispatch；同一 Attempt 的顺序 Turn 复用一个 Worker / Thread。

@@ -4,7 +4,7 @@
 
 > **Decision（2026-08-01）：** 竞品事实对比仍作输入；将 Symphoneer 做成 Evidence/Harness
 > Sidecar 的旧建议已被取代。当前以 Symphony Runtime 为核心的交付工作台，见
-> [`product-boundary.md`](../design-docs/product-boundary.md)。
+> [`product-boundary.md`](../core-concepts/product-boundary.md)。
 
 ## 对象确认
 

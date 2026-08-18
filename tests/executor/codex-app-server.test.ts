@@ -126,10 +126,16 @@ class FakeCodexTransport implements CodexTransport {
         },
       };
     }
+    if (method === "thread/read") {
+      return { thread: { id: this.#threadId, turns: [] } };
+    }
     if (method === "thread/start" || method === "thread/resume") {
       const requested = stringField(params, "threadId");
       if (requested) this.#threadId = requested;
-      return { thread: { id: this.#threadId } };
+      return {
+        thread: { id: this.#threadId },
+        instructionSources: ["/tmp/workspace/AGENTS.md"],
+      };
     }
     if (method === "turn/start") {
       this.#turnId = `turn-${this.#turnSequence++}`;
@@ -704,8 +710,13 @@ test("one Attempt Worker keeps one App Server and Thread across sequential Turns
   assert.equal(firstSession.threadId, secondSession.threadId);
   assert.notEqual(firstSession.turnId, secondSession.turnId);
   assert.deepEqual(
+    (await worker.readSession(firstSession.threadId, "2026-08-16T12:00:00.000Z"))
+      ?.instructionSources,
+    ["/tmp/workspace/AGENTS.md"],
+  );
+  assert.deepEqual(
     transport.requests.map(({ method }) => method),
-    ["initialize", "thread/start", "turn/start", "turn/start"],
+    ["initialize", "thread/start", "turn/start", "turn/start", "thread/read"],
   );
   assert.equal(transport.closeCalls, 0);
   await worker.close();
@@ -987,6 +998,29 @@ test("Codex stdio transport exposes its PID and starts in the Workspace cwd", as
 
   assert.ok((transport.processIdentity.pid ?? 0) > 0);
   assert.deepEqual(await transport.request("fixture/cwd", {}), { cwd: await realpath(cwd) });
+  await transport.close();
+});
+
+test("Codex stdio transport does not expose Tracker credentials to App Server", async () => {
+  const transport = await StdioCodexTransport.start({
+    command: process.execPath,
+    args: [
+      "-e",
+      "const readline=require('node:readline');readline.createInterface({input:process.stdin}).on('line',line=>{const request=JSON.parse(line);process.stdout.write(JSON.stringify({id:request.id,result:{safe:process.env.SYMPHONEER_SAFE_ENV??null,github:process.env.GITHUB_TOKEN??null,gh:process.env.GH_TOKEN??null}})+'\\n')})",
+    ],
+    env: {
+      ...process.env,
+      SYMPHONEER_SAFE_ENV: "visible",
+      GITHUB_TOKEN: "tracker-secret",
+      GH_TOKEN: "tracker-secret",
+    },
+  });
+
+  assert.deepEqual(await transport.request("fixture/env", {}), {
+    safe: "visible",
+    github: null,
+    gh: null,
+  });
   await transport.close();
 });
 

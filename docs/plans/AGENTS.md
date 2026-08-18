@@ -1,6 +1,6 @@
 # Plans — Agent Guidance
 
-本目录保存需要本地恢复上下文的可选计划和跨 Issue 协调索引。GitHub Issue/PR 是增量的目标、范围、验收、进度和验证事实源；Plan 只补充本地恢复、依赖协调和特殊证据边界，不能复制 Issue 或覆盖 [`../design-docs/`](../design-docs/) 的决定。
+本目录保存需要本地恢复上下文的可选计划和跨 Issue 协调索引。GitHub Issue/PR 是增量的目标、范围、验收、进度和验证事实源；Plan 只补充本地恢复、依赖协调和特殊证据边界，不能复制 Issue 或覆盖 [`../core-concepts/`](../core-concepts/) 与 [`../decisions/`](../decisions/) 的当前规则。
 
 ## 当前计划
 

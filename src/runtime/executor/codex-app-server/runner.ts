@@ -129,6 +129,7 @@ class CodexAttemptWorker implements AttemptWorker {
   readonly #stallTimeoutMs: number;
   readonly #now: () => Date;
   #threadId: string | undefined;
+  #instructionSources: string[] = [];
   #active = false;
   #closed = false;
 
@@ -171,6 +172,9 @@ class CodexAttemptWorker implements AttemptWorker {
       ...(this.#threadId ? { activeThreadId: this.#threadId } : {}),
     });
     this.#threadId = started.threadId;
+    if (started.instructionSources.length > 0) {
+      this.#instructionSources = started.instructionSources;
+    }
     this.#active = true;
     const handle = createRunHandle({
       transport: this.#transport,
@@ -193,7 +197,12 @@ class CodexAttemptWorker implements AttemptWorker {
     if (this.#closed) throw new Error("Attempt Worker is closed");
     if (this.#active) throw new Error("Attempt Worker cannot read an active Turn");
     const response = await this.#transport.request("thread/read", { threadId, includeTurns: true });
-    return storedExecutionSession(response, this.#request.attemptId, capturedAt);
+    return storedExecutionSession(
+      response,
+      this.#request.attemptId,
+      capturedAt,
+      this.#instructionSources,
+    );
   }
 
   async close(): Promise<void> {

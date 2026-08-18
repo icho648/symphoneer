@@ -275,9 +275,11 @@ const streamdownPlugins = { cjk, code };
 export const MessageResponse = memo(
   ({ className, ...props }: MessageResponseProps) => (
     <Streamdown
-      className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
       plugins={streamdownPlugins}
       {...props}
+      className={cn("min-w-0 w-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
+      controls={props.controls ?? { code: { copy: true, download: false } }}
+      lineNumbers={props.lineNumbers ?? false}
     />
   ),
   (prevProps, nextProps) =>

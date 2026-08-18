@@ -10,6 +10,7 @@ import type { EligibilityPolicy } from "./eligibility.ts";
 export interface CorePolicy extends EligibilityPolicy {
   maxConcurrentAgents: number;
   maxConcurrentAgentsByState: Readonly<Record<string, number>>;
+  maxAttempts: number;
   maxRetryBackoffMs: number;
 }
 
@@ -34,6 +35,7 @@ export interface RetryEntry {
   kind: "failure" | "continuation";
   dueAtMs: number;
   error: string | null;
+  automatic?: false;
 }
 
 export type RetryTransition =

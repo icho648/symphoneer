@@ -25,13 +25,12 @@
 - Symphoneer 将 `threadId` / `turnId` 作为 Attempt 的运行引用；一个 Attempt Worker 拥有一个 App Server 进程，并在顺序 Turn 中复用一个 Thread。
 - Scheduler 只依赖 `openWorker`；Worker 暴露 `startTurn`、`readSession`、process identity 和 `close`，Turn 的 `RunHandle` 暴露事件流、`interrupt`、介入响应和 completion。Codex Adapter 内部继续保留原生事件。
 - 同一 Task 多 Thread 的并行聚合、子 Agent 的业务状态和独立合并证据不属于当前 V1；需要真实需求和新的 Symphoneer 契约。
-- V1 只实现 `CodexAppServerAdapter` 和测试 Fake，不建立 Provider factory、通用事件全集或 capability 注册表。
+- Codex 是默认生产 Executor；Claude Code 已作为第二个真实 Adapter 进入当前实现，但仍需独立 Smoke。两者只共享已被真实使用的 Agent Runner seam，不建立 Provider registry、通用事件全集或 capability 注册表。
 
-## 后续可行性，不是采用决定
+## 其他后续可行性，不是采用决定
 
-- [Claude Agent SDK for TypeScript](https://code.claude.com/docs/en/agent-sdk/typescript) 提供流式 `query()` 与可中断的 `Query`；如未来采用，应通过独立 Adapter 接入。
 - [OpenCode Server](https://opencode.ai/docs/server/) 提供 HTTP、OpenAPI、SSE 和 Session 接口；如未来采用，应通过 HTTP/SSE Adapter 接入。
-- 第二个生产 Adapter 获得明确采用决定后，才能依据两个真实实现提炼公共能力。任何缺失能力都必须标记 `unsupported`；权限模式或工具白名单不得冒充 sandbox。
+- 任何缺失能力都必须标记 `unsupported`；权限模式或工具白名单不得冒充 sandbox。
 
 ## 已固定与仍待 Smoke
 
