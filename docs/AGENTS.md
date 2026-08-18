@@ -25,5 +25,5 @@
 - `plans/` 只补充 Issue 未承载的本地恢复与跨 Issue 协调；实时目标、范围、验收、进度和验证仍以 Issue / PR 为准。
 - 稳定的项目决定可以从用户偏好或历史记忆中恢复，但写入前必须与当前代码、Issue 或一手契约核对。个人习惯、临时优先级和旧实现状态不进入规范文档。
 - 规范性文档分开写 `Decision status` 与 `Implementation evidence`。Task-first、Tracker 事实源、Scheduler 拥有 Attempt、Executor 拥有原生 Session、Workbench 只做投影与控制、人决定 Merge / Close，是当前稳定边界；具体证据仍按能力逐项标记。
-- 并发按 Scheduler 的活跃或预留 Attempt 槽位解释，不按 OS 子进程数解释；`ProjectPollingCoordinator` 不是 Host 级 Agent 并发门。Phoenix / Evaluation 只作后置诊断，不进入核心正确性或近期默认范围。
+- 并发按活跃或预留 execution 槽位解释，不按 OS 子进程数解释；项目 Scheduler 负责项目内限制，`ProcessExecutionCapacity` 负责进程总量，`ProjectPollingCoordinator` 只负责轮询。Phoenix / Evaluation 只作后置诊断，不进入核心正确性或近期默认范围。
 - 新增或删除叶子文档时更新本文件或最近的局部 `AGENTS.md`；只有出现独立路由或生命周期规则时才增加新的局部入口。

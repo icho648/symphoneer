@@ -167,6 +167,13 @@ export const zhCN = {
     runtimeOffline: "Runtime 离线",
     humanAction: "需要人工处理",
     displayState: "展示状态",
+    liveStates: {
+      preparing: "准备中",
+      running: "执行中",
+      waiting_input: "等待输入",
+      retry_wait: "等待重试",
+      stopping: "正在停止",
+    },
     blocked: "已阻塞",
     blockedReason: "已阻塞 · {reason}",
     markDone: "确认完成",

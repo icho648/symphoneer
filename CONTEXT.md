@@ -10,3 +10,6 @@
 
 `in_progress` therefore means the current Runtime owns execution. A Provider Session reference or an
 unfinished historical Attempt does not prove that work is running.
+
+Process-wide execution capacity is shared by every Project Runtime in the same Symphoneer process.
+Project Scheduler limits remain narrower constraints; both limits must allow a Task before it starts.

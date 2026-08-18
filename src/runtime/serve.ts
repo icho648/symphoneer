@@ -51,8 +51,9 @@ export async function runServer(
   const assistant = new PiAssistantService({ dataDir: hostConfig.dataDir });
   const runtime = new DesktopRuntimeHost({
     applicationData,
+    maxConcurrentAgents: hostConfig.maxConcurrentAgents,
     ...(process.env.SYMPHONEER_RUNTIME_ID ? { runtimeId: process.env.SYMPHONEER_RUNTIME_ID } : {}),
-    createRuntime: async ({ project, layout }) => {
+    createRuntime: async ({ project, layout, executionCapacity }) => {
       const profile = project.projectRoot
         ? await loadLocalProjectProfile(project.projectRoot, project.workspaceRoot)
         : undefined;
@@ -68,6 +69,7 @@ export async function runServer(
               projectRoot: project.projectRoot,
               workspaceRoot: project.workspaceRoot,
               operatorLogPath: layout.operatorLogPath,
+              executionCapacity,
             })
           : undefined;
       return {

@@ -11,6 +11,7 @@ import {
   CONTRACT_SCHEMA_VERSION,
   type ExecutionActivity,
   type ExecutionSession,
+  type ExecutionState,
   type RuntimeEvent,
   type TaskSummary,
   type VerificationResult,
@@ -676,7 +677,7 @@ test("Runtime derives display state from Tracker phase, live ownership, and late
 
 test("Runtime live ownership overrides Tracker lanes except closed", async (t) => {
   const root = await runtimeFixture(t);
-  let executionState: "running" | "idle" = "running";
+  let executionState: ExecutionState = "idle";
   const service = new RuntimeService({
     dataDir: root,
     defaultOrchestration: {
@@ -692,8 +693,17 @@ test("Runtime live ownership overrides Tracker lanes except closed", async (t) =
 
   assert.equal(service.snapshot().tasks[0]?.issuePhase, "review");
   assert.equal(service.snapshot().tasks[0]?.blocked, true);
-  assert.equal(service.snapshot().tasks[0]?.executionState, "running");
-  assert.equal(service.snapshot().tasks[0]?.displayState, "in_progress");
+  for (const liveState of [
+    "preparing",
+    "running",
+    "waiting_input",
+    "retry_wait",
+    "stopping",
+  ] as const) {
+    executionState = liveState;
+    assert.equal(service.snapshot().tasks[0]?.executionState, liveState);
+    assert.equal(service.snapshot().tasks[0]?.displayState, "in_progress");
+  }
 
   executionState = "idle";
   assert.equal(service.snapshot().tasks[0]?.displayState, "in_review");
