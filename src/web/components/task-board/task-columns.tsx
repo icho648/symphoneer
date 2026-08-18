@@ -1,17 +1,20 @@
 import type { AttemptSnapshot, TaskSummary, TeamRunSnapshot } from "@symphoneer/contracts";
-import { CircleAlert, FolderOpen, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { CircleAlert, FolderOpen, MoreHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { type Dictionary, interpolate } from "../../i18n/index.ts";
 
 import {
+  blockedReasonSummary,
   compareExecutionPriority,
+  type TaskCardAction,
   taskBelongsToProject,
+  taskCardAction,
   taskNeedsAttention,
+  visibleTaskLabels,
 } from "../../lib/task-column";
 import { useWorkbench } from "../../stores/workbench.ts";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input.tsx";
 
 export function TaskColumns() {
   const {
@@ -39,21 +42,11 @@ export function TaskColumns() {
   const [expandedCompleted, setExpandedCompleted] = useState<Record<string, boolean>>({});
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
   const [selectingProject, setSelectingProject] = useState(false);
-  const [query, setQuery] = useState("");
   const [attentionOnly, setAttentionOnly] = useState(false);
   const tasks = snapshot?.tasks ?? [];
   const attempts = snapshot?.attempts ?? [];
-  const normalizedQuery = query.trim().toLocaleLowerCase();
   const visibleTasks = tasks
     .filter((task) => !attentionOnly || taskNeedsAttention(task))
-    .filter(
-      (task) =>
-        !normalizedQuery ||
-        [task.identifier, task.title, task.body ?? "", ...task.labels]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(normalizedQuery),
-    )
     .sort(compareExecutionPriority);
   const activeCount = tasks.filter((task) => task.workflowStatus !== "done").length;
   const attentionCount = tasks.filter(taskNeedsAttention).length;
@@ -71,16 +64,6 @@ export function TaskColumns() {
 
       <div className="task-overview-panel">
         <div className="task-overview-toolbar">
-          <div className="task-queue-search">
-            <Search aria-hidden="true" />
-            <Input
-              aria-label={dictionary.board.queue.search}
-              placeholder={dictionary.board.queue.search}
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
           <span className="task-queue-summary">
             {interpolate(dictionary.board.queue.summary, {
               total: tasks.length,
@@ -171,7 +154,7 @@ export function TaskColumns() {
                       </strong>
                     </span>
                     <span className="project-group-count">
-                      {!attentionOnly && !normalizedQuery
+                      {!attentionOnly
                         ? projectTasks.length
                         : `${projectVisibleTasks.length}/${projectTasks.length}`}{" "}
                       {dictionary.board.projectGroup.issues}
@@ -282,7 +265,6 @@ export function TaskColumns() {
 function statusLabel(task: TaskSummary, dictionary: Dictionary): string {
   const labels = {
     backlog: dictionary.columns.backlog.label,
-    ready: dictionary.columns.ready.label,
     in_progress: dictionary.columns.inProgress.label,
     in_review: dictionary.columns.inReview.label,
     done: dictionary.columns.done.label,
@@ -299,11 +281,22 @@ function TaskCard({
   selected: boolean;
   task: TaskSummary;
 }) {
-  const { connection, dictionary, openTask, setTaskStatus, snapshot, startWorkflow } = useWorkbench(
+  const {
+    connection,
+    dictionary,
+    openReview,
+    openTask,
+    sendCommand,
+    setTaskStatus,
+    snapshot,
+    startWorkflow,
+  } = useWorkbench(
     useShallow((state) => ({
       connection: state.connection,
       dictionary: state.dictionary,
+      openReview: state.openReview,
       openTask: state.openTask,
+      sendCommand: state.sendCommand,
       setTaskStatus: state.setTaskStatus,
       snapshot: state.snapshot,
       startWorkflow: state.startWorkflow,
@@ -313,14 +306,10 @@ function TaskCard({
     ? latestWorkflow(snapshot?.teamRuns.filter((run) => run.attemptId === attempt.id) ?? [])
     : null;
   const warnings = [
-    !attempt &&
-    (task.workflowStatus === "backlog" || task.workflowStatus === "ready") &&
-    !task.dispatchable
-      ? dictionary.taskCard.dispatchBlocked
-      : null,
     attempt?.failure ?? null,
     workflow?.pendingHumanInput ? dictionary.taskCard.humanAction : null,
   ].filter((value): value is string => value != null);
+  const labels = visibleTaskLabels(task.labels);
 
   return (
     <article className={`task-card-wrap ${selected ? "is-selected" : ""}`}>
@@ -337,13 +326,14 @@ function TaskCard({
         <span className="task-card-heading">
           <strong className="task-card-title">{task.title}</strong>
           <span className="task-card-meta">
-            {task.labels.length > 0 && (
-              <span className="task-card-labels">{task.labels.join(" · ")}</span>
-            )}
+            {labels.length > 0 && <span className="task-card-labels">{labels.join(" · ")}</span>}
             {task.blocked && (
-              <span className="task-card-alert">
+              <span className="task-card-alert" title={task.blocked.reason}>
                 <span aria-hidden="true">!</span>
-                {interpolateBlocked(dictionary.taskCard.blockedReason, task.blocked.reason)}
+                {interpolateBlocked(
+                  dictionary.taskCard.blockedReason,
+                  blockedReasonSummary(task.blocked.reason),
+                )}
               </span>
             )}
             {warnings.length > 0 && !task.blocked && (
@@ -364,31 +354,94 @@ function TaskCard({
         </span>
       </button>
       <div className="task-card-actions">
-        {task.blocked ? (
-          <Button
-            className="task-card-action"
-            size="xs"
-            variant="outline"
-            type="button"
-            onClick={() => void setTaskStatus(task, task.workflowStatus)}
-          >
-            {dictionary.taskCard.clearBlocked}
-          </Button>
-        ) : !attempt && (task.workflowStatus === "backlog" || task.workflowStatus === "ready") ? (
-          <Button
-            className="task-card-action task-card-start"
-            disabled={connection === "offline" || !task.dispatchable}
-            size="xs"
-            title={!task.dispatchable ? dictionary.taskCard.dispatchBlocked : undefined}
-            type="button"
-            onClick={() => startWorkflow(task)}
-          >
-            {task.dispatchable ? dictionary.workflow.start : dictionary.taskCard.dispatchBlocked}
-          </Button>
-        ) : null}
+        <TaskCardNextAction
+          action={taskCardAction(task, attempt)}
+          connection={connection}
+          dictionary={dictionary}
+          onMarkReady={() => void sendCommand({ kind: "enable_task_dispatch", task })}
+          onOpenReview={() => void openReview(task)}
+          onRecheck={() => void setTaskStatus(task, task.workflowStatus)}
+          onStart={() => startWorkflow(task)}
+        />
       </div>
     </article>
   );
+}
+
+function TaskCardNextAction({
+  action,
+  connection,
+  dictionary,
+  onMarkReady,
+  onOpenReview,
+  onRecheck,
+  onStart,
+}: {
+  action: TaskCardAction | null;
+  connection: "online" | "offline";
+  dictionary: Dictionary;
+  onMarkReady: () => void;
+  onOpenReview: () => void;
+  onRecheck: () => void;
+  onStart: () => void;
+}) {
+  if (action?.kind === "recheck") {
+    return (
+      <Button
+        className="task-card-action"
+        size="xs"
+        title={dictionary.taskCard.recheckBlockedHint}
+        type="button"
+        variant="outline"
+        onClick={onRecheck}
+      >
+        {dictionary.taskCard.clearBlocked}
+      </Button>
+    );
+  }
+  if (action?.kind === "mark_ready") {
+    return (
+      <Button
+        className="task-card-action"
+        disabled={connection === "offline"}
+        size="xs"
+        title={dictionary.taskCard.markReadyHint}
+        type="button"
+        variant="outline"
+        onClick={onMarkReady}
+      >
+        {dictionary.taskCard.markReady}
+      </Button>
+    );
+  }
+  if (action?.kind === "start") {
+    return (
+      <Button
+        className="task-card-action task-card-start"
+        disabled={connection === "offline"}
+        size="xs"
+        type="button"
+        onClick={onStart}
+      >
+        {dictionary.workflow.start}
+      </Button>
+    );
+  }
+  if (action?.kind === "open_review") {
+    return (
+      <Button
+        className="task-card-action"
+        size="xs"
+        title={dictionary.taskCard.openReviewHint}
+        type="button"
+        variant="outline"
+        onClick={onOpenReview}
+      >
+        {dictionary.taskCard.openReview}
+      </Button>
+    );
+  }
+  return null;
 }
 
 function latestAttempt(

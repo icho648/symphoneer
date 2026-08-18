@@ -7,7 +7,7 @@ import {
 } from "@symphoneer/contracts";
 import type { AgentRunEvent } from "../agent-runner.ts";
 
-import { safeProviderText } from "./interventions.ts";
+import { safeProviderText } from "../safe-provider-text.ts";
 import { asRecord, stringField } from "./protocol.ts";
 import type { CodexServerMessage } from "./transport.ts";
 
@@ -213,7 +213,7 @@ export function storedExecutionSession(
   });
 }
 
-export function sessionExecutionActivities(session: ExecutionSession): ActivityEvent[] {
+export function codexSessionExecutionActivities(session: ExecutionSession): ActivityEvent[] {
   return session.turns.flatMap((turn) =>
     turn.items.flatMap((item) => {
       const stored = ActivityPayloadSchema.safeParse(item.data.activity);

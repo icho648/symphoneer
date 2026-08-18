@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
 import {
+  blockedReasonSummary,
   compareExecutionPriority,
   taskBelongsToProject,
+  taskCanStart,
+  taskCardAction,
   taskNeedsAttention,
+  visibleTaskLabels,
 } from "../../src/web/lib/task-column.ts";
 import { buildCommand } from "../../src/web/stores/runtime-commands.ts";
 
@@ -36,11 +40,10 @@ test("task board groups tasks by Runtime project identity instead of parsing tra
   assert.equal(taskBelongsToProject(task(), project), false);
 });
 
-test("execution queue prioritizes attention, running, ready, backlog, then done", () => {
+test("execution queue prioritizes attention, running, backlog, then done", () => {
   const tasks = [
     task({ id: "done", workflowStatus: "done" }),
     task({ id: "backlog", workflowStatus: "backlog" }),
-    task({ id: "ready", workflowStatus: "ready" }),
     task({ id: "running", workflowStatus: "in_progress" }),
     task({ id: "review", workflowStatus: "in_review" }),
     task({
@@ -52,11 +55,63 @@ test("execution queue prioritizes attention, running, ready, backlog, then done"
 
   assert.deepEqual(
     tasks.sort(compareExecutionPriority).map((item) => item.id),
-    ["blocked", "review", "running", "ready", "backlog", "done"],
+    ["blocked", "review", "running", "backlog", "done"],
   );
   assert.equal(taskNeedsAttention(tasks[0] as TaskSummary), true);
   assert.equal(taskNeedsAttention(task({ workflowStatus: "in_review" })), true);
-  assert.equal(taskNeedsAttention(task({ workflowStatus: "ready" })), false);
+});
+
+test("only dispatchable Backlog tasks expose a start action", () => {
+  assert.equal(taskCanStart(task(), null), true);
+  assert.equal(taskCanStart(task({ dispatchable: false }), null), false);
+  assert.equal(taskCanStart(task({ workflowStatus: "in_progress" }), null), false);
+});
+
+test("task card actions move the delivery flow forward instead of restating the gate", () => {
+  assert.deepEqual(taskCardAction(task({ dispatchable: false }), null), { kind: "mark_ready" });
+  assert.deepEqual(taskCardAction(task(), null), { kind: "start" });
+  assert.deepEqual(
+    taskCardAction(task({ workflowStatus: "in_review", dispatchable: false }), null),
+    {
+      kind: "open_review",
+    },
+  );
+  assert.deepEqual(
+    taskCardAction(
+      task({
+        body: "Opened https://github.com/example/repo/pull/51 for review.",
+        workflowStatus: "in_review",
+        dispatchable: false,
+      }),
+      null,
+    ),
+    { kind: "open_review", href: "https://github.com/example/repo/pull/51" },
+  );
+  assert.deepEqual(
+    taskCardAction(
+      task({
+        source: {
+          kind: "github",
+          nativeId: "15",
+          url: "https://github.com/example/repo/pull/15",
+        },
+        identifier: "#15",
+        workflowStatus: "in_review",
+        dispatchable: false,
+      }),
+      null,
+    ),
+    { kind: "open_review", href: "https://github.com/example/repo/pull/15" },
+  );
+  assert.equal(taskCardAction(task({ workflowStatus: "in_progress" }), null), null);
+});
+
+test("task cards hide system labels and summarize blocked reasons", () => {
+  assert.deepEqual(visibleTaskLabels(["symphoneer:ready", "bug", "symphoneer:review"]), ["bug"]);
+  assert.equal(
+    blockedReasonSummary("pnpm install failed with code 1: Lockfile verification failed"),
+    "pnpm install failed with code 1",
+  );
 });
 
 test("task board records a human decision instead of only moving the card to done", () => {

@@ -50,4 +50,7 @@ export interface Tracker {
 
   /** Apply the provider-native eligibility marker and re-read the Task. */
   enableTaskDispatch?(nativeId: string, options?: { signal?: AbortSignal }): Promise<TaskSnapshot>;
+
+  /** Resolve the Tracker-native review URL for a Task, if one exists. */
+  findReviewUrl?(nativeId: string, options?: { signal?: AbortSignal }): Promise<string | null>;
 }

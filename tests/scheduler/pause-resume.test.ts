@@ -20,6 +20,7 @@ test("pause retains the Provider session and Workspace without scheduling a retr
     attemptId: "attempt-14",
     threadId: "thread-14",
     turnId: "turn-14",
+    provider: "claude-code",
     updatedAt: "2026-08-03T12:00:01.000Z",
     idempotencyKey: "turn-14",
   });
@@ -32,6 +33,7 @@ test("pause retains the Provider session and Workspace without scheduling a retr
   });
   assert.equal(paused.attempt.status, "paused");
   assert.deepEqual(paused.attempt.providerSession, {
+    provider: "claude-code",
     threadId: "thread-14",
     lastTurnId: "turn-14",
   });
@@ -104,6 +106,18 @@ test("pause retains the Provider session and Workspace without scheduling a retr
       }),
     (error) => error instanceof CoreError && error.code === "conflict",
   );
+  assert.throws(
+    () =>
+      scheduler.attachTurn({
+        attemptId: "attempt-14",
+        threadId: "thread-14",
+        turnId: "foreign-provider-turn",
+        provider: "codex-app-server",
+        updatedAt: "2026-08-03T12:00:05.000Z",
+        idempotencyKey: "foreign-provider-turn",
+      }),
+    (error) => error instanceof CoreError && error.code === "conflict",
+  );
   const continued = scheduler.attachTurn({
     attemptId: "attempt-14",
     threadId: "thread-14",
@@ -112,6 +126,7 @@ test("pause retains the Provider session and Workspace without scheduling a retr
     idempotencyKey: "turn-14-resumed",
   });
   assert.deepEqual(continued.providerSession, {
+    provider: "claude-code",
     threadId: "thread-14",
     lastTurnId: "turn-14-resumed",
   });

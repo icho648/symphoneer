@@ -115,6 +115,15 @@ export class RuntimeHttpServer {
       }
 
       if (
+        request.method === "GET" &&
+        url.pathname === "/v1/assistant/status" &&
+        !this.#assistantHandler
+      ) {
+        sendJson(response, 200, { state: "disabled", reason: "missing_config" });
+        return;
+      }
+
+      if (
         url.pathname.startsWith("/v1/assistant/") &&
         this.#assistantHandler &&
         (await this.#assistantHandler(request, response, url))
@@ -215,6 +224,19 @@ export class RuntimeHttpServer {
       const detail = this.#service.attemptDetail(attemptId);
       if (!detail) throw new RuntimeError("not_found", "Attempt was not found");
       sendJson(response, 200, detail);
+      return;
+    }
+    const reviewSuffix = "/review-target";
+    if (url.pathname.startsWith("/v1/tasks/") && url.pathname.endsWith(reviewSuffix)) {
+      const taskId = decodeURIComponent(
+        url.pathname.slice("/v1/tasks/".length, -reviewSuffix.length),
+      );
+      if (!taskId) throw new RuntimeError("invalid_request", "Task ID is required");
+      sendJson(
+        response,
+        200,
+        await this.#service.reviewTarget(taskId, url.searchParams.get("projectId") ?? undefined),
+      );
       return;
     }
 

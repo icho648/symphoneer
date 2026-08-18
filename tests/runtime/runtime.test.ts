@@ -11,6 +11,7 @@ import {
   CONTRACT_SCHEMA_VERSION,
   type ExecutionActivity,
   type ExecutionSession,
+  type RuntimeEvent,
   type TaskSummary,
   type VerificationResult,
   type WorkspaceReference,
@@ -23,6 +24,7 @@ import {
   RealSingleAgentOrchestration,
   RuntimeError,
   RuntimeHttpServer,
+  RuntimeProjection,
   RuntimeService,
 } from "@symphoneer/runtime";
 import type { Tracker } from "../../src/runtime/tracker/tracker.ts";
@@ -42,7 +44,7 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
-  workflowStatus: "ready",
+  workflowStatus: "backlog",
   blocked: null,
 };
 
@@ -107,6 +109,32 @@ function runtime(root: string, runtimeId: string): RuntimeService {
     idFactory: () => `event-${++id}`,
   });
 }
+
+test("Runtime projection normalizes historical Ready events to Backlog", () => {
+  const projection = new RuntimeProjection();
+  const event = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    source: "runtime",
+    occurredAt: "2026-08-04T08:00:00.000Z",
+    aggregate: { kind: "task", id: task.id },
+    taskId: task.id,
+  } as const;
+  projection.apply({
+    sequence: 1,
+    event: { ...event, id: "task-upserted", type: "task.upserted", payload: { task } },
+  } as RuntimeEvent);
+  projection.apply({
+    sequence: 2,
+    event: {
+      ...event,
+      id: "task-ready",
+      type: "task.status.changed",
+      payload: { workflowStatus: "ready", blocked: null },
+    },
+  } as RuntimeEvent);
+
+  assert.equal(projection.getTask(task.id)?.workflowStatus, "backlog");
+});
 
 test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Verification artifacts", async (t) => {
   const root = await runtimeFixture(t);
@@ -179,6 +207,38 @@ test("Runtime projection replays Tasks, Attempts, Workspaces, and immutable Veri
   assert.equal(restarted.attemptDetail(attempt.id)?.activities[0]?.id, activity.id);
   assert.deepEqual(restarted.attemptDetail(attempt.id)?.session, session);
   assert.equal(snapshot.verifications[0]?.status, "passed");
+});
+
+test("terminal Attempts do not project running execution activities", async (t) => {
+  const service = runtime(await runtimeFixture(t), "runtime:terminal-activity");
+  t.after(() => service.stop());
+  await service.start();
+  await service.recordTask(task);
+  await service.recordAttempt(attempt, { workspace });
+  await service.recordExecutionActivity({
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "activity:attempt-15:plan-1",
+    attemptId: attempt.id,
+    itemId: "plan-1",
+    kind: "plan",
+    status: "running",
+    title: "Execution plan",
+    content: null,
+    details: { steps: [] },
+    occurredAt: "2026-08-04T08:00:30.000Z",
+  });
+  await service.recordAttempt(
+    {
+      ...attempt,
+      status: "canceled_by_reconciliation",
+      updatedAt: "2026-08-04T08:00:31.000Z",
+      finishedAt: "2026-08-04T08:00:31.000Z",
+      failure: "Task is no longer eligible",
+    },
+    { workspace: { ...workspace, state: "retained", ownerAttemptId: null } },
+  );
+
+  assert.equal(service.attemptDetail(attempt.id)?.activities[0]?.status, "interrupted");
 });
 
 test("Runtime imports a missing Codex session once and persists the complete record", async (t) => {
@@ -496,7 +556,7 @@ test("Runtime routes and persists an intervention answer by its global identity"
   assert.equal(accepted.snapshot.interventions[0]?.resolution?.response, "Only src/**");
 });
 
-test("Runtime persists the local WorkflowStatus through an idempotent public command", async (t) => {
+test("Runtime rejects the retired Ready WorkflowStatus through its public command", async (t) => {
   const root = await runtimeFixture(t);
   const service = runtime(root, "runtime:workflow-status");
   await service.start();
@@ -509,16 +569,8 @@ test("Runtime persists the local WorkflowStatus through an idempotent public com
     taskId: task.id,
     workflowStatus: "ready" as const,
   };
-  const accepted = await service.execute(command);
-  const repeated = await service.execute(command);
-
-  assert.equal(accepted.snapshot.tasks[0]?.workflowStatus, "ready");
-  assert.equal(accepted.snapshot.tasks[0]?.blocked, null);
-  assert.equal(repeated.eventSequence, accepted.eventSequence);
-
-  const restarted = runtime(root, "runtime:workflow-status-restarted");
-  await restarted.start();
-  assert.equal(restarted.snapshot().tasks[0]?.workflowStatus, "ready");
+  await assert.rejects(service.execute(command));
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "backlog");
 });
 
 test("Runtime enables dispatch through the Tracker and immediately updates its projection", async (t) => {
@@ -654,7 +706,7 @@ test("Runtime delegates Codex handoff and deletes an Attempt only after orchestr
     deleted.snapshot.attempts.some((item) => item.id === attempt.id),
     false,
   );
-  assert.equal(deleted.snapshot.tasks[0]?.workflowStatus, "ready");
+  assert.equal(deleted.snapshot.tasks[0]?.workflowStatus, "backlog");
   assert.equal(service.attemptDetail(attempt.id), null);
 });
 
@@ -992,6 +1044,19 @@ test("Runtime HTTP exposes snapshot, event history, and SSE without leaving loop
     }),
   ]);
   await reader.cancel().catch(() => undefined);
+});
+
+test("Runtime HTTP reports Assistant disabled when no handler is installed", async (t) => {
+  const root = await runtimeFixture(t);
+  const server = new RuntimeHttpServer(runtime(root, "runtime:assistant-disabled"));
+  const endpoint = await server.listen();
+  try {
+    const response = await fetch(`${endpoint.url}/v1/assistant/status`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { state: "disabled", reason: "missing_config" });
+  } finally {
+    await server.close();
+  }
 });
 
 test("JSONL replay fails closed for corrupt and unknown records", async (t) => {

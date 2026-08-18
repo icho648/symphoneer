@@ -32,7 +32,8 @@ export type ToolState =
   | "input-streaming"
   | "output-available"
   | "output-denied"
-  | "output-error";
+  | "output-error"
+  | "output-interrupted";
 
 export type ToolPart = {
   type: string;
@@ -58,6 +59,7 @@ const statusLabels: Record<ToolPart["state"], string> = {
   "output-available": "Completed",
   "output-denied": "Denied",
   "output-error": "Error",
+  "output-interrupted": "Interrupted",
 };
 
 const statusIcons: Record<ToolPart["state"], ReactNode> = {
@@ -68,6 +70,7 @@ const statusIcons: Record<ToolPart["state"], ReactNode> = {
   "output-available": <CheckCircleIcon className="size-4 text-green-600" />,
   "output-denied": <XCircleIcon className="size-4 text-orange-600" />,
   "output-error": <XCircleIcon className="size-4 text-red-600" />,
+  "output-interrupted": <CircleIcon className="size-4 text-muted-foreground" />,
 };
 
 export const getStatusBadge = (status: ToolPart["state"]) => (

@@ -92,10 +92,19 @@ export async function loadProjectProfile(
         timeoutMs: raw.hooks.timeout_ms,
       },
       agent: {
+        executor: raw.agent.executor,
         maxConcurrentAgents: raw.agent.max_concurrent_agents,
         maxTurns: raw.agent.max_turns,
         maxRetryBackoffMs: raw.agent.max_retry_backoff_ms,
         maxConcurrentAgentsByState: perState,
+      },
+      claude: {
+        command: raw.claude.command,
+        argv: raw.claude.argv,
+        model: raw.claude.model,
+        permissionMode: raw.claude.permission_mode,
+        turnTimeoutMs: raw.claude.turn_timeout_ms,
+        stallTimeoutMs: raw.claude.stall_timeout_ms,
       },
       codex: {
         command: raw.codex.command,

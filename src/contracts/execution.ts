@@ -74,6 +74,7 @@ export const AttemptSnapshotSchema = z
       .optional(),
     providerSession: z
       .object({
+        provider: z.enum(["codex-app-server", "claude-code", "fake"]).optional(),
         threadId: NonEmptyString,
         lastTurnId: NonEmptyString,
       })
@@ -119,6 +120,13 @@ export const AttemptSnapshotSchema = z
         code: "custom",
         path: ["controller"],
         message: "Codex-controlled Attempts require a retained Provider session",
+      });
+    }
+    if (attempt.controller === "codex" && attempt.providerSession?.provider === "claude-code") {
+      context.addIssue({
+        code: "custom",
+        path: ["controller"],
+        message: "Claude Code Attempts cannot be handed off to Codex",
       });
     }
     if (attempt.status === "succeeded" && attempt.failure != null) {

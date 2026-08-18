@@ -103,9 +103,7 @@ export async function recordAttempt(
   if (task) {
     if (
       attempt.finishedAt == null &&
-      (task.workflowStatus === "backlog" ||
-        task.workflowStatus === "ready" ||
-        task.workflowStatus === "in_review")
+      (task.workflowStatus === "backlog" || task.workflowStatus === "in_review")
     ) {
       await recordTaskStatus(log, task.id, "in_progress", null, {
         source: "symphony-core",

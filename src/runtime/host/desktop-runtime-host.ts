@@ -184,6 +184,27 @@ export class DesktopRuntimeHost implements RuntimeControlPlane {
     return matches[0] ?? null;
   }
 
+  async reviewTarget(taskId: string, projectId?: string): Promise<{ url: string }> {
+    this.#requireStarted();
+    if (projectId) {
+      const runtime = this.#projects.get(projectId)?.runtime;
+      if (!runtime) throw new RuntimeError("not_found", `Project ${projectId} was not found`);
+      return runtime.reviewTarget(taskId);
+    }
+    const matches = [...this.#projects.values()].filter(({ runtime }) =>
+      runtime.snapshot().tasks.some((task) => task.id === taskId),
+    );
+    if (matches.length > 1) {
+      throw new RuntimeError("conflict", "Task project is ambiguous; projectId is required");
+    }
+    if (matches[0]) return matches[0].runtime.reviewTarget(taskId);
+    if (this.#projects.size === 1) {
+      const only = this.#projects.values().next().value;
+      if (only) return only.runtime.reviewTarget(taskId);
+    }
+    throw new RuntimeError("invalid_request", "projectId is required to open a review target");
+  }
+
   async listModels(projectId?: string): Promise<CodexModel[]> {
     this.#requireStarted();
     const resolvedProjectId =

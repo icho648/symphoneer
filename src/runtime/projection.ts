@@ -38,6 +38,8 @@ const payloadValue = (event: RuntimeEvent, key: string): unknown => {
   return value;
 };
 
+const currentWorkflowStatus = (value: unknown): unknown => (value === "ready" ? "backlog" : value);
+
 export class RuntimeProjection {
   readonly #tasks = new Map<string, ReturnType<typeof TaskSummarySchema.parse>>();
   readonly #attempts = new Map<string, AttemptSnapshot>();
@@ -76,7 +78,9 @@ export class RuntimeProjection {
           taskId,
           TaskSummarySchema.parse({
             ...task,
-            workflowStatus: WorkflowStatusSchema.parse(payloadValue(stored, "workflowStatus")),
+            workflowStatus: WorkflowStatusSchema.parse(
+              currentWorkflowStatus(payloadValue(stored, "workflowStatus")),
+            ),
             blocked: BlockedTaskSchema.nullable().parse(payloadValue(stored, "blocked")),
           }),
         );
@@ -247,6 +251,17 @@ export class RuntimeProjection {
       ),
       activities: [...this.#activities.values()]
         .filter((activity) => activity.attemptId === attempt.id)
+        .map((activity) =>
+          activity.status === "running" && attempt.finishedAt != null
+            ? {
+                ...activity,
+                status:
+                  attempt.status === "succeeded"
+                    ? ("completed" as const)
+                    : ("interrupted" as const),
+              }
+            : activity,
+        )
         .sort((a, b) => a.occurredAt.localeCompare(b.occurredAt)),
       session: this.#sessions.get(attempt.id) ?? null,
     });

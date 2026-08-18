@@ -91,6 +91,54 @@ test("GitHub adapter lists every Issue page and excludes Pull Requests", async (
   assert.equal(second.nextCursor, null);
 });
 
+test("GitHub adapter resolves the linked Pull Request instead of guessing a branch search", async () => {
+  const requests: string[] = [];
+  const adapter = new GitHubIssuesAdapter({
+    repository: "icho648/symphoneer",
+    token: "secret-token",
+    fetch: (async (input) => {
+      const url = String(input);
+      requests.push(url);
+      if (url.endsWith("/issues/14")) {
+        return response({
+          ...issue,
+          body: "Opened https://github.com/icho648/symphoneer/pull/51 for review.",
+        });
+      }
+      throw new Error(`unexpected ${url}`);
+    }) as typeof fetch,
+  });
+
+  assert.equal(await adapter.findReviewUrl("14"), "https://github.com/icho648/symphoneer/pull/51");
+  assert.deepEqual(requests, ["https://api.github.com/repos/icho648/symphoneer/issues/14"]);
+
+  const linked = new GitHubIssuesAdapter({
+    repository: "icho648/symphoneer",
+    token: "secret-token",
+    fetch: (async (input) => {
+      const url = String(input);
+      if (url.endsWith("/issues/14")) return response({ ...issue, body: null });
+      if (url.includes("/comments")) return response([]);
+      if (url.includes("/timeline")) {
+        return response([
+          {
+            event: "cross-referenced",
+            source: {
+              type: "issue",
+              issue: {
+                html_url: "https://github.com/icho648/symphoneer/pull/48",
+                pull_request: { url: "https://api.github.com/repos/icho648/symphoneer/pulls/48" },
+              },
+            },
+          },
+        ]);
+      }
+      throw new Error(`unexpected ${url}`);
+    }) as typeof fetch,
+  });
+  assert.equal(await linked.findReviewUrl("14"), "https://github.com/icho648/symphoneer/pull/48");
+});
+
 test("GitHub adapter enables dispatch by adding the ready label and re-reading the Issue", async () => {
   const requests: Array<{ method: string; url: string; body?: unknown }> = [];
   const adapter = new GitHubIssuesAdapter({

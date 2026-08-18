@@ -10,7 +10,7 @@ import {
 export type AssistantConfig = {
   provider: string;
   model: string;
-  apiKey: string;
+  apiKey?: string;
   thinkingLevel: AssistantThinkingLevel;
 };
 

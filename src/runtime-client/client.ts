@@ -160,6 +160,26 @@ export class DefaultRuntimeClient {
     );
   }
 
+  async reviewTarget(taskId: string, projectId?: string): Promise<{ url: string }> {
+    const value = await this.#transport.request({
+      method: "GET",
+      path: `/v1/tasks/${encodeURIComponent(taskId)}/review-target`,
+      ...(projectId ? { query: { projectId } } : {}),
+    });
+    if (
+      !value ||
+      typeof value !== "object" ||
+      typeof (value as { url?: unknown }).url !== "string"
+    ) {
+      throw new RuntimeClientError(
+        200,
+        "invalid_response",
+        "Runtime returned an invalid review target",
+      );
+    }
+    return { url: (value as { url: string }).url };
+  }
+
   /** @deprecated Prefer getAttempt */
   attempt(attemptId: string): Promise<RuntimeAttemptDetail> {
     return this.getAttempt(attemptId);

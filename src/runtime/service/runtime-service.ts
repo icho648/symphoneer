@@ -181,6 +181,15 @@ export class RuntimeService {
     return this.#log.projection.attemptDetail(attemptId.trim());
   }
 
+  async reviewTarget(taskId: string, _projectId?: string): Promise<{ url: string }> {
+    this.#log.requireStarted();
+    const task = this.#log.projection.getTask(taskId.trim());
+    if (!task) throw new RuntimeError("not_found", `Task ${taskId} was not found`);
+    if (/\/pull\/\d+(?:\/|$)/.test(task.source.url)) return { url: task.source.url };
+    const remote = await this.#tracker?.findReviewUrl?.(task.source.nativeId);
+    return { url: remote ?? task.source.url };
+  }
+
   subscribe(listener: (event: RuntimeEvent) => void): () => void {
     return this.#log.subscribe(listener);
   }

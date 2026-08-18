@@ -4,8 +4,8 @@ import type {
   AgentRunRequest,
   RunHandle,
 } from "../agent-runner.ts";
+import { fingerprint } from "../input-fingerprint.ts";
 import { executionActivity } from "./activities.ts";
-import { fingerprint } from "./input-fingerprint.ts";
 import {
   approvalDecision,
   inputAnswers,

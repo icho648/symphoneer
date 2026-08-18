@@ -22,6 +22,7 @@ import {
   type AssistantSessionMetadata,
   type AssistantSessionSummary,
   type AssistantStatus,
+  AssistantThinkingLevelSchema,
   type CreateAssistantSessionInput,
   CreateAssistantSessionInputSchema,
 } from "../assistant-client/index.ts";
@@ -45,12 +46,15 @@ import {
 
 export class PiAssistantService {
   readonly #assistantDir: string;
-  readonly #config: AssistantConfig | undefined;
+  #config: AssistantConfig | undefined;
   readonly #initialStatus: AssistantStatus;
   readonly #providedModels: Models | undefined;
+  readonly #piAgentDir: string | undefined;
+  readonly #reusePiConfig: boolean;
   #runtimeClient: (() => RuntimeClient) | undefined;
   #env: NodeExecutionEnv | undefined;
   #modelsPromise: Promise<Models> | undefined;
+  #piConfigPromise: Promise<AssistantConfig | undefined> | undefined;
   #repoPromise: Promise<SqliteSessionRepository> | undefined;
   readonly #sessions = new Map<string, Session<SqliteSessionMetadata>>();
   readonly #agents = new Map<
@@ -72,10 +76,13 @@ export class PiAssistantService {
     dataDir: string;
     env?: NodeJS.ProcessEnv;
     models?: Models;
+    piAgentDir?: string;
     runtimeClient?: () => RuntimeClient;
   }) {
     this.#assistantDir = join(options.dataDir, "assistant");
     this.#providedModels = options.models;
+    this.#piAgentDir = options.piAgentDir;
+    this.#reusePiConfig = options.piAgentDir !== undefined || options.env === undefined;
     this.#runtimeClient = options.runtimeClient;
     const resolved = resolveAssistantConfig(options.env ?? process.env, options.models);
     this.#config = resolved.config;
@@ -88,8 +95,15 @@ export class PiAssistantService {
   }
 
   async status(): Promise<AssistantStatus> {
-    if (!this.#config) return this.#initialStatus;
     try {
+      if (
+        !this.#config &&
+        this.#initialStatus.state === "disabled" &&
+        this.#initialStatus.reason === "missing_config"
+      ) {
+        this.#config = await this.#loadPiConfig();
+      }
+      if (!this.#config) return this.#initialStatus;
       const models = await this.#models();
       const available = models.getModels(this.#config.provider).map((model) => ({
         id: model.id,
@@ -231,7 +245,7 @@ export class PiAssistantService {
     let controller: ReadableStreamDefaultController<AssistantEvent> | undefined;
     let closed = false;
     let unsubscribe = () => {};
-    const credential = this.#requireReady().apiKey;
+    const credential = await this.#credential(this.#requireReady().provider);
     const textRedactor = new CredentialStreamRedactor(credential);
     const finish = async (event: AssistantEvent) => {
       if (closed) return;
@@ -358,6 +372,49 @@ export class PiAssistantService {
     return this.#modelsPromise;
   }
 
+  async #loadPiConfig(): Promise<AssistantConfig | undefined> {
+    if (!this.#reusePiConfig) return undefined;
+    this.#piConfigPromise ??= (async () => {
+      const { getAgentDir, ModelRuntime, SettingsManager } = await import(
+        "@earendil-works/pi-coding-agent"
+      );
+      const agentDir = this.#piAgentDir ?? getAgentDir();
+      const settings = SettingsManager.create(this.#assistantDir, agentDir, {
+        projectTrusted: false,
+      });
+      const models = await ModelRuntime.create({
+        authPath: join(agentDir, "auth.json"),
+        modelsPath: join(agentDir, "models.json"),
+        allowModelNetwork: false,
+      });
+      const available = await models.getAvailable();
+      const preferredProvider = settings.getDefaultProvider();
+      const preferredModel = settings.getDefaultModel();
+      const selected =
+        available.find(
+          (model) => model.provider === preferredProvider && model.id === preferredModel,
+        ) ?? available[0];
+      if (!selected) return undefined;
+      const configuredThinking = settings.getDefaultThinkingLevel() ?? "off";
+      const thinkingLevel = AssistantThinkingLevelSchema.safeParse(configuredThinking).success
+        ? configuredThinking
+        : "off";
+      this.#modelsPromise = Promise.resolve(models);
+      return {
+        provider: selected.provider,
+        model: selected.id,
+        thinkingLevel,
+      };
+    })();
+    return this.#piConfigPromise;
+  }
+
+  async #credential(provider: string): Promise<string | undefined> {
+    const explicit = this.#requireReady().apiKey;
+    if (explicit) return explicit;
+    return (await (await this.#models()).getAuth(provider))?.auth.apiKey;
+  }
+
   async #agent(id: string): Promise<Agent> {
     const current = this.#agents.get(id);
     if (current) return current.agent;
@@ -389,6 +446,7 @@ export class PiAssistantService {
       session,
       entries.flatMap((entry) => (entry.type === "message" ? [entry.message] : [])),
     );
+    const credential = await this.#credential(config.provider);
     const { Agent } = await import("@earendil-works/pi-agent-core");
     const agent = new Agent({
       initialState: {
@@ -400,7 +458,12 @@ export class PiAssistantService {
       },
       streamFn: (selectedModel, context, options) =>
         models.streamSimple(selectedModel, context, options),
-      getApiKey: (provider) => (provider === config.provider ? config.apiKey : undefined),
+      ...(config.apiKey
+        ? {
+            getApiKey: (provider: string) =>
+              provider === config.provider ? config.apiKey : undefined,
+          }
+        : {}),
       sessionId: id,
       toolExecution: "sequential",
     });
@@ -408,7 +471,7 @@ export class PiAssistantService {
     let persistenceFailure: unknown;
     const unsubscribePersistence = agent.subscribe((event) => {
       if (event.type === "message_end") {
-        const durableMessage = sanitizeAgentMessage(event.message, config.apiKey);
+        const durableMessage = sanitizeAgentMessage(event.message, credential);
         persistence = persistence.then(async () => {
           try {
             await session.appendMessage(durableMessage);

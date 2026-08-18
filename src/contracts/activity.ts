@@ -14,7 +14,7 @@ export const ActivityPayloadSchema = z.object({
     "warning",
     "error",
   ]),
-  status: z.enum(["info", "running", "completed", "failed", "declined"]),
+  status: z.enum(["info", "running", "completed", "failed", "declined", "interrupted"]),
   title: NonEmptyString,
   content: z.string().nullable(),
   details: z.record(z.string(), JsonValueSchema),
@@ -53,7 +53,7 @@ export const ExecutionSessionTurnSchema = z.object({
 export const ExecutionSessionSchema = z.object({
   schemaVersion: z.literal(CONTRACT_SCHEMA_VERSION),
   attemptId: NonEmptyString,
-  provider: z.literal("codex-app-server"),
+  provider: z.enum(["codex-app-server", "claude-code", "fake"]),
   threadId: NonEmptyString,
   turns: z.array(ExecutionSessionTurnSchema),
   capturedAt: Timestamp,

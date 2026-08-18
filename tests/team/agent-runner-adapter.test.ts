@@ -19,7 +19,7 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
-  workflowStatus: "ready",
+  workflowStatus: "backlog",
   blocked: null,
 };
 

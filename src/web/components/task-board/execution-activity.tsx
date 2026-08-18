@@ -24,8 +24,10 @@ import {
 import { Tool, ToolContent, ToolHeader } from "@/components/ai-elements/tool";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { Dictionary, Locale } from "../../i18n/index.ts";
+import { providerPresentation } from "../../lib/provider-presentation.ts";
 import { selectSelectedTask, useWorkbench } from "../../stores/workbench.ts";
 import { ExecutionComposer } from "./execution-composer.tsx";
+import { ProviderIdentity } from "./provider-identity.tsx";
 
 export function ExecutionActivityFeed() {
   const { detail, dictionary, locale, selectedTask } = useWorkbench(
@@ -37,17 +39,25 @@ export function ExecutionActivityFeed() {
     })),
   );
   if (!selectedTask) return null;
-  const blockedReason = selectedTask.blocked?.reason ?? null;
+  const attemptFinished = detail?.attempt.finishedAt != null;
+  const attemptFailure = attemptFinished ? detail?.attempt.failure : null;
+  const blockedReason = attemptFinished ? null : (selectedTask.blocked?.reason ?? null);
   const activities = detail?.activities ?? [];
+  const provider = detail?.session?.provider ?? detail?.attempt.providerSession?.provider ?? null;
+  const providerKind = providerPresentation(provider).kind;
   const pendingIntervention = detail?.interventions.find(
     (intervention) => intervention.state === "pending",
   );
   return (
-    <section className="task-activity-pane" aria-labelledby="task-activity-title">
+    <section
+      className="task-activity-pane"
+      data-provider={providerKind}
+      aria-labelledby="task-activity-title"
+    >
       <div className="task-activity-scroll">
         <header className="task-activity-heading">
           <div>
-            <p className="eyebrow-label">Codex App Server</p>
+            <ProviderIdentity dictionary={dictionary} provider={provider} />
             <h2 id="task-activity-title">{dictionary.detail.activity.title}</h2>
           </div>
           <span>{activities.length}</span>
@@ -59,6 +69,15 @@ export function ExecutionActivityFeed() {
               !
             </span>
             <span>{blockedReason}</span>
+          </div>
+        )}
+
+        {attemptFailure && (
+          <div className="task-alert border-line-strong bg-panel-raised text-muted" role="status">
+            <span>
+              <strong>{dictionary.detail.activity.attemptResult}</strong>
+              {` · ${attemptFailure}`}
+            </span>
           </div>
         )}
 
@@ -160,9 +179,13 @@ function ActivityContent({
             <ol className="task-plan-steps">
               {steps.map((step, index) => {
                 const value = asRecord(step);
+                const status =
+                  activity.status === "interrupted" && value?.status === "inProgress"
+                    ? "interrupted"
+                    : String(value?.status ?? "pending");
                 return (
                   <li key={`${String(value?.text)}-${index}`}>
-                    <span className={`is-${String(value?.status ?? "pending")}`} />
+                    <span className={`is-${status}`} />
                     {String(value?.text ?? "")}
                   </li>
                 );
@@ -224,11 +247,13 @@ function ActivityContent({
     const state =
       activity.status === "running"
         ? "input-available"
-        : activity.status === "failed"
-          ? "output-error"
-          : activity.status === "declined"
-            ? "output-denied"
-            : "output-available";
+        : activity.status === "interrupted"
+          ? "output-interrupted"
+          : activity.status === "failed"
+            ? "output-error"
+            : activity.status === "declined"
+              ? "output-denied"
+              : "output-available";
     return (
       <Tool className="task-ai-tool" defaultOpen={activity.status === "failed"}>
         <ToolHeader state={state} toolName={activity.title} type="dynamic-tool" />

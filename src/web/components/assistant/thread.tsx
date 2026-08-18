@@ -286,12 +286,6 @@ function AssistantMessage({
   );
   return (
     <MessagePrimitive.Root className="assistant-aui-assistant">
-      <div className="assistant-message-meta">
-        <span className="assistant-message-avatar" aria-hidden="true">
-          ✦
-        </span>
-        <strong>{assistant.label}</strong>
-      </div>
       <div className="assistant-aui-bubble assistant-aui-bubble-assistant">
         <RuntimeToolContext.Provider value={toolContext}>
           <MessagePrimitive.Parts components={toolComponents} />

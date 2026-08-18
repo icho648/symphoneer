@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -71,6 +71,50 @@ test("Runtime stays available when Assistant config is missing", async () => {
     assert.equal((await fetch(`${endpoint.url}/healthz`)).status, 200);
   } finally {
     await assistant.close();
+    await server.close();
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("AssistantClient reuses Pi config without exposing credentials or overriding opt-out", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "symphoneer-assistant-pi-config-"));
+  const piAgentDir = join(dataDir, "pi-agent");
+  const credential = "pi-user-credential-must-stay-server-side";
+  await mkdir(piAgentDir, { recursive: true });
+  await writeFile(
+    join(piAgentDir, "auth.json"),
+    JSON.stringify({ openai: { type: "api_key", key: credential } }),
+  );
+  await writeFile(
+    join(piAgentDir, "settings.json"),
+    JSON.stringify({ defaultProvider: "openai", defaultModel: "gpt-4.1" }),
+  );
+  const assistant = new PiAssistantService({ dataDir, env: {}, piAgentDir });
+  const optedOut = new PiAssistantService({
+    dataDir: join(dataDir, "disabled"),
+    env: { SYMPHONEER_ASSISTANT: "disabled" },
+    piAgentDir,
+  });
+  const server = new RuntimeHttpServer(new RuntimeService({ dataDir: join(dataDir, "runtime") }), {
+    assistantHandler: assistant.handle,
+    sessionToken: "test-token",
+  });
+
+  try {
+    const endpoint = await server.listen();
+    const client = createHttpAssistantClient({ baseUrl: endpoint.url, token: "test-token" });
+    const status = await client.status();
+
+    assert.equal(status.state, "ready");
+    if (status.state !== "ready") return;
+    assert.equal(status.provider, "openai");
+    assert.equal(status.model, "gpt-4.1");
+    assert.ok(status.models.some((model) => model.id === "gpt-4.1"));
+    assert.equal(JSON.stringify(status).includes(credential), false);
+    assert.deepEqual(await optedOut.status(), { state: "disabled", reason: "opt_out" });
+  } finally {
+    await assistant.close();
+    await optedOut.close();
     await server.close();
     await rm(dataDir, { recursive: true, force: true });
   }

@@ -19,6 +19,8 @@
   --amber: #ff9f0a;
   --danger: #ff3b30;
   --success: #34c759;
+  --provider-claude: #d97757;
+  --provider-codex: #111111;
   --selection: #0a84ff;
   --selection-text: #ffffff;
   --shadow-window: 0 18px 48px rgb(0 0 0 / 16%), 0 0 0 0.5px rgb(0 0 0 / 8%);
@@ -46,6 +48,8 @@
   --amber: #ff9f0a;
   --danger: #ff453a;
   --success: #30d158;
+  --provider-claude: #e58b6d;
+  --provider-codex: #f5f5f7;
   --selection: #0a84ff;
   --selection-text: #ffffff;
   --shadow-window: 0 22px 60px rgb(0 0 0 / 55%), 0 0 0 0.5px rgb(255 255 255 / 8%);
@@ -114,28 +118,44 @@
     @apply mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-faint;
   }
 
-  .chrome-context {
-    @apply flex min-w-0 items-center justify-center gap-1.5;
+  .board-chrome {
+    @apply flex h-10 shrink-0 items-center justify-between gap-2 rounded-[10px] border border-line bg-toolbar px-2.5 backdrop-blur-2xl;
   }
 
-  .chrome-context-chip {
-    @apply grid min-w-0 gap-0.5 rounded-[7px] border border-line bg-panel/45 px-2 py-1;
+  .board-chrome-brand {
+    @apply flex min-w-0 items-center gap-2;
   }
 
-  .chrome-context-chip small {
-    @apply truncate text-[9px] uppercase tracking-[0.08em] text-faint;
+  .board-chrome-brand img {
+    @apply size-6 shrink-0 rounded-[6px] shadow-[0_0_0_0.5px_var(--line)];
   }
 
-  .chrome-context-chip strong {
-    @apply truncate text-[10px] font-medium text-muted;
+  .board-chrome-brand strong {
+    @apply truncate text-[12px] font-semibold tracking-[-0.01em];
   }
 
-  .chrome-context-chip.is-success strong {
-    @apply text-success;
+  .board-chrome-status {
+    @apply flex shrink-0 items-center gap-1 text-[9px] font-medium text-success;
   }
 
-  .chrome-context-chip.is-danger strong {
+  .board-chrome-status > span {
+    @apply size-1.5 rounded-full bg-success;
+  }
+
+  .board-chrome-status.is-offline {
     @apply text-danger;
+  }
+
+  .board-chrome-status.is-offline > span {
+    @apply bg-danger;
+  }
+
+  .board-chrome-controls {
+    @apply flex shrink-0 items-center gap-1;
+  }
+
+  .board-chrome-reconnect {
+    @apply grid size-6 shrink-0 cursor-pointer place-items-center rounded-[6px] border border-line bg-panel/55 text-[14px] text-muted transition hover:border-signal/30 hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal;
   }
 
   .task-overview-body {
@@ -143,7 +163,7 @@
   }
 
   .task-overview-panel {
-    @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-hidden;
   }
 
   .task-workbench {
@@ -152,11 +172,29 @@
   }
 
   .task-workbench:has(.assistant-column) {
-    grid-template-columns: minmax(270px, 31%) minmax(0, 1fr);
+    grid-template-columns: minmax(320px, 4fr) minmax(0, 8fr);
   }
 
   .task-workbench.assistant-is-closed {
     grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .assistant-rail {
+    @apply flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden;
+  }
+
+  .assistant-rail.is-collapsed {
+    @apply items-center;
+  }
+
+  .assistant-rail.is-collapsed .board-chrome {
+    @apply size-10 justify-center p-0;
+  }
+
+  .assistant-rail.is-collapsed .board-chrome-brand strong,
+  .assistant-rail.is-collapsed .board-chrome-status,
+  .assistant-rail.is-collapsed .board-chrome-controls {
+    display: none;
   }
 
   .task-deck {
@@ -180,7 +218,7 @@
   }
 
   .assistant-column {
-    @apply flex min-h-0 min-w-0 flex-col overflow-hidden;
+    @apply flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden;
   }
 
   .assistant-collapsed-toggle,
@@ -203,7 +241,7 @@
   }
 
   .assistant-slot-header {
-    @apply flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3;
+    @apply flex shrink-0 items-start justify-between gap-3 border-b border-line px-3 py-3;
   }
 
   .assistant-identity {
@@ -237,7 +275,7 @@
   }
 
   .assistant-slot-status {
-    @apply flex shrink-0 items-center gap-1.5 border-b border-line bg-panel-raised/35 px-4 py-2 text-[10px] text-muted;
+    @apply flex shrink-0 items-center gap-1.5 border-b border-line bg-panel-raised/35 px-3 py-2 text-[10px] text-muted;
   }
 
   .assistant-status-dot {
@@ -297,7 +335,7 @@
   }
 
   .assistant-thread-viewport {
-    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4;
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3;
   }
 
   .assistant-empty {
@@ -373,22 +411,30 @@
   }
 
   .assistant-aui-user-content {
-    @apply grid max-w-[92%] justify-items-end gap-1.5;
+    width: calc(100% - 2rem);
+    @apply flex flex-col items-end gap-1.5;
   }
 
   .assistant-aui-assistant {
-    @apply grid gap-2;
+    @apply flex flex-col items-start gap-2;
   }
 
   .assistant-aui-bubble {
-    @apply max-w-[92%] whitespace-pre-wrap rounded-[9px] px-3 py-2 text-[12px] leading-relaxed;
+    overflow-wrap: anywhere;
+    @apply flex flex-col whitespace-pre-wrap rounded-[9px] px-3 py-2 text-[12px] leading-relaxed;
+  }
+
+  .assistant-aui-bubble > p {
+    width: max-content;
+    max-width: 100%;
   }
 
   .assistant-aui-bubble-user {
-    @apply bg-selection text-selection-text;
+    @apply max-w-full bg-selection text-selection-text;
   }
 
   .assistant-aui-bubble-assistant {
+    max-width: calc(100% - 2rem);
     @apply border border-line bg-panel-raised/45 text-ink;
   }
 
@@ -510,31 +556,20 @@
   }
 
   .task-overview-toolbar {
-    @apply flex min-w-0 shrink-0 items-center gap-2 pb-2;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    @apply grid h-10 min-w-0 shrink-0 items-center gap-2;
   }
 
   .task-overview-toolbar-meta {
-    @apply flex shrink-0 items-center gap-2;
+    @apply col-span-3 flex min-w-0 items-center justify-end gap-2;
   }
 
   .task-overview-notice {
     @apply sr-only;
   }
 
-  .task-queue-search {
-    @apply relative min-w-36 max-w-72 flex-1;
-  }
-
-  .task-queue-search > svg {
-    @apply pointer-events-none absolute left-2.5 top-2 size-4 text-faint;
-  }
-
-  .task-queue-search input {
-    @apply h-8 pl-8 text-[12px];
-  }
-
   .task-queue-summary {
-    @apply min-w-0 flex-1 truncate font-mono text-[10px] text-faint;
+    @apply col-span-5 min-w-0 truncate font-mono text-[10px] text-faint;
   }
 
   .task-alert {
@@ -550,7 +585,7 @@
   }
 
   .project-group-list {
-    @apply flex min-h-0 flex-1 flex-col gap-2 overflow-auto pb-2;
+    @apply flex min-h-0 flex-1 flex-col gap-3 overflow-auto pb-2;
   }
 
   .project-group {
@@ -695,10 +730,6 @@
     @apply absolute left-0 top-1 size-1.5 rounded-full bg-muted;
   }
 
-  .task-card-summary.is-ready::before {
-    @apply bg-signal;
-  }
-
   .task-card-summary.is-in_progress::before {
     @apply bg-amber;
   }
@@ -720,7 +751,7 @@
   }
 
   .task-card-alert {
-    @apply inline-flex min-w-0 max-w-48 items-center gap-1 truncate rounded-full bg-danger/10 px-2 py-0.5 text-[9px] text-danger;
+    @apply inline-flex min-w-0 max-w-full items-center gap-1 truncate rounded-full bg-danger/10 px-2 py-0.5 text-[9px] text-danger;
   }
 
   .task-card-alert > span {
@@ -914,15 +945,38 @@
   }
 
   .task-activity-pane {
+    --provider-accent: var(--faint);
+    --provider-soft: color-mix(in srgb, var(--faint) 7%, transparent);
     @apply flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-line;
   }
 
+  .task-activity-pane[data-provider="claude"] {
+    --provider-accent: var(--provider-claude);
+    --provider-soft: color-mix(in srgb, var(--provider-claude) 9%, transparent);
+  }
+
+  .task-activity-pane[data-provider="codex"] {
+    --provider-accent: var(--provider-codex);
+    --provider-soft: color-mix(in srgb, var(--provider-codex) 6%, transparent);
+  }
+
   .task-activity-scroll {
+    box-shadow: inset 3px 0 0 var(--provider-accent);
+    background: var(--provider-soft);
     @apply min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4;
   }
 
   .task-execution-composer {
     @apply shrink-0 border-t border-line bg-panel-raised/55 p-3;
+  }
+
+  .task-execution-composer[data-provider="claude"] {
+    border-top-color: color-mix(in srgb, var(--provider-claude) 35%, var(--line));
+    background: color-mix(in srgb, var(--provider-claude) 7%, var(--panel-raised));
+  }
+
+  .task-execution-composer[data-provider="codex"] {
+    border-top-color: color-mix(in srgb, var(--provider-codex) 20%, var(--line));
   }
 
   .task-execution-input {
@@ -931,6 +985,58 @@
 
   .task-execution-toolbar {
     @apply flex min-w-0 flex-wrap items-center gap-2;
+  }
+
+  .task-provider-identity {
+    @apply mb-2 flex min-w-0 items-center gap-2;
+  }
+
+  .task-provider-mark {
+    @apply grid size-8 shrink-0 place-items-center overflow-hidden rounded-[9px] border border-line bg-panel;
+  }
+
+  .task-provider-mark img {
+    @apply size-full object-contain;
+  }
+
+  .task-provider-mark > span {
+    @apply font-mono text-[15px] font-semibold text-faint;
+  }
+
+  .task-provider-identity.is-codex .task-provider-mark {
+    background: #ffffff;
+    border-color: rgb(17 17 17 / 14%);
+    padding: 7px;
+  }
+
+  .task-provider-copy {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .task-provider-copy strong {
+    @apply truncate text-[12px] font-semibold text-ink;
+  }
+
+  .task-provider-copy small {
+    @apply truncate font-mono text-[9px] uppercase tracking-[0.08em] text-faint;
+  }
+
+  .task-provider-identity.is-compact {
+    @apply mb-0 ml-auto rounded-full border px-2 py-1;
+    border-color: color-mix(in srgb, var(--provider-accent, var(--line-strong)) 25%, var(--line));
+    background: color-mix(in srgb, var(--provider-soft, transparent) 80%, var(--panel));
+  }
+
+  .task-provider-identity.is-compact .task-provider-mark {
+    @apply size-5 rounded-[6px];
+  }
+
+  .task-provider-identity.is-compact.is-codex .task-provider-mark {
+    padding: 4px;
+  }
+
+  .task-provider-identity.is-compact .task-provider-copy strong {
+    @apply text-[10px];
   }
 
   .task-execution-panel {
@@ -1017,6 +1123,10 @@
 
   .task-activity-heading {
     @apply mb-3 flex items-center justify-between gap-3 border-b border-line pb-3;
+  }
+
+  .task-activity-heading > div {
+    @apply min-w-0;
   }
 
   .task-activity-heading h2 {
@@ -1238,7 +1348,7 @@
 
 @media (max-width: 1050px) {
   .task-workbench {
-    grid-template-columns: minmax(235px, 34%) minmax(0, 1fr);
+    grid-template-columns: minmax(280px, 4fr) minmax(0, 8fr);
   }
 
   .task-workbench.assistant-is-closed {
@@ -1247,10 +1357,6 @@
 }
 
 @media (max-width: 760px) {
-  .chrome-context {
-    display: none;
-  }
-
   .macos-nav-item {
     justify-content: flex-start;
   }
@@ -1285,6 +1391,24 @@
   .task-deck {
     min-height: 560px;
     overflow: visible;
+  }
+
+  .task-overview-toolbar {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .task-queue-summary,
+  .task-overview-toolbar-meta {
+    grid-column: 1 / -1;
+  }
+
+  .task-overview-toolbar-meta {
+    justify-content: stretch;
+  }
+
+  .task-overview-toolbar-meta > button {
+    flex: 1;
   }
 
   .task-deck-heading {

@@ -19,7 +19,7 @@ function TaskBoardView() {
     })),
   );
   return (
-    <BoardChrome>
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-window">
       <section
         className="flex min-h-0 min-w-0 flex-1 flex-col px-4 pb-4 pt-4 max-[700px]:px-3 max-[700px]:pb-3"
         id="task-board"
@@ -32,7 +32,10 @@ function TaskBoardView() {
             <div
               className={`task-workbench ${assistantOpen ? "assistant-is-open" : "assistant-is-closed"}`}
             >
-              <AssistantShell />
+              <div className={`assistant-rail ${assistantOpen ? "is-open" : "is-collapsed"}`}>
+                <BoardChrome />
+                <AssistantShell />
+              </div>
               <div className="task-deck">
                 <TaskColumns />
               </div>
@@ -40,6 +43,6 @@ function TaskBoardView() {
           )}
         </div>
       </section>
-    </BoardChrome>
+    </div>
   );
 }
