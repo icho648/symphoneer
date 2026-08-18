@@ -83,8 +83,6 @@ Attempt: {% if attempt == nil %}first{% else %}{{ attempt }}{% endif %}
     state: "open",
     labels: ["symphoneer:ready"],
     dispatchable: true,
-    workflowStatus: "backlog",
-    blocked: null,
   };
   let reads = 0;
   const tracker: Tracker = {
@@ -174,12 +172,18 @@ Attempt: {% if attempt == nil %}first{% else %}{{ attempt }}{% endif %}
     runner.requests[1]?.prompt,
     "Continue working on the same issue. Re-read its current tracker state, finish any remaining acceptance work, and report the result.",
   );
-  assert.equal(service.attemptDetail(attempt?.id ?? "")?.workspace?.id, `workspace:${ready.id}`);
   assert.equal(
-    service.attemptDetail(attempt?.id ?? "")?.workspace?.path,
+    (await service.attemptDetail(attempt?.id ?? ""))?.workspace?.id,
+    `workspace:${ready.id}`,
+  );
+  assert.equal(
+    (await service.attemptDetail(attempt?.id ?? ""))?.workspace?.path,
     resolve(workspaceRoot, "issue-47"),
   );
-  assert.equal(service.attemptDetail(attempt?.id ?? "")?.workspace?.branch, "symphoneer/issue-47");
+  assert.equal(
+    (await service.attemptDetail(attempt?.id ?? ""))?.workspace?.branch,
+    "symphoneer/issue-47",
+  );
   await service.stop();
 
   const failedTask: TaskSummary = {
@@ -228,7 +232,10 @@ Attempt: {% if attempt == nil %}first{% else %}{{ attempt }}{% endif %}
   const failedAttempt = failedService.snapshot().attempts[0];
   assert.equal(failedAttempt?.status, "failed");
   assert.match(failedAttempt?.failure ?? "", /deterministic_injected_worker_failure/);
-  assert.equal(failedService.attemptDetail(failedAttempt?.id ?? "")?.workspace?.state, "retained");
+  assert.equal(
+    (await failedService.attemptDetail(failedAttempt?.id ?? ""))?.workspace?.state,
+    "retained",
+  );
   await failedService.stop();
 
   let retryReads = 0;
@@ -326,9 +333,10 @@ Attempt: {% if attempt == nil %}first{% else %}{{ attempt }}{% endif %}
   await recoveryService.refreshTracker();
   await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   assert.equal(recoveryService.snapshot().attempts.length, 1);
-  assert.equal(recoveryService.snapshot().attempts[0]?.status, "canceled_by_reconciliation");
-  assert.match(recoveryService.snapshot().tasks[0]?.blocked?.reason ?? "", /Workspace/);
-  assert.equal(recoveryReads, 0);
+  assert.equal(recoveryService.snapshot().attempts[0]?.status, "interrupted");
+  assert.equal(recoveryService.snapshot().tasks[0]?.blocked, false);
+  assert.equal(recoveryService.snapshot().tasks[0]?.lastAttemptOutcome, "interrupted");
+  assert.equal(recoveryReads, 1);
   await recoveryService.stop();
 
   const emptyTracker: Tracker = {
@@ -428,8 +436,6 @@ Implement {{ issue.identifier }}.
     state: "open",
     labels: ["symphoneer:ready"],
     dispatchable: true,
-    workflowStatus: "backlog",
-    blocked: null,
   };
   const tracker: Tracker = {
     kind: "github",
@@ -468,14 +474,18 @@ Implement {{ issue.identifier }}.
   });
   await service.start();
   await service.refreshTracker();
-  for (let index = 0; index < 300 && service.snapshot().tasks[0]?.blocked == null; index += 1) {
+  for (
+    let index = 0;
+    index < 300 && service.snapshot().attempts[0]?.finishedAt == null;
+    index += 1
+  ) {
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
   }
 
   assert.equal(service.snapshot().attempts.length, 1);
-  assert.match(service.snapshot().tasks[0]?.blocked?.reason ?? "", /Attempt limit.*1/);
+  assert.equal(service.snapshot().tasks[0]?.lastAttemptOutcome, "succeeded");
   assert.equal(
-    service.attemptDetail(service.snapshot().attempts[0]?.id ?? "")?.workspace?.state,
+    (await service.attemptDetail(service.snapshot().attempts[0]?.id ?? ""))?.workspace?.state,
     "retained",
   );
   assert.equal(runner.openWorkerCount, 1);
@@ -536,8 +546,6 @@ Implement {{ issue.identifier }}.
     state: "open",
     labels: ["symphoneer:ready"],
     dispatchable: true,
-    workflowStatus: "backlog",
-    blocked: null,
   };
   let trackerTask = ready;
   const tracker: Tracker = {

@@ -50,9 +50,9 @@ Tracker Task（V1 由 GitHub Issue 实现）
 | 对象 | 权威来源 | Symphoneer 责任 |
 |---|---|---|
 | Task | Tracker 的身份、意图、状态、标签和协作记录 | 按 Tracker 原生 ID 投影、筛选和对账，不创建第二套 Task 真相；GitHub Issue 只是 V1 的一种 Tracker Task |
-| Attempt | Symphoneer Runtime 中 Symphony Core 的一次执行生命周期 | 分配稳定 ID，保存开始原因、状态、来源和历史转换 |
-| Workspace | Symphoneer Runtime 中 Symphony Core 的 per-Issue 路径、分支、宿主机、可变租约和回收规则 | 跨 Attempt 保存稳定引用，检测竞争所有者、脏目录和来源不一致 |
-| Session / Turn / Item | 当前 Executor | 保存原生 ID 和必要事件，不把 Turn 完成当成验收 |
+| Attempt | Symphoneer Runtime 中 Symphony Core 的一次执行尝试 | 在 `attempts.json` 保存最小索引、生命周期结果及 Provider Session 引用 |
+| Workspace | 文件系统与 Git | 现场检查路径、分支、HEAD、dirty 状态和租约；Attempt 只保留必要引用 |
+| Session / Turn / Item | 当前 Executor | Symphoneer 保存 Session 引用并按需读取完整历史，不复制 Provider transcript |
 | Diff / Commit / Branch | Git | 保存版本引用，不伪造变更真相 |
 | Check Artifact | Codex / Git / 项目原生工具 | 保存 Agent 执行中产生的检查、diff 和输出引用；不作为 Single Agent 的固定独立阶段 |
 | Orchestration Run / checkpoint | Runtime 应用数据目录中的 LangGraph SQLite checkpoint | 保存可恢复的编排状态；对外查询仍以 Domain Event 投影为准 |
@@ -61,13 +61,13 @@ Tracker Task（V1 由 GitHub Issue 实现）
 | Assistant Session | Pi 官方 Session SQLite backend | 创建时固定 provider / model 与 project / task / attempt / locale 上下文；恢复对话，不改变 Task 或 Attempt 事实 |
 | PR / Checks / Review / Merge state | GitHub 原生对象；Merge / Close 的最终决定由人持有 | 重新读取原生状态，保存关联和冲突，不从历史投影重建 |
 | Trace / Evaluation | Phoenix 等诊断系统 | 只保存关联 ID；不可用时不阻塞核心流程 |
-| Historical Projection | Symphoneer 应用数据目录中的 append-only JSONL 和 immutable artifact | 支持重放、查询和 UI，不覆盖原生事实 |
+| Runtime notification history | Symphoneer 应用数据目录中的 append-only JSONL | 通知客户端变化；不重放 Task、当前执行或 Provider transcript 真相 |
 
 ## 当前 V1 的执行粒度
 
 - Single Agent 默认是 `Task → Attempt → Attempt Worker → 顺序 Turn`；Team / 显式 Gate 继续使用独立的 `plan-implement-review` JSON IR，Session 使用 Executor 返回的原生身份表示。
 - 同一 Task 可以有多个 Attempt，用于首次执行、重试、继续或人工交还；Attempt 不是普通 Session 的归档状态。
-- Scheduler 默认最多自动创建 `agent.max_attempts` 个 Attempt；达到上限后保留 claim 与 Workspace、挂起 retry 并在 Task 投影标记阻塞。人显式重试可放行一个额外 Attempt，但不会永久解除后续上限检查。
+- Scheduler 默认最多自动创建 `agent.max_attempts` 个 Attempt；达到上限后停止自动重试并保留 Workspace。最近 Attempt 结果作为 badge 展示，不写入 Tracker phase 或本地 blocked 状态。
 - 多个独立 Task 可以并行；同一 Task 的并行 Attempt、Workspace 或活跃 Turn 必须有明确所有权，当前不允许未定义的并发写入。
 - 同一 Task 多 Thread 的 `AgentRun` 聚合是未来扩展，不是固定 Symphony SPEC 的 V1 对象。只有需要独立写入、验证和合并时才引入它。
 
@@ -130,7 +130,8 @@ listTasks(options?) → TrackerTaskPage
 | 记录 | 用途 | 持久性与证明范围 |
 |---|---|---|
 | Runtime Log | 结构化运行诊断；关联 Task、Attempt、Workspace 和 Provider 引用 | 可轮转；只证明某条诊断被记录 |
-| Domain Event | Task 投影、Attempt 和 Workspace 等业务状态变化 | append-only、带稳定 ID 和 Schema 版本，可重放查询投影 |
+| Attempt index | Attempt 身份、Issue 引用、序号、结果和 Provider Session 引用 | 普通 JSON；重启时未结束的 Symphoneer-owned Attempt 转为 `interrupted` |
+| Domain Event | 轻量变更通知及仍由 Runtime 持有的业务记录 | append-only、带稳定 ID 和 Schema 版本；不包含完整 Issue、Activity 或 Session 副本 |
 | Check Artifact | Agent 活动中的命令、精确代码版本、退出状态和必要输出 | immutable；只证明对应检查在绑定版本上的结果 |
 | Trace | Phoenix 等系统中的调试与评估副本 | 可选、可丢失，不参与调度或验收判定 |
 
@@ -139,7 +140,7 @@ listTasks(options?) → TrackerTaskPage
 3. GitHub、Git、Runtime、Codex 和 Phoenix 的原生事实不由历史投影覆盖。
 4. 缺少匹配证据时明确显示证据缺口，不能用文档、Mock、构建成功或单一评分代替 Smoke 和人工判断。
 
-JSONL 只追加 Domain Event；大输出、检查日志和差异作为 immutable artifact 引用。重放只重建查询投影，不执行外部写操作。
+JSONL 只追加轻量 Domain Event；Task 每次从 Tracker 刷新，执行所有权只来自当前 Runtime，Provider 历史按 Session 引用读取。大输出、检查日志和差异仅在 Symphoneer 自己拥有证据时作为 immutable artifact 引用。
 
 ### 可选独立检查的容纳边界
 
@@ -155,7 +156,7 @@ Runtime 仍保留独立检查与 immutable artifact 能力，供 Team 编排或�
 |---|---|---|
 | Repository contract | 目标仓库 `.symphoneer/WORKFLOW.md`，进入 Git | 配置、Prompt 和团队共享策略；根 `WORKFLOW.md` 不参与加载 |
 | Project registry | Symphoneer application data 下的 `projects/index.json` | 仅保存稳定、不透明的 `project-id` 列表；项目路径是查找键，不是身份 |
-| Project-scoped runtime data | Symphoneer application data 下的 `projects/<project-id>/` | 配置、Domain Event、Verification Artifact、checkpoint 与恢复元数据；由 Runtime 创建和保留 |
+| Project-scoped runtime data | Symphoneer application data 下的 `projects/<project-id>/` | `config.json`、`attempts.json`、轻量 Domain Event、Symphoneer-owned artifact 与 checkpoint |
 | Workspace | Host 注入的 Workspace 根下 `/<project-id>/` | Attempt Git worktree 与未提交工作；不作为 cache，也不随项目从目录中移除而删除 |
 | Runtime Log | 操作系统的 Symphoneer Logs 目录下 `<project-id>/operator.jsonl` | project-scoped 操作、关联 ID、PID、耗时、outcome 和 error kind；不记录 Prompt、Token、源码或 Provider payload |
 | Cache / temporary data | 操作系统 Cache / temporary 目录 | 仅保存可重建内容；系统清理不能导致业务证据或未提交 Workspace 丢失 |

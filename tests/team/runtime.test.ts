@@ -20,8 +20,6 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
-  workflowStatus: "backlog",
-  blocked: null,
 };
 
 async function root(t: TestContext): Promise<string> {
@@ -40,7 +38,7 @@ function service(dataDir: string, prefix: string): RuntimeService {
   });
 }
 
-test("Runtime persists LangGraph workflow checkpoints and resumes from the projection", async (t) => {
+test("Runtime advances a LangGraph workflow without owning the Tracker phase", async (t) => {
   const dataDir = await root(t);
   const first = service(dataDir, "first");
   await first.start();
@@ -59,9 +57,7 @@ test("Runtime persists LangGraph workflow checkpoints and resumes from the proje
   assert.equal(waiting?.status, "awaiting_plan_approval");
   assert.equal(started.snapshot.attempts.length, 1);
 
-  const restarted = service(dataDir, "restarted");
-  await restarted.start();
-  const resumed = await restarted.execute({
+  const resumed = await first.execute({
     kind: "approve_plan",
     idempotencyKey: "web:approve-workflow-40",
     teamRunId: waiting?.id,
@@ -73,7 +69,7 @@ test("Runtime persists LangGraph workflow checkpoints and resumes from the proje
   assert.equal(awaitingDecision?.verificationStatus, "failed");
   assert.equal(resumed.snapshot.verifications.length, 1);
 
-  const completed = await restarted.execute({
+  const completed = await first.execute({
     kind: "final_decision",
     idempotencyKey: "web:accept-workflow-40",
     teamRunId: awaitingDecision?.id,
@@ -83,8 +79,8 @@ test("Runtime persists LangGraph workflow checkpoints and resumes from the proje
   });
   assert.equal(completed.snapshot.teamRuns[0]?.status, "completed");
   assert.equal(completed.snapshot.attempts[0]?.status, "succeeded");
-  assert.equal(completed.snapshot.tasks[0]?.workflowStatus, "in_progress");
-  assert.equal(completed.snapshot.tasks[0]?.blocked?.reason, "Verification failed");
+  assert.equal(completed.snapshot.tasks[0]?.displayState, "backlog");
+  assert.equal(completed.snapshot.tasks[0]?.lastAttemptOutcome, "succeeded");
 });
 
 test("Runtime rejects team commands that do not match the pending human gate", async (t) => {

@@ -1,15 +1,15 @@
-import type { AttemptSnapshot, RuntimeProject, TaskSummary } from "@symphoneer/contracts";
+import type { AttemptSnapshot, RuntimeProject, RuntimeTask } from "@symphoneer/contracts";
 
-export function taskBelongsToProject(task: TaskSummary, project: RuntimeProject): boolean {
+export function taskBelongsToProject(task: RuntimeTask, project: RuntimeProject): boolean {
   return task.projectId === project.id;
 }
 
-export function taskNeedsAttention(task: TaskSummary): boolean {
-  return task.blocked !== null || task.workflowStatus === "in_review";
+export function taskNeedsAttention(task: RuntimeTask): boolean {
+  return task.blocked || task.displayState === "in_review" || task.lastAttemptOutcome === "failed";
 }
 
-export function taskCanStart(task: TaskSummary, attempt: AttemptSnapshot | null): boolean {
-  return attempt === null && task.workflowStatus === "backlog" && task.dispatchable;
+export function taskCanStart(task: RuntimeTask, attempt: AttemptSnapshot | null): boolean {
+  return attempt === null && task.displayState === "ready" && task.dispatchable;
 }
 
 export type TaskCardAction =
@@ -19,22 +19,22 @@ export type TaskCardAction =
   | { kind: "open_review"; href?: string };
 
 export function taskCardAction(
-  task: TaskSummary,
+  task: RuntimeTask,
   attempt: AttemptSnapshot | null,
 ): TaskCardAction | null {
   if (task.blocked) return { kind: "recheck" };
-  if (task.workflowStatus === "in_review") {
+  if (task.displayState === "in_review") {
     const href = taskReviewHref(task);
     return href ? { kind: "open_review", href } : { kind: "open_review" };
   }
   if (taskCanStart(task, attempt)) return { kind: "start" };
-  if (attempt === null && task.workflowStatus === "backlog" && !task.dispatchable) {
+  if (attempt === null && task.issuePhase === "backlog" && !task.dispatchable) {
     return { kind: "mark_ready" };
   }
   return null;
 }
 
-export function taskReviewHref(task: TaskSummary): string | null {
+export function taskReviewHref(task: RuntimeTask): string | null {
   if (/\/pull\/\d+(?:\/|$)/.test(task.source.url)) return task.source.url;
   return linkedPullRequestUrl(task.body, repositoryFromTaskUrl(task.source.url));
 }
@@ -67,15 +67,16 @@ export function blockedReasonSummary(reason: string): string {
   return headline.length > 72 ? `${headline.slice(0, 71)}…` : headline;
 }
 
-export function compareExecutionPriority(left: TaskSummary, right: TaskSummary): number {
-  const rank = (task: TaskSummary): number => {
+export function compareExecutionPriority(left: RuntimeTask, right: RuntimeTask): number {
+  const rank = (task: RuntimeTask): number => {
     if (task.blocked) return 0;
     return {
       in_review: 1,
       in_progress: 2,
-      backlog: 3,
-      done: 4,
-    }[task.workflowStatus];
+      ready: 3,
+      backlog: 4,
+      done: 5,
+    }[task.displayState];
   };
   return rank(left) - rank(right) || left.identifier.localeCompare(right.identifier);
 }

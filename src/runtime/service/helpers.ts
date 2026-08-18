@@ -45,7 +45,6 @@ export function commandMessage(command: RuntimeCommand): string {
     return "Attempt and its managed Workspace deleted.";
   }
   if (command.kind === "record_review") return "Human review decision recorded.";
-  if (command.kind === "set_task_status") return "Task workflow status updated.";
   if (command.kind === "enable_task_dispatch") return "Task enabled for dispatch in the Tracker.";
   if (command.kind === "refresh_tracker") return "Tracker projection refreshed.";
   if (command.kind === "start_run") return "Orchestration started.";

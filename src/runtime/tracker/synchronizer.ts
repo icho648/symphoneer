@@ -1,6 +1,5 @@
 import { type RuntimeEvent, type TaskSummary, TaskSummarySchema } from "@symphoneer/contracts";
 import type { EventLog } from "../service/event-log.ts";
-import { reconcileTrackerStatus } from "../service/recording.ts";
 import type { TaskSnapshot, Tracker } from "./tracker.ts";
 
 /** Project-scoped Tracker synchronization dependencies. */
@@ -85,17 +84,16 @@ export async function syncTrackerProjection(
         log.projection.getTask(task.id)?.dispatchable === false && task.dispatchable;
       tasks.push(task);
       seenTaskIds.add(task.id);
-      events.push(
-        await log.commit({
-          type: "task.upserted",
-          source: "adapter",
-          aggregate: { kind: "task", id: task.id },
-          taskId: task.id,
-          idempotencyKey: `tracker-sync:${task.id}:${task.updatedAt ?? ""}${returning ? `:returning:${log.lastSequence}` : ""}`,
-          payload: { task, versionToken: snapshot.versionToken },
-        }),
-      );
-      await reconcileTrackerStatus(log, task, true);
+      const event = await log.commit({
+        type: "task.changed",
+        source: "adapter",
+        aggregate: { kind: "task", id: task.id },
+        taskId: task.id,
+        idempotencyKey: `tracker-change:${task.id}:${task.updatedAt ?? ""}${returning ? `:returning:${log.lastSequence}` : ""}`,
+        payload: { taskId: task.id, versionToken: snapshot.versionToken },
+      });
+      log.projection.recordTask(task);
+      events.push(event);
     }
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
@@ -108,16 +106,16 @@ export async function syncTrackerProjection(
     )
       continue;
     const unavailable = TaskSummarySchema.parse({ ...existing, dispatchable: false });
-    events.push(
-      await log.commit({
-        type: "task.upserted",
-        source: "adapter",
-        aggregate: { kind: "task", id: unavailable.id },
-        taskId: unavailable.id,
-        idempotencyKey: `tracker-sync:missing:${unavailable.id}:${unavailable.updatedAt ?? ""}:${log.lastSequence}`,
-        payload: { task: unavailable, versionToken: null },
-      }),
-    );
+    const event = await log.commit({
+      type: "task.changed",
+      source: "adapter",
+      aggregate: { kind: "task", id: unavailable.id },
+      taskId: unavailable.id,
+      idempotencyKey: `tracker-change:missing:${unavailable.id}:${unavailable.updatedAt ?? ""}:${log.lastSequence}`,
+      payload: { taskId: unavailable.id, versionToken: null },
+    });
+    log.projection.recordTask(unavailable);
+    events.push(event);
   }
   return { tasks, pageCount, events };
 }

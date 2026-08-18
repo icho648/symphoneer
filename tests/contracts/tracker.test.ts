@@ -23,8 +23,6 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
-  workflowStatus: "backlog",
-  blocked: null,
   createdAt: "2026-08-03T12:00:00Z",
   updatedAt: "2026-08-03T12:00:01Z",
 };
@@ -47,21 +45,14 @@ test("the deterministic Fake satisfies the Tracker public contract", async () =>
   );
 });
 
-test("TaskSummary defaults the local WorkflowStatus for legacy Tracker payloads", () => {
+test("TaskSummary drops retired local workflow fields from Tracker payloads", () => {
   const parsed = TaskSummarySchema.parse({
     ...task,
-    workflowStatus: undefined,
-    blocked: undefined,
+    workflowStatus: "in_progress",
+    blocked: { reason: "legacy", since: "2026-08-03T12:00:00Z" },
   });
 
-  assert.equal(parsed.workflowStatus, "backlog");
-  assert.equal(parsed.blocked, null);
+  assert.equal("workflowStatus" in parsed, false);
+  assert.equal("blocked" in parsed, false);
   assert.equal(parsed.state, "open");
-});
-
-test("TaskSummary normalizes the retired Ready WorkflowStatus to Backlog", () => {
-  assert.equal(
-    TaskSummarySchema.parse({ ...task, workflowStatus: "ready" }).workflowStatus,
-    "backlog",
-  );
 });

@@ -1,4 +1,4 @@
-import type { AttemptSnapshot, WorkflowStatus } from "@symphoneer/contracts";
+import type { AttemptSnapshot, DisplayState } from "@symphoneer/contracts";
 import { RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -111,7 +111,7 @@ export function TaskOverview() {
             attempt={attempt}
             dictionary={dictionary}
             provider={provider}
-            workflowStatus={task.workflowStatus}
+            displayState={task.displayState}
           />
         </div>
       </header>
@@ -121,7 +121,7 @@ export function TaskOverview() {
           <header>
             <div>
               <p className="eyebrow-label">
-                {task.identifier} · {workflowStatusLabel(task.workflowStatus, dictionary)}
+                {task.identifier} · {displayStateLabel(task.displayState, dictionary)}
               </p>
               <h1 id="task-view-title">{task.title}</h1>
               <p className="task-issue-source">GitHub · {task.state}</p>
@@ -171,14 +171,14 @@ function OrchestrationProgress({
   attempt,
   dictionary,
   provider,
-  workflowStatus,
+  displayState,
 }: {
   attempt: AttemptSnapshot | null;
   dictionary: Dictionary;
   provider: string | null;
-  workflowStatus: WorkflowStatus;
+  displayState: DisplayState;
 }) {
-  const states = orchestrationStates(attempt, workflowStatus);
+  const states = orchestrationStates(attempt, displayState);
   const providerKind = providerPresentation(provider).kind;
   const labels = [
     dictionary.detail.executionSteps.workspace,
@@ -203,11 +203,11 @@ function OrchestrationProgress({
 
 function orchestrationStates(
   attempt: AttemptSnapshot | null,
-  workflowStatus: WorkflowStatus,
+  displayState: DisplayState,
 ): Array<"waiting" | "active" | "done" | "failed"> {
   if (!attempt) return ["waiting", "waiting", "waiting"];
-  if (workflowStatus === "in_review") return ["done", "done", "active"];
-  if (workflowStatus === "done") return ["done", "done", "done"];
+  if (displayState === "in_review") return ["done", "done", "active"];
+  if (displayState === "done") return ["done", "done", "done"];
   if (attempt.status === "preparing_workspace") return ["active", "waiting", "waiting"];
   if (["failed", "timed_out", "stalled", "canceled_by_reconciliation"].includes(attempt.status))
     return ["done", "failed", "waiting"];
@@ -216,9 +216,10 @@ function orchestrationStates(
   return ["done", "active", "waiting"];
 }
 
-function workflowStatusLabel(status: WorkflowStatus, dictionary: Dictionary): string {
+function displayStateLabel(status: DisplayState, dictionary: Dictionary): string {
   return {
     backlog: dictionary.columns.backlog.label,
+    ready: dictionary.taskCard.markReady,
     in_progress: dictionary.columns.inProgress.label,
     in_review: dictionary.columns.inReview.label,
     done: dictionary.columns.done.label,

@@ -186,7 +186,7 @@ export async function runRealFixture(
                 turnId: attempt.activeTurn?.turnId ?? attempt.providerSession?.lastTurnId ?? "",
               }
             : null;
-        const detail = host.attemptDetail(attempt.id);
+        const detail = await host.attemptDetail(attempt.id);
         if (detail?.workspace) {
           report.workspace = {
             id: detail.workspace.id,

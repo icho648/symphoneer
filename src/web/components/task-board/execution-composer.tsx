@@ -61,7 +61,7 @@ export function ExecutionComposer() {
   const provider = attempt?.providerSession?.provider ?? (threadId ? "codex-app-server" : null);
   const presentation = providerPresentation(provider);
   const pausable = attempt != null && attempt.finishedAt == null && attempt.status !== "paused";
-  const canStart = !attempt && task.dispatchable && task.workflowStatus === "backlog";
+  const canStart = !attempt && task.dispatchable && task.displayState === "ready";
   const canApplySettings = intervention == null && attempt?.activeTurn == null;
   const showSettings = canStart || Boolean(threadId);
   const showCodexSettings = showSettings && (canStart || presentation.supportsCodexSettings);
@@ -155,7 +155,7 @@ export function ExecutionComposer() {
             </Button>
           </>
         )}
-        {!attempt && !task.dispatchable && task.workflowStatus === "backlog" && (
+        {!attempt && !task.dispatchable && task.issuePhase === "backlog" && (
           <Button
             disabled={connection === "offline" || busy}
             size="xs"
@@ -195,7 +195,7 @@ export function ExecutionComposer() {
             {dictionary.workflow.start}
           </Button>
         )}
-        {task.workflowStatus === "in_review" && (
+        {task.displayState === "in_review" && (
           <Button
             disabled={connection === "offline" || busy || !detail}
             size="xs"

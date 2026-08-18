@@ -37,12 +37,16 @@ export {
   OrchestrationNodeSchema,
 } from "./orchestration.ts";
 export type {
+  AttemptOutcome,
   CodexModel,
   CodexReasoningEffort,
   CodexSandbox,
+  DisplayState,
+  ExecutionState,
   ExecutorModel,
   ExecutorReasoningEffort,
   ExecutorSandbox,
+  IssuePhase,
   RuntimeAttemptDetail,
   RuntimeCommand,
   RuntimeCommandResult,
@@ -55,14 +59,19 @@ export type {
   RuntimeProjectPathSelection,
   RuntimeRepositoryCandidate,
   RuntimeSnapshot,
+  RuntimeTask,
 } from "./runtime.ts";
 export {
+  AttemptOutcomeSchema,
   CodexModelSchema,
   CodexReasoningEffortSchema,
   CodexSandboxSchema,
+  DisplayStateSchema,
+  ExecutionStateSchema,
   ExecutorModelSchema,
   ExecutorReasoningEffortSchema,
   ExecutorSandboxSchema,
+  IssuePhaseSchema,
   RuntimeAttemptDetailSchema,
   RuntimeCommandResultSchema,
   RuntimeCommandSchema,
@@ -75,6 +84,7 @@ export {
   RuntimeProjectSchema,
   RuntimeRepositoryCandidateSchema,
   RuntimeSnapshotSchema,
+  RuntimeTaskSchema,
 } from "./runtime.ts";
 export type { JsonValue } from "./shared.ts";
 export {
@@ -83,19 +93,11 @@ export {
   PROJECTION_SCHEMA_VERSION,
   ProjectionVersionSchema,
 } from "./shared.ts";
-export type {
-  BlockedTask,
-  EligibilityReason,
-  EligibilityResult,
-  TaskSummary,
-  WorkflowStatus,
-} from "./task.ts";
+export type { EligibilityReason, EligibilityResult, TaskSummary } from "./task.ts";
 export {
-  BlockedTaskSchema,
   EligibilityReasonSchema,
   EligibilityResultSchema,
   TaskSummarySchema,
-  WorkflowStatusSchema,
 } from "./task.ts";
 export type {
   AgentRunSnapshot,

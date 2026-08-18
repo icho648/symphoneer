@@ -16,7 +16,7 @@ export interface RuntimeControlPlane {
   listModels(projectId?: string): Promise<CodexModel[]>;
   snapshot(): RuntimeSnapshot;
   events(afterSequence?: number): RuntimeEvent[];
-  attemptDetail(attemptId: string): RuntimeAttemptDetail | null;
+  attemptDetail(attemptId: string): Promise<RuntimeAttemptDetail | null>;
   reviewTarget(taskId: string, projectId?: string): Promise<{ url: string }>;
   subscribe(listener: (event: RuntimeEvent) => void): () => void;
   execute(commandInput: unknown): Promise<RuntimeCommandResult>;

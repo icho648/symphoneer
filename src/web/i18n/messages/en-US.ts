@@ -168,7 +168,7 @@ export const enUS = {
     notStarted: "Not started",
     runtimeOffline: "Runtime offline",
     humanAction: "Human action required",
-    workflowStatus: "Workflow status",
+    displayState: "Display state",
     blocked: "Blocked",
     blockedReason: "Blocked · {reason}",
     markDone: "Confirm Done",
@@ -177,8 +177,7 @@ export const enUS = {
     openReview: "Open review",
     openReviewHint: "Open the GitHub pull request for this task",
     clearBlocked: "Recheck",
-    recheckBlockedHint:
-      "Clear the local blocked state and let the scheduler evaluate the task again",
+    recheckBlockedHint: "Refresh GitHub Issue labels and let the scheduler evaluate the task again",
     modes: {
       single: "Single Agent",
       workflow: "Workflow",
@@ -452,6 +451,7 @@ export const enUS = {
     failed: "Failed",
     timed_out: "Timed out",
     stalled: "Stalled",
+    interrupted: "Interrupted",
     canceled_by_reconciliation: "Canceled by reconciliation",
     passed: "Passed",
     not_run: "Not run",

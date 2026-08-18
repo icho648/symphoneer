@@ -1,11 +1,10 @@
-import type { AttemptSnapshot, TaskSummary, TeamRunSnapshot } from "@symphoneer/contracts";
+import type { AttemptSnapshot, RuntimeTask, TeamRunSnapshot } from "@symphoneer/contracts";
 import { CircleAlert, FolderOpen, MoreHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { type Dictionary, interpolate } from "../../i18n/index.ts";
 
 import {
-  blockedReasonSummary,
   compareExecutionPriority,
   type TaskCardAction,
   taskBelongsToProject,
@@ -48,7 +47,7 @@ export function TaskColumns() {
   const visibleTasks = tasks
     .filter((task) => !attentionOnly || taskNeedsAttention(task))
     .sort(compareExecutionPriority);
-  const activeCount = tasks.filter((task) => task.workflowStatus !== "done").length;
+  const activeCount = tasks.filter((task) => task.displayState !== "done").length;
   const attentionCount = tasks.filter(taskNeedsAttention).length;
 
   return (
@@ -116,10 +115,10 @@ export function TaskColumns() {
               taskBelongsToProject(task, project),
             );
             const projectActiveTasks = projectVisibleTasks.filter(
-              (task) => task.workflowStatus !== "done",
+              (task) => task.displayState !== "done",
             );
             const projectCompletedTasks = projectVisibleTasks.filter(
-              (task) => task.workflowStatus === "done",
+              (task) => task.displayState === "done",
             );
             const expanded = expandedProjects[project.id] ?? true;
             const completedOpen = expandedCompleted[project.id] ?? false;
@@ -195,7 +194,7 @@ export function TaskColumns() {
                     <div className="task-table-header" aria-hidden="true">
                       <span>{dictionary.board.projectGroup.issue}</span>
                       <span>{dictionary.board.projectGroup.title}</span>
-                      <span>{dictionary.taskCard.workflowStatus}</span>
+                      <span>{dictionary.taskCard.displayState}</span>
                       <span>{dictionary.board.projectGroup.action}</span>
                     </div>
                     <div className="task-card-grid">
@@ -262,14 +261,15 @@ export function TaskColumns() {
   );
 }
 
-function statusLabel(task: TaskSummary, dictionary: Dictionary): string {
+function statusLabel(task: RuntimeTask, dictionary: Dictionary): string {
   const labels = {
     backlog: dictionary.columns.backlog.label,
+    ready: dictionary.taskCard.markReady,
     in_progress: dictionary.columns.inProgress.label,
     in_review: dictionary.columns.inReview.label,
     done: dictionary.columns.done.label,
   } as const;
-  return labels[task.workflowStatus];
+  return labels[task.displayState];
 }
 
 function TaskCard({
@@ -279,7 +279,7 @@ function TaskCard({
 }: {
   attempt: AttemptSnapshot | null;
   selected: boolean;
-  task: TaskSummary;
+  task: RuntimeTask;
 }) {
   const {
     connection,
@@ -287,7 +287,7 @@ function TaskCard({
     openReview,
     openTask,
     sendCommand,
-    setTaskStatus,
+    recheckTask,
     snapshot,
     startWorkflow,
   } = useWorkbench(
@@ -297,7 +297,7 @@ function TaskCard({
       openReview: state.openReview,
       openTask: state.openTask,
       sendCommand: state.sendCommand,
-      setTaskStatus: state.setTaskStatus,
+      recheckTask: state.recheckTask,
       snapshot: state.snapshot,
       startWorkflow: state.startWorkflow,
     })),
@@ -328,12 +328,9 @@ function TaskCard({
           <span className="task-card-meta">
             {labels.length > 0 && <span className="task-card-labels">{labels.join(" · ")}</span>}
             {task.blocked && (
-              <span className="task-card-alert" title={task.blocked.reason}>
+              <span className="task-card-alert">
                 <span aria-hidden="true">!</span>
-                {interpolateBlocked(
-                  dictionary.taskCard.blockedReason,
-                  blockedReasonSummary(task.blocked.reason),
-                )}
+                {dictionary.columns.blocked.label}
               </span>
             )}
             {warnings.length > 0 && !task.blocked && (
@@ -344,7 +341,7 @@ function TaskCard({
             )}
           </span>
         </span>
-        <span className={`task-card-summary is-${task.workflowStatus}`}>
+        <span className={`task-card-summary is-${task.displayState}`}>
           <strong>{statusLabel(task, dictionary)}</strong>
           {attempt && (
             <small>
@@ -360,7 +357,7 @@ function TaskCard({
           dictionary={dictionary}
           onMarkReady={() => void sendCommand({ kind: "enable_task_dispatch", task })}
           onOpenReview={() => void openReview(task)}
-          onRecheck={() => void setTaskStatus(task, task.workflowStatus)}
+          onRecheck={() => void recheckTask(task)}
           onStart={() => startWorkflow(task)}
         />
       </div>
@@ -445,7 +442,7 @@ function TaskCardNextAction({
 }
 
 function latestAttempt(
-  task: TaskSummary,
+  task: RuntimeTask,
   attempts: readonly AttemptSnapshot[],
 ): AttemptSnapshot | null {
   return (
@@ -460,8 +457,4 @@ function latestWorkflow(runs: TeamRunSnapshot[]): TeamRunSnapshot | null {
     (latest, run) => (!latest || run.updatedAt > latest.updatedAt ? run : latest),
     null,
   );
-}
-
-function interpolateBlocked(template: string, reason: string): string {
-  return template.replace("{reason}", reason);
 }

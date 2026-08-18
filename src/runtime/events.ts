@@ -3,6 +3,7 @@ import type { DomainEventEnvelope } from "@symphoneer/contracts";
 export const KNOWN_DOMAIN_EVENT_TYPES = [
   "task.upserted",
   "task.status.changed",
+  "task.changed",
   "attempt.recorded",
   "attempt.turn_attached",
   "attempt.paused",
@@ -10,6 +11,9 @@ export const KNOWN_DOMAIN_EVENT_TYPES = [
   "attempt.finished",
   "attempt.activity.recorded",
   "attempt.session.recorded",
+  "attempt.changed",
+  "attempt.activity.changed",
+  "attempt.session.changed",
   "attempt.deleted",
   "workspace.recorded",
   "workspace.retained",

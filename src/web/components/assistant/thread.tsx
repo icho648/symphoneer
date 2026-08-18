@@ -12,7 +12,7 @@ import type {
   AssistantModelOption,
   AssistantThinkingLevel,
 } from "@symphoneer/assistant-client";
-import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
+import type { AttemptSnapshot, DisplayState, RuntimeTask } from "@symphoneer/contracts";
 import { FileText, Paperclip, X } from "lucide-react";
 import { createContext, useContext, useMemo, useState } from "react";
 import type { Dictionary } from "../../i18n/index.ts";
@@ -47,13 +47,13 @@ export function DeliveryAssistantThread({
     thinkingLevel: AssistantThinkingLevel;
   }) => Promise<void>;
   selectedAttempt: AttemptSnapshot | null;
-  selectedTask: TaskSummary | null;
+  selectedTask: RuntimeTask | null;
   sessionId: string;
   thinkingLevel: AssistantThinkingLevel;
 }) {
   const assistant = dictionary.board.assistant;
   const taskState = selectedTask
-    ? workflowStatusLabel(selectedTask.workflowStatus, dictionary)
+    ? displayStateLabel(selectedTask.displayState, dictionary)
     : assistant.noTask;
 
   return (
@@ -387,12 +387,10 @@ function stringifyResult(result: unknown): string {
   return text.length > TOOL_PREVIEW_LIMIT ? `${text.slice(0, TOOL_PREVIEW_LIMIT)}\n…` : text;
 }
 
-function workflowStatusLabel(
-  status: TaskSummary["workflowStatus"],
-  dictionary: Dictionary,
-): string {
+function displayStateLabel(status: DisplayState, dictionary: Dictionary): string {
   return {
     backlog: dictionary.columns.backlog.label,
+    ready: dictionary.taskCard.markReady,
     in_progress: dictionary.columns.inProgress.label,
     in_review: dictionary.columns.inReview.label,
     done: dictionary.columns.done.label,

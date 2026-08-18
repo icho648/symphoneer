@@ -23,8 +23,6 @@ const task: TaskSummary = {
   state: "open",
   labels: ["symphoneer:ready"],
   dispatchable: true,
-  workflowStatus: "backlog",
-  blocked: null,
 };
 
 const request: AgentRunRequest = {

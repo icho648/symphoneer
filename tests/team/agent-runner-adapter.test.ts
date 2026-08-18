@@ -19,8 +19,6 @@ const task: TaskSummary = {
   state: "open",
   labels: [],
   dispatchable: true,
-  workflowStatus: "backlog",
-  blocked: null,
 };
 
 test("the workflow executor can be swapped to the existing AgentRunner seam", async () => {

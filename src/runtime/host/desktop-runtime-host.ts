@@ -175,11 +175,13 @@ export class DesktopRuntimeHost implements RuntimeControlPlane {
     return this.#events.filter((event) => event.sequence > afterSequence);
   }
 
-  attemptDetail(attemptId: string): RuntimeAttemptDetail | null {
+  async attemptDetail(attemptId: string): Promise<RuntimeAttemptDetail | null> {
     this.#requireStarted();
-    const matches = [...this.#projects.values()]
-      .map(({ runtime }) => runtime.attemptDetail(attemptId))
-      .filter((detail): detail is RuntimeAttemptDetail => detail !== null);
+    const matches = (
+      await Promise.all(
+        [...this.#projects.values()].map(({ runtime }) => runtime.attemptDetail(attemptId)),
+      )
+    ).filter((detail): detail is RuntimeAttemptDetail => detail !== null);
     if (matches.length > 1) throw new RuntimeError("conflict", "Attempt identity is ambiguous");
     return matches[0] ?? null;
   }

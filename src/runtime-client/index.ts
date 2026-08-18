@@ -11,7 +11,6 @@ export type {
   RuntimeSubscriptionEvent,
   RuntimeSubscriptionInput,
   SendAttemptInput,
-  SetTaskStatusInput,
   StartRunInput,
   SyncAttemptSessionInput,
 } from "./client.ts";

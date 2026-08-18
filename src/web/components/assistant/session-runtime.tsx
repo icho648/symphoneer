@@ -9,7 +9,7 @@ import type {
   AssistantSession,
   AssistantThinkingLevel,
 } from "@symphoneer/assistant-client";
-import type { AttemptSnapshot, TaskSummary } from "@symphoneer/contracts";
+import type { AttemptSnapshot, RuntimeTask } from "@symphoneer/contracts";
 import { useMemo } from "react";
 import type { Dictionary } from "../../i18n/index.ts";
 import {
@@ -39,7 +39,7 @@ export function AssistantSessionRuntime({
   onRunError: (message: string) => void;
   onRunFinished: () => void;
   selectedAttempt: AttemptSnapshot | null;
-  selectedTask: TaskSummary | null;
+  selectedTask: RuntimeTask | null;
   session: AssistantSession;
 }) {
   const adapter = useMemo(

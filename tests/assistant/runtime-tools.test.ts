@@ -84,8 +84,6 @@ async function recordActiveAttempt(host: Awaited<ReturnType<typeof startHost>>) 
     state: "open",
     labels: [],
     dispatchable: true,
-    workflowStatus: "backlog",
-    blocked: null,
   };
   const attempt: AttemptSnapshot = {
     schemaVersion: CONTRACT_SCHEMA_VERSION,
