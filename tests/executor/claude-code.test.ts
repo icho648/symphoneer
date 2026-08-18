@@ -271,7 +271,9 @@ sleep 1
   }
 });
 
-test("Claude STDIO close force-kills a process that ignores SIGTERM", { timeout: 8_000 }, async (t) => {
+test("Claude STDIO close force-kills a process that ignores SIGTERM", {
+  timeout: 8_000,
+}, async (t) => {
   const directory = await mkdtemp(resolve(tmpdir(), "symphoneer-claude-kill-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const executable = resolve(directory, "claude-fixture");
