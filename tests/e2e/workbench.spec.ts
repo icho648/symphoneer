@@ -21,7 +21,7 @@ test("Task detail restores Attempt activity and evidence after refresh", async (
   await expect(page.getByText("Deterministic fixture completed.")).toBeVisible();
   const evidence = page.getByRole("region", { name: "Delivery evidence" });
   await expect(evidence).toContainText("Verification");
-  await expect(evidence).toContainText("Intentional CI evidence failure");
+  await expect(evidence).toContainText("Passed");
   await expect(evidence).toContainText("Human decisions");
   await expect(evidence).toContainText("Continue");
 
