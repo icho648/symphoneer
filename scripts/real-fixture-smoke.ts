@@ -92,7 +92,7 @@ export async function runRealFixture(
   const applicationData = new ApplicationData({ dataDir, logDir, cacheDir, workspaceRoot });
   const host = new DesktopRuntimeHost({
     applicationData,
-    createRuntime: async ({ project, layout }) => {
+    createRuntime: async ({ project, layout, executionCapacity }) => {
       if (!project.projectRoot) throw new Error("Fixture project checkout is unavailable");
       const projectRoot = project.projectRoot;
       const github = new GitHubIssuesAdapter({ repository, token });
@@ -118,6 +118,7 @@ export async function runRealFixture(
         projectRoot,
         workspaceRoot: project.workspaceRoot,
         operatorLogPath: layout.operatorLogPath,
+        executionCapacity,
         ...(options.injectWorkerFailure
           ? {
               runnerFactory: () => ({

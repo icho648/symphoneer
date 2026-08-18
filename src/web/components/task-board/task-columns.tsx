@@ -262,6 +262,7 @@ export function TaskColumns() {
 }
 
 function statusLabel(task: RuntimeTask, dictionary: Dictionary): string {
+  if (task.executionState !== "idle") return dictionary.taskCard.liveStates[task.executionState];
   const labels = {
     backlog: dictionary.columns.backlog.label,
     ready: dictionary.taskCard.markReady,

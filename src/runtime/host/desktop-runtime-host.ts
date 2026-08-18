@@ -19,6 +19,7 @@ import {
   RuntimeSnapshotSchema,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "../errors.ts";
+import { ProcessExecutionCapacity } from "../execution-capacity.ts";
 import type { RuntimeControlPlane } from "../service/control-plane.ts";
 import { commandMessage } from "../service/helpers.ts";
 import type { RuntimeService } from "../service/runtime-service.ts";
@@ -32,6 +33,7 @@ import { ProjectPollingCoordinator } from "./polling-coordinator.ts";
 export interface DesktopProjectRuntimeInput {
   project: RuntimeProject;
   layout: ProjectDataLayout;
+  executionCapacity: ProcessExecutionCapacity;
 }
 
 export interface DesktopProjectRuntime {
@@ -45,6 +47,7 @@ export interface DesktopRuntimeHostOptions {
     input: DesktopProjectRuntimeInput,
   ) => DesktopProjectRuntime | Promise<DesktopProjectRuntime>;
   runtimeId?: string;
+  maxConcurrentAgents?: number;
   now?: () => Date;
 }
 
@@ -63,6 +66,7 @@ export class DesktopRuntimeHost implements RuntimeControlPlane {
   readonly #startedAt: string;
   readonly #projects = new Map<string, ManagedProjectRuntime>();
   readonly #polling = new ProjectPollingCoordinator();
+  readonly #executionCapacity: ProcessExecutionCapacity;
   readonly #events: RuntimeEvent[] = [];
   readonly #listeners = new Set<(event: RuntimeEvent) => void>();
   #endpoint = "http://127.0.0.1:0";
@@ -72,6 +76,7 @@ export class DesktopRuntimeHost implements RuntimeControlPlane {
     this.#applicationData = options.applicationData;
     this.#createRuntime = options.createRuntime;
     this.#runtimeId = options.runtimeId?.trim() || `runtime:${randomUUID()}`;
+    this.#executionCapacity = new ProcessExecutionCapacity(options.maxConcurrentAgents ?? 10);
     this.#startedAt = (options.now ?? (() => new Date()))().toISOString();
   }
 
@@ -274,6 +279,7 @@ export class DesktopRuntimeHost implements RuntimeControlPlane {
     const created = await this.#createRuntime({
       project,
       layout: this.#applicationData.project(project.id),
+      executionCapacity: this.#executionCapacity,
     });
     const { runtime } = created;
     runtime.setEndpoint(this.#endpoint);

@@ -15,6 +15,7 @@ import {
   type WorkspaceReference,
 } from "@symphoneer/contracts";
 import { RuntimeError } from "../errors.ts";
+import type { ProcessExecutionCapacity } from "../execution-capacity.ts";
 import type {
   AgentRunEvent,
   AgentRunner,
@@ -84,6 +85,8 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     provider?: "codex-app-server" | "claude-code",
   ) => AgentRunner;
   readonly #operatorLog: OperatorLog;
+  readonly #executionCapacity: ProcessExecutionCapacity | undefined;
+  readonly #capacityNamespace = randomUUID();
   readonly #runs = new Map<string, ActiveRun>();
   readonly #jobs = new Set<Promise<void>>();
   readonly #runningTasks = new Set<string>();
@@ -108,11 +111,13 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       provider?: "codex-app-server" | "claude-code",
     ) => AgentRunner;
     operatorLogPath?: string;
+    executionCapacity?: ProcessExecutionCapacity;
   }) {
     this.#tracker = options.tracker;
     this.#projectRoot = options.projectRoot ? resolve(options.projectRoot) : undefined;
     this.#workspaceRoot = resolve(options.workspaceRoot);
     this.#now = options.now ?? (() => new Date());
+    this.#executionCapacity = options.executionCapacity;
     this.#runnerFactory =
       options.runnerFactory ??
       ((workflow, provider) => createAgentRunner(workflow, this.#now, provider));
@@ -217,11 +222,12 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     command: Extract<RuntimeCommand, { kind: "start_run" }>;
     log: EventLog;
   }) {
-    this.#launch(input.task, input.log, "dispatch", {
+    const started = this.#launch(input.task, input.log, "dispatch", {
       ...(input.command.model ? { model: input.command.model } : {}),
       ...(input.command.sandbox ? { sandbox: input.command.sandbox } : {}),
       ...(input.command.effort ? { effort: input.command.effort } : {}),
     });
+    if (!started) throw new RuntimeError("conflict", "Symphoneer process capacity is full");
   }
 
   async respond(input: {
@@ -256,7 +262,9 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   async retry(input: { attempt: AttemptSnapshot; log: EventLog }): Promise<void> {
     const task = input.log.projection.getTask(input.attempt.taskId);
     if (!task) throw new RuntimeError("not_found", `Task ${input.attempt.taskId} was not found`);
-    this.#launch(task, input.log, "retry", {}, true);
+    if (!this.#launch(task, input.log, "retry", {}, true)) {
+      throw new RuntimeError("conflict", "Symphoneer process capacity is full");
+    }
   }
 
   async input(input: {
@@ -277,7 +285,9 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     if (this.#runningTasks.has(task.id)) {
       throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
     }
-    this.#runningTasks.add(task.id);
+    if (!this.#claimTask(task.id)) {
+      throw new RuntimeError("conflict", "Symphoneer process capacity is full");
+    }
     this.#trackJob(
       task.id,
       this.#continue(input.attempt, task, input.prompt, input.log, {
@@ -328,7 +338,9 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
     }
     const started = Promise.withResolvers<void>();
-    this.#runningTasks.add(task.id);
+    if (!this.#claimTask(task.id)) {
+      throw new RuntimeError("conflict", "Symphoneer process capacity is full");
+    }
     this.#trackJob(
       task.id,
       this.#continue(input.attempt, task, CONTINUATION_PROMPT, input.log, {}, true, started),
@@ -352,13 +364,14 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     startReason: "dispatch" | "retry" | "continuation",
     settings: Pick<AgentRunRequest, "effort" | "model" | "sandbox"> = {},
     forceRetry = false,
-  ): void {
+  ): boolean {
     if (this.#runningTasks.has(task.id)) {
       throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
     }
     const locator = locateTask(task);
-    this.#runningTasks.add(task.id);
+    if (!this.#claimTask(task.id)) return false;
     this.#trackJob(task.id, this.#run(task, locator, log, startReason, settings, forceRetry));
+    return true;
   }
 
   async #tick(tasks: readonly TaskSummary[], log: EventLog): Promise<void> {
@@ -454,7 +467,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       const state = task.state.toLowerCase();
       const stateLimit = workflow.config.agent.maxConcurrentAgentsByState[state];
       if (stateLimit != null && (activeByState.get(state) ?? 0) >= stateLimit) continue;
-      this.#launch(task, log, "dispatch");
+      if (!this.#launch(task, log, "dispatch")) break;
       claimed.add(task.id);
       capacity -= 1;
       activeByState.set(state, (activeByState.get(state) ?? 0) + 1);
@@ -1181,12 +1194,25 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   #trackJob(taskId: string, job: Promise<void>): void {
     const tracked = job.finally(() => {
       this.#runningTasks.delete(taskId);
+      this.#executionCapacity?.release(this.#capacityOwner(taskId));
     });
     this.#jobs.add(tracked);
     void tracked.then(
       () => this.#jobs.delete(tracked),
       () => this.#jobs.delete(tracked),
     );
+  }
+
+  #claimTask(taskId: string): boolean {
+    if (this.#executionCapacity && !this.#executionCapacity.acquire(this.#capacityOwner(taskId))) {
+      return false;
+    }
+    this.#runningTasks.add(taskId);
+    return true;
+  }
+
+  #capacityOwner(taskId: string): string {
+    return `${this.#capacityNamespace}:${taskId}`;
   }
 
   #clearRetryTimers(): void {

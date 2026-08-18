@@ -4,6 +4,7 @@ export {
   isKnownDomainEventType,
   KNOWN_DOMAIN_EVENT_TYPES,
 } from "./events.ts";
+export { ProcessExecutionCapacity } from "./execution-capacity.ts";
 export * from "./executor/index.ts";
 export * from "./host/index.ts";
 export { RuntimeHttpServer, type RuntimeHttpServerOptions } from "./http.ts";

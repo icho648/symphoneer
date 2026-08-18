@@ -11,6 +11,7 @@ export const RuntimeHostConfigSchema = z.object({
   cacheDir: z.string().min(1),
   logDir: z.string().min(1),
   workspaceRoot: z.string().min(1),
+  maxConcurrentAgents: z.number().int().positive(),
   uiDistDir: z.string().min(1).optional(),
   transport: z.object({
     kind: z.literal("http"),
@@ -34,6 +35,7 @@ export async function resolveRuntimeHostConfig(
     uiDistDir?: string;
     host?: string;
     port?: number;
+    maxConcurrentAgents?: number;
     sessionToken?: string;
     env?: NodeJS.ProcessEnv;
   } = {},
@@ -52,6 +54,8 @@ export async function resolveRuntimeHostConfig(
   const uiDistDir = options.uiDistDir ?? env.SYMPHONEER_UI_DIST_DIR;
   const host = LoopbackHostSchema.parse(options.host ?? env.SYMPHONEER_RUNTIME_HOST ?? "127.0.0.1");
   const port = options.port ?? parsePort(env.SYMPHONEER_RUNTIME_PORT);
+  const maxConcurrentAgents =
+    options.maxConcurrentAgents ?? parsePositiveInteger(env.SYMPHONEER_MAX_CONCURRENT_AGENTS, 10);
 
   await Promise.all([
     mkdir(dataDir, { recursive: true }),
@@ -69,10 +73,20 @@ export async function resolveRuntimeHostConfig(
     cacheDir,
     logDir,
     workspaceRoot,
+    maxConcurrentAgents,
     ...(uiDistDir ? { uiDistDir } : {}),
     transport: { kind: "http", host, port },
     credentials: { sessionToken },
   });
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error("SYMPHONEER_MAX_CONCURRENT_AGENTS must be a positive integer");
+  }
+  return parsed;
 }
 
 async function resolveSessionToken(path: string, explicit: string | undefined): Promise<string> {

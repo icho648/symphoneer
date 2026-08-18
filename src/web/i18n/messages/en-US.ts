@@ -169,6 +169,13 @@ export const enUS = {
     runtimeOffline: "Runtime offline",
     humanAction: "Human action required",
     displayState: "Display state",
+    liveStates: {
+      preparing: "Preparing",
+      running: "Running",
+      waiting_input: "Waiting for input",
+      retry_wait: "Waiting to retry",
+      stopping: "Stopping",
+    },
     blocked: "Blocked",
     blockedReason: "Blocked · {reason}",
     markDone: "Confirm Done",

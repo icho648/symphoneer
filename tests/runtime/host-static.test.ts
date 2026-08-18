@@ -50,6 +50,7 @@ test("Host config writes session token and validates loopback transport", async 
     cacheDir,
     logDir,
     workspaceRoot,
+    env: { SYMPHONEER_MAX_CONCURRENT_AGENTS: "3" },
     sessionToken: "test-session-token-123456",
     host: "127.0.0.1",
     port: 0,
@@ -59,11 +60,20 @@ test("Host config writes session token and validates loopback transport", async 
   assert.equal(config.cacheDir, cacheDir);
   assert.equal(config.logDir, logDir);
   assert.equal(config.workspaceRoot, workspaceRoot);
+  assert.equal(config.maxConcurrentAgents, 3);
   assert.equal(
     await readFile(join(dataDir, "runtime-token"), "utf8"),
     "test-session-token-123456\n",
   );
   await assert.rejects(readFile(join(dataDir, "project-id"), "utf8"), { code: "ENOENT" });
+  await assert.rejects(
+    resolveRuntimeHostConfig({
+      dataDir,
+      sessionToken: "test-session-token-123456",
+      env: { SYMPHONEER_MAX_CONCURRENT_AGENTS: "0" },
+    }),
+    /must be a positive integer/,
+  );
 });
 
 test("Origin checks reject non-loopback browsers", () => {

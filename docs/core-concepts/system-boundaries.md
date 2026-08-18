@@ -11,7 +11,8 @@
 pnpm dev / future Electron Main
 ├─ Node.js + TypeScript Runtime
 │  ├─ DesktopRuntimeHost（应用级项目目录与聚合 API）
-│  │  └─ PollingCoordinator（单一时钟、退避与全局轮询并发）
+│  │  ├─ PollingCoordinator（单一时钟、退避与全局轮询并发）
+│  │  └─ ProcessExecutionCapacity（所有项目共享的执行槽位）
 │  ├─ ProjectRuntime A（一个 WORKFLOW / Tracker Sync / Scheduler）
 │  ├─ ProjectRuntime B（一个 WORKFLOW / Tracker Sync / Scheduler）
 │  ├─ optional PiAssistantService（官方 Session + SQLite）
@@ -32,7 +33,7 @@ CLI ─────────────────────────�
 - 开发模式下 Runtime 与 Vite 分进程；Standalone 模式由 Runtime 同源托管 Vite 静态 UI，不再常驻第二个 Node Web Server。关闭浏览器或重启 Vite 不改变 Attempt；明确退出父 launcher 时才向自己启动的子进程转发停止信号。
 - CLI 和 Web 都是 Runtime 的客户端，只经 RuntimeClient / RuntimeTransport 通信，不复制 Scheduler 或业务状态机。loopback Host / Origin / session token 已落地；完整浏览器 Smoke 仍待验证。
 - Assistant 是 Runtime 进程可选持有的独立服务：缺失配置、配置错误或 Provider 故障不阻止 Runtime 启动。它复用同源 loopback、Origin 和 session token 限制，并只经 RuntimeClient 调用现有 Runtime 工具白名单；Assistant Session 不成为 Task、Attempt 或 Scheduler 的第二套真相。
-- 一个操作系统进程可以承载多个项目 Runtime；应用级 PollingCoordinator 统一计时、退避并串行调用项目同步回调，每个项目仍拥有独立 Tracker scope、EventLog、artifact、checkpoint、Workspace 根和 Symphony 调度状态。V1 不为每个项目创建额外 OS 进程，也不实现跨项目依赖调度。
+- 一个操作系统进程可以承载多个项目 Runtime；应用级 PollingCoordinator 统一计时、退避并串行调用项目同步回调，`ProcessExecutionCapacity` 以 `SYMPHONEER_MAX_CONCURRENT_AGENTS`（默认 10）限制进程内所有项目的 live execution 总数。每个项目仍拥有独立 Tracker scope、EventLog、artifact、checkpoint、Workspace 根和 Symphony 调度状态；项目内 `agent.max_concurrent_agents` 与 per-state 限制继续生效。V1 不为每个项目创建额外 OS 进程，也不实现跨项目依赖调度。
 - Electron 不是 V1 前提；未来如采用，按其[进程模型](https://www.electronjs.org/docs/latest/tutorial/process-model)由 Main 启动同一个 Runtime Module，Renderer 仍通过安全的 Preload Interface 或本地接口通信。
 
 ## 对象关系

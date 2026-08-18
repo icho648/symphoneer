@@ -87,7 +87,7 @@ web ───────────────> contracts + runtime-client + 
 - `CoreScheduler` 负责 Attempt 序号、claim、Workspace owner、活跃 Turn、retry 与 reconciliation。
 - `AgentRunner` 是 Executor seam；当前真实 Adapter 为 Codex App Server 与 Claude Code CLI，Fake 只用于确定性测试。
 - `.symphoneer/WORKFLOW.md` 是进入 Git 的 ProjectProfile；应用数据、日志、缓存、Workspace 和凭据位置由安装 Host 决定。
-- `DesktopRuntimeHost` 可以持有多个 ProjectRuntime，但每个项目保留独立 Tracker scope、Scheduler 与持久化目录。
+- `DesktopRuntimeHost` 可以持有多个 ProjectRuntime，并共享一份进程级执行容量；每个项目仍保留独立 Tracker scope、Scheduler 与持久化目录。
 
 ## 设计与计划入口
 
