@@ -30,3 +30,55 @@ jobs:
 
       - name: Check
         run: pnpm check
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare evidence logs
+        run: mkdir -p .artifacts/e2e
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.15.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee .artifacts/e2e/install.log
+
+      - name: Install Chromium
+        run: |
+          set -o pipefail
+          pnpm exec playwright install --with-deps chromium 2>&1 | tee .artifacts/e2e/chromium.log
+
+      - name: Node coverage
+        run: |
+          set -o pipefail
+          pnpm test:coverage 2>&1 | tee .artifacts/e2e/node-coverage.log
+
+      - name: Playwright E2E
+        run: |
+          set -o pipefail
+          pnpm test:e2e 2>&1 | tee .artifacts/e2e/playwright.log
+
+      - name: Upload E2E evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence-${{ github.run_id }}-${{ github.sha }}
+          path: |
+            .artifacts/e2e
+            playwright-report
+            test-results
+            coverage/node
+            coverage/browser
+          if-no-files-found: warn
+          retention-days: 7

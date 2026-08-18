@@ -13,7 +13,17 @@
     }
   },
   "files": {
-    "includes": ["**", "!!**/.next", "!!**/dist", "!!src/web/dist", "!!.claude/worktrees"]
+    "includes": [
+      "**",
+      "!!**/.next",
+      "!!**/dist",
+      "!!src/web/dist",
+      "!!.claude/worktrees",
+      "!!coverage",
+      "!!playwright-report",
+      "!!test-results",
+      "!!.artifacts"
+    ]
   },
   "formatter": {
     "enabled": true,

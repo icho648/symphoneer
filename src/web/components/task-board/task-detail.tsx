@@ -33,6 +33,8 @@ export function TaskOverview() {
   const [creatingAttempt, setCreatingAttempt] = useState(false);
   if (!task) return null;
   const labels = visibleTaskLabels(task.labels);
+  const latestVerification = detail?.verifications.at(-1);
+  const latestReview = detail?.reviews.at(-1);
   const hasActiveAttempt = attempts.some(
     (item) => item.controller === "codex" || (item.finishedAt == null && item.status !== "paused"),
   );
@@ -158,6 +160,29 @@ export function TaskOverview() {
                 <dd title={detail.workspace.branch}>{detail.workspace.branch}</dd>
               </div>
             </dl>
+          )}
+          {detail && (
+            <section aria-labelledby="task-evidence-title">
+              <h2 id="task-evidence-title">{dictionary.detail.evidence}</h2>
+              <dl className="task-workspace-summary">
+                <div>
+                  <dt>{dictionary.attempt.tabs.verification}</dt>
+                  <dd>
+                    {latestVerification
+                      ? dictionary.statuses[latestVerification.status]
+                      : dictionary.attempt.noVerification}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{dictionary.attempt.humanDecisions}</dt>
+                  <dd>
+                    {latestReview
+                      ? dictionary.decisions[latestReview.decision]
+                      : dictionary.attempt.noReview}
+                  </dd>
+                </div>
+              </dl>
+            </section>
           )}
         </section>
 

@@ -13,14 +13,17 @@ README.md                    人类入口
 ARCHITECTURE.md              当前物理结构与依赖
 .nvmrc                       Node 版本下界
 .github/
-  workflows/                 CI workflow
+  workflows/                 独立 check 与 Playwright e2e CI
 .symphoneer/
   WORKFLOW.md                repository-owned ProjectProfile 与 Prompt
   orchestrations/            OrchestrationDefinition JSON IR
 package.json                 根依赖、脚本与 link package 装配
+playwright.config.ts         Chromium E2E、报告与证据配置
 scripts/
   check-project.mjs          链接、导航、依赖与 Codemap 检查
   dev.ts                     Runtime 与 Vite 的前台 launcher
+  e2e-server.ts              隔离的确定性 Runtime + 静态 Web fixture
+  node-coverage.ts           Node tests 覆盖率与 partial 范围说明
 src/
   sse.ts                     浏览器安全 SSE 字节分帧
   assistant/                 Pi Assistant 生命周期与 HTTP/SSE
@@ -43,6 +46,7 @@ src/
   runtime-tools/             MCP / Assistant 共用 Tool Definition
   web/                       Vite React SPA
 tests/
+  e2e/                       Playwright 公共 UI 验收与 Browser 覆盖率
   assistant/                 Assistant Session、恢复与审批
   contracts/                 共享 Schema 与 seam contracts
   executor/                  Codex / Claude Executor 行为

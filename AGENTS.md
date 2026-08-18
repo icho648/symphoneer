@@ -39,6 +39,8 @@
 - 只实现当前关联 Issue 明确授权的 Module、Seam 与验收；active plan 只能补充本地恢复约束，不能扩大 Issue 范围，也不为后续阶段预装依赖或搭空结构。
 - 测试只证明同一验收目标的关键可观察行为：先查现有覆盖，只补最小正向或高风险失败场景，不为数量、覆盖率或内部实现凑用例。
 - 新行为或 Bug 修复先让验收测试在旧实现上失败；通过公共 Module Interface 验证，Mock 只用于外部边界，最终运行 `pnpm check`。若没有新行为或已有覆盖足够，说明不新增测试。
+- 执行中优先运行与改动相关的 focused tests；typecheck、build 或本地 E2E 按风险追加。最后一次代码修改后只运行一次完整 `pnpm check`，Candidate 与命令未变化时不重复同一完整 Gate。`pnpm test:e2e` 保持独立，只在 Web 用户可观察行为或验收风险需要时本地运行；GitHub Actions 的独立 `e2e` Check 才是推送 Candidate 的浏览器验收证据。
+- 测试结论只证明对应命令、环境和 commit；覆盖率只说明代码被执行，不代表质量或验收完备。成功运行保留结论和 Artifact，失败运行优先保留失败用例、Trace、截图、录像与启动日志，不要求把完整输出再次交给 LLM 解释。
 - 目标仓库不保存软件运行数据；详细存储责任见 `docs/core-concepts/system-boundaries.md`。
 - 顶层先按稳定 Module 分类；多文件功能统一放进同名目录，内部再按业务行为或生命周期聚类。行为私有内容跟随行为；只有共享不变量留在 Module 根，避免无边界的 `utils/`、`helpers/`、`types/` 桶。
 - 代码目录存在清晰入口时可以使用 `index.ts`：Module 根只暴露稳定 Interface，功能目录可以承载主行为或顶层编排，但不得隐藏导入副作用或无差别暴露内部文件。

@@ -213,6 +213,7 @@ export const enUS = {
     expandBody: "Expand",
     collapseBody: "Collapse",
     issueDescription: "Issue description",
+    evidence: "Delivery evidence",
     noDescription: "This Issue has no description.",
     continueInCodex: "Continue in Codex",
     moreActions: "More actions",

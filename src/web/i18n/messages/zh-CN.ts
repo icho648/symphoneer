@@ -211,6 +211,7 @@ export const zhCN = {
     expandBody: "展开全文",
     collapseBody: "收起全文",
     issueDescription: "Issue 描述",
+    evidence: "交付证据",
     noDescription: "此 Issue 没有正文。",
     continueInCodex: "在 Codex 中继续",
     moreActions: "更多操作",
