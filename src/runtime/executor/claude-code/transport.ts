@@ -125,10 +125,15 @@ export class StdioClaudeTransport implements ClaudeTransport {
   }
 
   async terminate(): Promise<void> {
-    if (this.#child.exitCode === null && this.#child.signalCode === null) {
-      this.#child.kill("SIGTERM");
+    if (this.#child.exitCode !== null || this.#child.signalCode !== null) {
+      await this.closed;
+      return;
     }
+    this.#child.kill("SIGTERM");
+    const force = setTimeout(() => this.#child.kill("SIGKILL"), 1_000);
+    force.unref();
     await this.closed;
+    clearTimeout(force);
   }
 
   async close(): Promise<void> {

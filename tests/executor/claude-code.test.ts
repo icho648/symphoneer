@@ -271,6 +271,36 @@ sleep 1
   }
 });
 
+test("Claude STDIO close force-kills a process that ignores SIGTERM", { timeout: 8_000 }, async (t) => {
+  const directory = await mkdtemp(resolve(tmpdir(), "symphoneer-claude-kill-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const executable = resolve(directory, "claude-fixture");
+  await writeFile(
+    executable,
+    `#!/usr/bin/env node
+if (process.argv.includes("--version")) {
+  process.stdout.write("2.1.218 (Claude Code)\\n");
+  process.exit(0);
+}
+process.on("SIGTERM", () => {});
+process.stdin.resume();
+setInterval(() => {}, 60_000);
+`,
+  );
+  await chmod(executable, 0o755);
+  const transport = await StdioClaudeTransport.start({
+    command: executable,
+    argv: [],
+    cwd: directory,
+    permissionMode: "acceptEdits",
+  });
+  const started = Date.now();
+  await transport.close();
+  const closed = await transport.closed;
+  assert.ok(Date.now() - started < 5_000);
+  assert.equal(closed.signal, "SIGKILL");
+});
+
 function init(
   sessionId: string,
   permissionMode = "acceptEdits",
