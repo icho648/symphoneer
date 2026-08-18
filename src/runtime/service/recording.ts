@@ -42,14 +42,23 @@ export async function recordTask(
     payload: { task },
     idempotencyKey: idempotencyKey ?? `task:${task.id}:${task.updatedAt ?? ""}`,
   });
+  await reconcileTrackerStatus(log, task);
+  return event;
+}
+
+export async function reconcileTrackerStatus(
+  log: EventLog,
+  task: TaskSummary,
+  commit = false,
+): Promise<void> {
   const current = log.projection.getTask(task.id);
   if (current?.workflowStatus === "in_progress" && task.labels.includes("symphoneer:review")) {
     await recordTaskStatus(log, task.id, "in_review", null, {
       source: "adapter",
-      idempotencyKey: `workflow-status:tracker:${task.id}:in-review:${task.updatedAt ?? ""}`,
+      idempotencyKey: `workflow-status:tracker:${task.id}:${current.workflowStatus}:in-review:${task.updatedAt ?? ""}`,
+      commit,
     });
   }
-  return event;
 }
 
 export async function recordTaskStatus(
@@ -102,6 +111,7 @@ export async function recordAttempt(
   const task = log.projection.getTask(attempt.taskId);
   if (task) {
     if (
+      attempt.status !== "finishing" &&
       attempt.finishedAt == null &&
       (task.workflowStatus === "backlog" || task.workflowStatus === "in_review")
     ) {

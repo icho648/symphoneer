@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import { OrchestrationDefinitionSchema } from "@symphoneer/contracts";
@@ -9,8 +10,11 @@ import {
 } from "../../src/runtime/orchestration/index.ts";
 import { loadProjectProfile } from "../../src/runtime/workflow/index.ts";
 
-test("ProjectProfile loads WORKFLOW.md without treating it as orchestration", async () => {
-  const profile = await loadProjectProfile({ workspaceRoot: "/tmp/symphoneer-workspaces" });
+test("ProjectProfile loads .symphoneer/WORKFLOW.md without treating it as orchestration", async () => {
+  const profile = await loadProjectProfile({
+    cwd: resolve("tests/fixtures/project"),
+    workspaceRoot: "/tmp/symphoneer-workspaces",
+  });
   assert.ok(profile.promptTemplate.includes("Implement"));
   assert.equal(profile.config.tracker.kind, "github");
   assert.doesNotThrow(() =>

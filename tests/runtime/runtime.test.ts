@@ -621,6 +621,14 @@ test("Runtime projects the complete WorkflowStatus lifecycle and preserves block
 
   await service.recordVerification(verification, { artifact: "passed" });
   assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
+  await service.recordTask({ ...task, labels: ["symphoneer:review"] });
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
+  await service.recordAttempt({
+    ...attempt,
+    status: "finishing",
+    updatedAt: "2026-08-04T08:01:01.000Z",
+  });
+  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
 
   const succeededAttempt: AttemptSnapshot = {
     ...attempt,
@@ -630,8 +638,6 @@ test("Runtime projects the complete WorkflowStatus lifecycle and preserves block
     failure: null,
   };
   await service.recordAttempt(succeededAttempt);
-  assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_progress");
-  await service.recordTask({ ...task, labels: ["symphoneer:review"] });
   assert.equal(service.snapshot().tasks[0]?.workflowStatus, "in_review");
 
   await service.execute({

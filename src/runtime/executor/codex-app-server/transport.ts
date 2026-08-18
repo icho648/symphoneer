@@ -71,7 +71,13 @@ export class StdioCodexTransport implements CodexTransport {
   }
 
   static async start(
-    options: { command?: string; args?: string[]; cwd?: string; readTimeoutMs?: number } = {},
+    options: {
+      command?: string;
+      args?: string[];
+      cwd?: string;
+      env?: NodeJS.ProcessEnv;
+      readTimeoutMs?: number;
+    } = {},
   ): Promise<StdioCodexTransport> {
     const command = options.command ?? "codex";
     const args = options.args ?? ["app-server"];
@@ -79,9 +85,11 @@ export class StdioCodexTransport implements CodexTransport {
     if (!Number.isInteger(readTimeoutMs) || readTimeoutMs <= 0) {
       throw new CodexTransportError("request_failed", "Codex read timeout must be positive");
     }
-    const toolVersion = await readToolVersion(command, options.cwd);
+    const env = codexEnvironment(options.env ?? process.env);
+    const toolVersion = await readToolVersion(command, options.cwd, env);
     const child = spawn(command, args, {
       ...(options.cwd ? { cwd: options.cwd } : {}),
+      env,
       stdio: ["pipe", "pipe", "pipe"],
     });
     child.stderr.resume();
@@ -231,12 +239,16 @@ export class StdioCodexTransport implements CodexTransport {
   }
 }
 
-function readToolVersion(command: string, cwd?: string): Promise<string> {
+function readToolVersion(
+  command: string,
+  cwd: string | undefined,
+  env: NodeJS.ProcessEnv,
+): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     execFile(
       command,
       ["--version"],
-      { ...(cwd ? { cwd } : {}), encoding: "utf8", maxBuffer: 64 * 1024 },
+      { ...(cwd ? { cwd } : {}), env, encoding: "utf8", maxBuffer: 64 * 1024 },
       (error, stdout) => {
         const version = stdout.trim().split("\n", 1)[0];
         if (error || !version) {
@@ -249,4 +261,11 @@ function readToolVersion(command: string, cwd?: string): Promise<string> {
       },
     );
   });
+}
+
+function codexEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env = { ...source };
+  delete env.GITHUB_TOKEN;
+  delete env.GH_TOKEN;
+  return env;
 }

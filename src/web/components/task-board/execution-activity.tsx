@@ -63,6 +63,23 @@ export function ExecutionActivityFeed() {
           <span>{activities.length}</span>
         </header>
 
+        {(detail?.session?.instructionSources?.length ?? 0) > 0 && (
+          <details className="task-instruction-sources">
+            <summary>
+              <strong>
+                {dictionary.detail.activity.instructionSources} ·{" "}
+                {detail?.session?.instructionSources?.length}
+              </strong>
+              <ChevronDownIcon aria-hidden="true" />
+            </summary>
+            <ul>
+              {detail?.session?.instructionSources?.map((source) => (
+                <li key={source}>{source}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+
         {blockedReason && (
           <div className="task-alert task-alert-danger" role="alert">
             <span className="task-alert-mark" aria-hidden="true">
@@ -105,7 +122,11 @@ export function ExecutionActivityFeed() {
         ) : (
           <ol className="task-activity-list">
             {activities.map((activity) => (
-              <li className={`task-activity-item is-${activity.status}`} key={activity.id}>
+              <li
+                className={`task-activity-item is-${activity.status}`}
+                data-kind={activity.kind}
+                key={activity.id}
+              >
                 <div className="task-activity-meta">
                   <span className="task-activity-dot" aria-hidden="true" />
                   <strong>
@@ -113,7 +134,9 @@ export function ExecutionActivityFeed() {
                       ? dictionary.detail.activity.input
                       : dictionary.detail.activity.kinds[activity.kind]}
                   </strong>
-                  <span>{dictionary.detail.activity.states[activity.status]}</span>
+                  {activity.status !== "completed" && (
+                    <span>{dictionary.detail.activity.states[activity.status]}</span>
+                  )}
                   <time dateTime={activity.occurredAt}>
                     {formatActivityTime(activity.occurredAt, locale)}
                   </time>
@@ -146,16 +169,10 @@ function ActivityContent({
     const isUserMessage = activity.kind === "message" && activity.details.role === "user";
     return (
       <Message
-        className={isUserMessage ? undefined : "max-w-full"}
+        className={`task-activity-message ${isUserMessage ? "!max-w-[72ch]" : "!max-w-[78ch]"}${activity.kind === "reasoning" ? " is-reasoning" : ""}`}
         from={isUserMessage ? "user" : "assistant"}
       >
-        <MessageContent
-          className={
-            isUserMessage
-              ? "text-ink group-[.is-user]:bg-zinc-200/80 dark:group-[.is-user]:bg-zinc-800"
-              : "text-ink"
-          }
-        >
+        <MessageContent className="task-activity-message-content">
           <MessageResponse>{activity.content ?? activity.title}</MessageResponse>
         </MessageContent>
       </Message>

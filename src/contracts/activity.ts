@@ -55,6 +55,7 @@ export const ExecutionSessionSchema = z.object({
   attemptId: NonEmptyString,
   provider: z.enum(["codex-app-server", "claude-code", "fake"]),
   threadId: NonEmptyString,
+  instructionSources: z.array(NonEmptyString).optional(),
   turns: z.array(ExecutionSessionTurnSchema),
   capturedAt: Timestamp,
 });

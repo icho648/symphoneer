@@ -52,7 +52,9 @@ export function DeliveryAssistantThread({
   thinkingLevel: AssistantThinkingLevel;
 }) {
   const assistant = dictionary.board.assistant;
-  const taskState = selectedTask?.state ?? assistant.noTask;
+  const taskState = selectedTask
+    ? workflowStatusLabel(selectedTask.workflowStatus, dictionary)
+    : assistant.noTask;
 
   return (
     <ThreadPrimitive.Root className="assistant-thread-root">
@@ -83,9 +85,7 @@ export function DeliveryAssistantThread({
                 <div>
                   <dt>{assistant.attempt}</dt>
                   <dd>
-                    {selectedAttempt
-                      ? `${assistant.attempt} ${String(selectedAttempt.sequence).padStart(2, "0")}`
-                      : "—"}
+                    {selectedAttempt ? String(selectedAttempt.sequence).padStart(2, "0") : "—"}
                   </dd>
                 </div>
               </dl>
@@ -97,17 +97,23 @@ export function DeliveryAssistantThread({
                 className="assistant-suggestion"
                 prompt={assistant.suggestions.explain}
                 send
-              />
+              >
+                {assistant.suggestions.explain}
+              </ThreadPrimitive.Suggestion>
               <ThreadPrimitive.Suggestion
                 className="assistant-suggestion"
                 prompt={assistant.suggestions.attention}
                 send
-              />
+              >
+                {assistant.suggestions.attention}
+              </ThreadPrimitive.Suggestion>
               <ThreadPrimitive.Suggestion
                 className="assistant-suggestion"
                 prompt={assistant.suggestions.summary}
                 send
-              />
+              >
+                {assistant.suggestions.summary}
+              </ThreadPrimitive.Suggestion>
             </div>
           </div>
         </AuiIf>
@@ -152,14 +158,19 @@ export function DeliveryAssistantThread({
               </div>
               <div className="assistant-compose-actions">
                 <AuiIf condition={(state) => state.thread.isRunning}>
-                  <ComposerPrimitive.Cancel className="assistant-compose-cancel" aria-label="Stop">
+                  <ComposerPrimitive.Cancel
+                    className="assistant-compose-cancel"
+                    aria-label={assistant.stop}
+                    title={assistant.stop}
+                  >
                     ■
                   </ComposerPrimitive.Cancel>
                 </AuiIf>
                 <AuiIf condition={(state) => !state.thread.isRunning}>
                   <ComposerPrimitive.Send
                     className="assistant-compose-send"
-                    aria-label={assistant.inputPlaceholder}
+                    aria-label={assistant.send}
+                    title={assistant.send}
                   >
                     ↑
                   </ComposerPrimitive.Send>
@@ -362,13 +373,28 @@ function RuntimeToolPart({
         ) : null}
         <ToolOutput
           errorText={isError ? stringifyResult(result) : undefined}
-          output={isError ? undefined : result}
+          output={isError ? undefined : stringifyResult(result)}
         />
       </ToolContent>
     </Tool>
   );
 }
 
+const TOOL_PREVIEW_LIMIT = 4000;
+
 function stringifyResult(result: unknown): string {
-  return typeof result === "string" ? result : (JSON.stringify(result, null, 2) ?? "");
+  const text = typeof result === "string" ? result : (JSON.stringify(result, null, 2) ?? "");
+  return text.length > TOOL_PREVIEW_LIMIT ? `${text.slice(0, TOOL_PREVIEW_LIMIT)}\n…` : text;
+}
+
+function workflowStatusLabel(
+  status: TaskSummary["workflowStatus"],
+  dictionary: Dictionary,
+): string {
+  return {
+    backlog: dictionary.columns.backlog.label,
+    in_progress: dictionary.columns.inProgress.label,
+    in_review: dictionary.columns.inReview.label,
+    done: dictionary.columns.done.label,
+  }[status];
 }

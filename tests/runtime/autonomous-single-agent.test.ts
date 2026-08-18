@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -38,8 +38,9 @@ test("Tracker refresh dispatches one production Worker and preserves injected fa
     resolve(repository, "pnpm-lock.yaml"),
     "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\nimporters:\n  .: {}\n",
   );
+  await mkdir(resolve(repository, ".symphoneer"));
   await writeFile(
-    resolve(repository, "WORKFLOW.md"),
+    resolve(repository, ".symphoneer", "WORKFLOW.md"),
     `---
 tracker:
   kind: github
@@ -57,7 +58,12 @@ symphoneer:
 workspace:
   root: ${workspaceRoot}
 ---
-Implement {{ issue.identifier }} and follow its acceptance criteria.
+Implement {{ issue.identifier }}: {{ issue.title }}.
+
+{{ issue.body }}
+
+Labels: {{ issue.labels | join: ", " }}
+Attempt: {% if attempt == nil %}first{% else %}{{ attempt }}{% endif %}
 `,
   );
   execFileSync("git", ["-C", repository, "add", "."]);
@@ -73,6 +79,7 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
       url: "https://github.com/icho648/fixture/issues/47",
     },
     title: "Autonomous fixture",
+    body: "Add the requested marker and run the acceptance check.",
     state: "open",
     labels: ["symphoneer:ready"],
     dispatchable: true,
@@ -159,11 +166,20 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   assert.equal(runner.requests[0]?.model, "gpt-5.4");
   assert.equal(runner.requests[0]?.threadId, undefined);
   assert.equal(runner.requests[1]?.threadId, "thread-47");
+  assert.match(
+    runner.requests[0]?.prompt ?? "",
+    /Add the requested marker and run the acceptance check\.[\s\S]*Labels: symphoneer:ready[\s\S]*Attempt: first/,
+  );
+  assert.equal(
+    runner.requests[1]?.prompt,
+    "Continue working on the same issue. Re-read its current tracker state, finish any remaining acceptance work, and report the result.",
+  );
   assert.equal(service.attemptDetail(attempt?.id ?? "")?.workspace?.id, `workspace:${ready.id}`);
   assert.equal(
     service.attemptDetail(attempt?.id ?? "")?.workspace?.path,
     resolve(workspaceRoot, "issue-47"),
   );
+  assert.equal(service.attemptDetail(attempt?.id ?? "")?.workspace?.branch, "symphoneer/issue-47");
   await service.stop();
 
   const failedTask: TaskSummary = {
@@ -338,7 +354,10 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   });
   await reloadService.start();
   await reloadService.refreshTracker();
-  await writeFile(resolve(repository, "WORKFLOW.md"), "---\n- invalid\n---\nprompt\n");
+  await writeFile(
+    resolve(repository, ".symphoneer", "WORKFLOW.md"),
+    "---\n- invalid\n---\nprompt\n",
+  );
   await reloadService.refreshTracker();
   assert.match(await readFile(reloadLog, "utf8"), /"operation":"workflow.reload"/);
   await reloadService.stop();
@@ -359,6 +378,110 @@ Implement {{ issue.identifier }} and follow its acceptance criteria.
   await invalidService.stop();
 });
 
+test("Runtime blocks automatic continuation at max_attempts and retains the Workspace", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "symphoneer-attempt-limit-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const repository = resolve(root, "repository");
+  const workspaceRoot = resolve(root, "workspaces");
+  const dataDir = resolve(root, "data");
+  execFileSync("git", ["init", "-b", "main", repository]);
+  execFileSync("git", ["-C", repository, "config", "user.name", "Symphoneer Test"]);
+  execFileSync("git", ["-C", repository, "config", "user.email", "test@example.com"]);
+  await writeFile(resolve(repository, "package.json"), '{"name":"fixture","private":true}\n');
+  await writeFile(
+    resolve(repository, "pnpm-lock.yaml"),
+    "lockfileVersion: '9.0'\nimporters:\n  .: {}\n",
+  );
+  await mkdir(resolve(repository, ".symphoneer"));
+  await writeFile(
+    resolve(repository, ".symphoneer", "WORKFLOW.md"),
+    `---
+tracker:
+  kind: github
+  active_states: [open]
+  terminal_states: [closed]
+agent:
+  max_attempts: 1
+  max_turns: 1
+symphoneer:
+  eligibility:
+    required_labels: [symphoneer:ready]
+workspace:
+  root: ${workspaceRoot}
+---
+Implement {{ issue.identifier }}.
+`,
+  );
+  execFileSync("git", ["-C", repository, "add", "."]);
+  execFileSync("git", ["-C", repository, "commit", "-m", "fixture"]);
+
+  const ready: TaskSummary = {
+    schemaVersion: CONTRACT_SCHEMA_VERSION,
+    id: "github:icho648/fixture:49",
+    identifier: "#49",
+    source: {
+      kind: "github",
+      nativeId: "49",
+      url: "https://github.com/icho648/fixture/issues/49",
+    },
+    title: "Bound automatic attempts",
+    state: "open",
+    labels: ["symphoneer:ready"],
+    dispatchable: true,
+    workflowStatus: "backlog",
+    blocked: null,
+  };
+  const tracker: Tracker = {
+    kind: "github",
+    listTasks: async () => ({ tasks: [{ task: ready, versionToken: null }], nextCursor: null }),
+    getTask: async () => ({ task: ready, versionToken: null }),
+  };
+  const runner = new FakeAgentRunner([
+    {
+      events: [
+        {
+          type: "session_started",
+          occurredAt: "2026-08-16T10:00:00.000Z",
+          threadId: "thread-49",
+          turnId: "turn-49",
+          provider: {
+            name: "fake",
+            version: "fixture",
+            schema: "fixture",
+            inputFingerprint: "fixture",
+          },
+        },
+      ],
+      completion: { outcome: "completed" },
+    },
+  ]);
+  const service = new RuntimeService({
+    dataDir,
+    tracker,
+    defaultOrchestration: new RealSingleAgentOrchestration({
+      dataDir,
+      tracker,
+      projectRoot: repository,
+      workspaceRoot,
+      runnerFactory: () => runner,
+    }),
+  });
+  await service.start();
+  await service.refreshTracker();
+  for (let index = 0; index < 300 && service.snapshot().tasks[0]?.blocked == null; index += 1) {
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+  }
+
+  assert.equal(service.snapshot().attempts.length, 1);
+  assert.match(service.snapshot().tasks[0]?.blocked?.reason ?? "", /Attempt limit.*1/);
+  assert.equal(
+    service.attemptDetail(service.snapshot().attempts[0]?.id ?? "")?.workspace?.state,
+    "retained",
+  );
+  assert.equal(runner.openWorkerCount, 1);
+  await service.stop();
+});
+
 test("Tracker reconciliation waits for the active Turn before applying Review", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "symphoneer-turn-reconciliation-"));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -376,8 +499,9 @@ test("Tracker reconciliation waits for the active Turn before applying Review", 
     resolve(repository, "pnpm-lock.yaml"),
     "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\nimporters:\n  .: {}\n",
   );
+  await mkdir(resolve(repository, ".symphoneer"));
   await writeFile(
-    resolve(repository, "WORKFLOW.md"),
+    resolve(repository, ".symphoneer", "WORKFLOW.md"),
     `---
 tracker:
   kind: github

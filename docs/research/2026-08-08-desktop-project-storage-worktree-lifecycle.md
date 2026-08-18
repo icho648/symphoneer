@@ -3,7 +3,7 @@
 核验日期：2026-08-08
 
 本快照只使用 Electron、VS Code、Git 和 OpenAI 的官方文档或公开源码。它是对
-[`system-boundaries.md`](../design-docs/system-boundaries.md) 的证据输入；已吸收的 Host /
+[`system-boundaries.md`](../core-concepts/system-boundaries.md) 的证据输入；已吸收的 Host /
 `projectId` / 分根存储决定以 design-doc 为准，本文只保留一手事实与尚未写入规范的细节。
 
 ## 已确认的一手事实
@@ -94,7 +94,7 @@ worktree 需要 `--force`。目录被手工删除后，`prune` 只清除残留�
 ## 仍未写入规范的细节提示
 
 下列细节支撑设计讨论，但不应再在 research 里复述已进
-[`system-boundaries.md`](../design-docs/system-boundaries.md) 的 Host 决定：
+[`system-boundaries.md`](../core-concepts/system-boundaries.md) 的 Host 决定：
 
 - VS Code inode / birthtime 身份算法 ≠ Symphoneer 业务 `projectId`
 - Electron 无通用业务 `cache` 槽位；`sessionData` 默认同 `userData`

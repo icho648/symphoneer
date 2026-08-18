@@ -172,6 +172,7 @@ export function storedExecutionSession(
   value: unknown,
   attemptId: string,
   capturedAt: string,
+  instructionSources: string[] = [],
 ): ExecutionSession | null {
   const response = asRecord(value);
   const thread = response ? asRecord(response.thread) : null;
@@ -183,6 +184,7 @@ export function storedExecutionSession(
     attemptId,
     provider: "codex-app-server",
     threadId,
+    instructionSources,
     capturedAt,
     turns: thread.turns.flatMap((turnValue) => {
       const turn = asRecord(turnValue);

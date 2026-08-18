@@ -9,7 +9,7 @@
 - **Not verified：** 原文涉及的当前工具名称、参数、跨主机可见性、权限继承和 Handoff 行为；实现前必须以当前官方 Schema、CLI 帮助和本地 Smoke 为准。
 - 本文**不是** Codex 官方规范。同 Thread 的并发、FIFO、steer 与跨进程风险以
   [`2026-08-10-codex-app-server-concurrency.md`](2026-08-10-codex-app-server-concurrency.md)
-  为准；规范性对象边界以 [`../design-docs/product-boundary.md`](../design-docs/product-boundary.md)
+  为准；规范性对象边界以 [`../core-concepts/product-boundary.md`](../core-concepts/product-boundary.md)
   与 [`../references/codex-app-server.md`](../references/codex-app-server.md) 为准。
 
 ## 原文最值得保留的结论

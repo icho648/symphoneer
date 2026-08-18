@@ -26,7 +26,7 @@ export async function runCli(
     stdout.write(`${JSON.stringify(await client.attempt(argv[1]), null, 2)}\n`);
     return;
   }
-  throw new Error("Usage: symphoneer-runtime [snapshot|events [after]|attempt <attempt-id>]");
+  throw new Error("Usage: pnpm runtime:cli [snapshot|events [after]|attempt <attempt-id>]");
 }
 
 if (import.meta.main) {

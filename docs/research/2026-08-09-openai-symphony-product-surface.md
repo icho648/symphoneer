@@ -27,7 +27,7 @@
 - **Inference：** 持久执行活动、Attempt 历史或“在 Codex 中继续”属于 Workbench 产品层扩展，不是 Symphony 必选 UI。
 - **Observed：** 官方恢复依赖 Tracker 与保留的 Workspace；内存调度状态与运行中 Session 不要求跨重启恢复，也不要求持久化完整 Conversation。[SPEC：重启恢复](https://github.com/openai/symphony/blob/f8e8b8a670c799f6e0ade7a8c25c4bf4a4a56ec7/SPEC.md#L1689-L1704)
 
-本快照支持 [`../design-docs/product-boundary.md`](../design-docs/product-boundary.md) 与 [`../design-docs/system-boundaries.md`](../design-docs/system-boundaries.md)；不自动修改产品决定。早期无 commit 的定位长文已 stub：[`2026-07-30-symphony-runtime-boundaries.md`](2026-07-30-symphony-runtime-boundaries.md)。
+本快照支持 [`../core-concepts/product-boundary.md`](../core-concepts/product-boundary.md) 与 [`../core-concepts/system-boundaries.md`](../core-concepts/system-boundaries.md)；不自动修改产品决定，并取代 2026-07-30 的无 commit 定位快照。
 
 ## Verification、完成、Blocked 与重试契约
 

@@ -12,9 +12,10 @@ export async function startCodexTurn(
     activeThreadId?: string;
     initialized?: boolean;
   },
-): Promise<{ threadId: string; turnId: string }> {
+): Promise<{ threadId: string; turnId: string; instructionSources: string[] }> {
   if (!options.initialized) await initializeCodexTransport(transport);
   let threadId = options.activeThreadId ?? "";
+  let instructionSources: string[] = [];
   if (threadId && request.threadId && request.threadId !== threadId) {
     throw new Error("Attempt Worker cannot switch Codex threads");
   }
@@ -42,7 +43,13 @@ export async function startCodexTurn(
             threadSource: "user",
           },
     );
-    threadId = stringField(asRecord(threadResponse)?.thread, "id") ?? "";
+    const response = asRecord(threadResponse);
+    threadId = stringField(response?.thread, "id") ?? "";
+    instructionSources = Array.isArray(response?.instructionSources)
+      ? response.instructionSources.filter(
+          (source): source is string => typeof source === "string" && source.length > 0,
+        )
+      : [];
   }
   if (!threadId || (request.threadId && request.threadId !== threadId)) {
     throw new Error("Codex returned an invalid thread identity");
@@ -58,7 +65,7 @@ export async function startCodexTurn(
   });
   const turnId = stringField(asRecord(turnResponse)?.turn, "id") ?? "";
   if (!turnId) throw new Error("Codex returned an invalid turn identity");
-  return { threadId, turnId };
+  return { threadId, turnId, instructionSources };
 }
 
 export async function initializeCodexTransport(transport: CodexTransport): Promise<void> {

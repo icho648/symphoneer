@@ -23,7 +23,7 @@ GitHub Issue
   -> human Review
 ```
 
-产品边界以 [docs/design-docs/product-boundary.md](../../design-docs/product-boundary.md) 和 [docs/design-docs/system-boundaries.md](../../design-docs/system-boundaries.md) 为准；本 Plan 不覆盖设计决定。
+产品边界以 [product-boundary.md](../../core-concepts/product-boundary.md) 和 [system-boundaries.md](../../core-concepts/system-boundaries.md) 为准；本 Plan 不覆盖设计决定。
 
 ## Progress
 
@@ -63,7 +63,7 @@ Issue / PR 是单个增量的目标与进度事实源；本文件不是执行进
 - [src/contracts/](../../../src/contracts/)：跨边界 Schema。
 - [src/runtime/](../../../src/runtime/)：Workflow、Eligibility、Scheduler、Workspace、Executor 和 Runtime API。
 - [tests/](../../../tests/)：根目录下按 Module 行为分类的测试（contracts、scheduler、workspace、runtime、web、integration 等）。
-- [docs/design-docs/](../../design-docs/)：确认后的产品与系统边界。
+- [docs/core-concepts/](../../core-concepts/)：当前产品与系统心智模型。
 - [docs/references/](../../references/)：GitHub Issues、Symphony 和 Codex App Server 外部契约。
 
 Issue 实现的入口是实时 GitHub Issue/PR/依赖状态、本地 Git 状态和上述 Core Interface；不从本 Plan 推断额外产品对象。
@@ -125,4 +125,4 @@ Issue-driven 增量的具体命令、工作目录、预期结果和失败标准�
 │              └─ #18 验收 / 关 Issue   (Gate D；依赖 #17 核心闭环证据)
 ```
 
-该图是历史协调形状，不创建新的产品状态或调度语义。对象权威、存储、Agent Runner 和人工控制边界分别以 [system-boundaries.md](../../design-docs/system-boundaries.md)、[github-issues.md](../../references/github-issues.md)、[codex-app-server.md](../../references/codex-app-server.md) 和 [delivery-flow.md](../../product-specs/delivery-flow.md) 为准。
+该图是历史协调形状，不创建新的产品状态或调度语义。对象权威、存储、Agent Runner 和人工控制边界分别以 [system-boundaries.md](../../core-concepts/system-boundaries.md)、[github-issues.md](../../references/github-issues.md)、[codex-app-server.md](../../references/codex-app-server.md) 和 [delivery-flow.md](../../core-concepts/delivery-flow.md) 为准。

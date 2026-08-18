@@ -50,6 +50,7 @@ export const policy = {
   excludedLabels: ["symphoneer:review"],
   maxConcurrentAgents: 2,
   maxConcurrentAgentsByState: { open: 1, urgent: 1 },
+  maxAttempts: 100,
   maxRetryBackoffMs: 300_000,
 };
 

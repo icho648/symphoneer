@@ -29,6 +29,7 @@ import {
   type CorePolicy,
   CoreScheduler,
   evaluateEligibility,
+  type RetryEntry,
   sortTasksForDispatch,
 } from "../scheduler/index.ts";
 import type { EventLog } from "../service/event-log.ts";
@@ -43,16 +44,13 @@ import {
   recordWorkspace,
 } from "../service/recording.ts";
 import type { Tracker } from "../tracker/tracker.ts";
-import {
-  loadProjectProfile,
-  type ProjectProfile,
-  renderPrompt,
-  WorkflowError,
-} from "../workflow/index.ts";
+import { loadProjectProfile, type ProjectProfile, renderPrompt } from "../workflow/index.ts";
 import { GitWorktreeDriver } from "../workspace/git-worktree/index.ts";
 import { WorkspaceManager } from "../workspace/manager.ts";
 import type { OrchestrationMode } from "./mode.ts";
 
+const CONTINUATION_PROMPT =
+  "Continue working on the same issue. Re-read its current tracker state, finish any remaining acceptance work, and report the result.";
 const execFile = promisify(execFileCallback);
 
 interface TaskLocator {
@@ -97,7 +95,6 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
   #workflow: ProjectProfile | undefined;
   #tickTail = Promise.resolve();
   readonly #retryTimers = new Map<string, NodeJS.Timeout>();
-  #legacyWorkflowLogged = false;
   #stopping = false;
 
   constructor(options: {
@@ -179,14 +176,14 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     if (!this.#projectRoot) {
       throw new RuntimeError("conflict", "Project root is required to list Codex models");
     }
-    const workflow = await loadWorkflow(this.#projectRoot, this.#projectRoot, this.#workspaceRoot);
+    const workflow = await loadWorkflow(this.#projectRoot, this.#workspaceRoot);
     return (await createAgentRunner(workflow, this.#now).listModels?.()) ?? [];
   }
 
   async readSession(attempt: AttemptSnapshot): Promise<ExecutionSession | null> {
     const threadId = attempt.providerSession?.threadId;
     if (!threadId || !this.#projectRoot) return null;
-    const workflow = await loadWorkflow(this.#projectRoot, this.#projectRoot, this.#workspaceRoot);
+    const workflow = await loadWorkflow(this.#projectRoot, this.#workspaceRoot);
     return (
       (await createAgentRunner(workflow, this.#now, providerForAttempt(attempt)).readSession?.(
         threadId,
@@ -311,16 +308,11 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
     if (this.#runningTasks.has(task.id)) {
       throw new RuntimeError("conflict", `Task ${task.identifier} already has a running job`);
     }
-    const workflow = await this.#reloadWorkflow();
-    const prompt = await renderPrompt(workflow, {
-      issue: JSON.parse(JSON.stringify(task)) as Record<string, unknown>,
-      attempt: input.attempt.sequence,
-    });
     const started = Promise.withResolvers<void>();
     this.#runningTasks.add(task.id);
     this.#trackJob(
       task.id,
-      this.#continue(input.attempt, task, prompt, input.log, {}, true, started),
+      this.#continue(input.attempt, task, CONTINUATION_PROMPT, input.log, {}, true, started),
     );
     await started.promise;
   }
@@ -490,7 +482,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
             identifier: task.identifier,
             attemptId,
             repository: locator.repository,
-            branch: `codex/issue-${locator.issueNumber}`,
+            branch: `symphoneer/issue-${locator.issueNumber}`,
             host: "local",
           });
       const now = this.#timestamp();
@@ -517,6 +509,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
                 startedAt: now,
               },
               idempotencyKey: `single-agent:${startReason}:${attemptId}`,
+              ...(forceRetry ? { force: true } : {}),
             });
       if (decision.kind !== "reserved") {
         const retainedWorkspace = await manager.finish(prepared.workspace);
@@ -553,7 +546,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       await this.#setStatus(run, "building_prompt");
       const prompt = await renderPrompt(workflow, {
         issue: JSON.parse(JSON.stringify(live.task)) as Record<string, unknown>,
-        attempt: 1,
+        attempt: decision.attempt.sequence === 1 ? null : decision.attempt.sequence - 1,
       });
       await this.#setStatus(run, "launching_agent");
       run.worker = await this.#runnerFactory(workflow).openWorker({
@@ -755,10 +748,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       const eligibility = evaluateEligibility(live.task, workflowEligibility(run.workflow));
       if (eligibility.eligible && run.turnCount < run.workflow.config.agent.maxTurns) {
         await this.#setStatus(run, "building_prompt");
-        prompt = await renderPrompt(run.workflow, {
-          issue: JSON.parse(JSON.stringify(live.task)) as Record<string, unknown>,
-          attempt: run.attempt.sequence,
-        });
+        prompt = CONTINUATION_PROMPT;
         await this.#setStatus(run, "launching_agent");
         continue;
       }
@@ -798,9 +788,7 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       attemptId: run.attempt.id,
       workspaceId: run.workspace.id,
     });
-    if (finished?.retry) {
-      this.#scheduleTick(run.log, run.attempt.taskId, finished.retry.dueAtMs);
-    }
+    if (finished?.retry) await this.#continueOrBlock(run, finished.retry);
     this.#runs.delete(run.attempt.id);
     run.settled.resolve();
   }
@@ -970,31 +958,38 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
       workspaceId: run.workspace.id,
       errorKind: errorKind(error),
     });
-    if (finished?.retry) {
-      this.#scheduleTick(run.log, run.attempt.taskId, finished.retry.dueAtMs);
-    }
+    if (finished?.retry) await this.#continueOrBlock(run, finished.retry);
     this.#runs.delete(run.attempt.id);
     run.settled.resolve();
+  }
+
+  async #continueOrBlock(run: ActiveRun, retry: RetryEntry): Promise<void> {
+    if (retry.automatic !== false) {
+      this.#scheduleTick(run.log, run.attempt.taskId, retry.dueAtMs);
+      return;
+    }
+    const task = run.log.projection.getTask(run.attempt.taskId);
+    if (!task) return;
+    await recordTaskStatus(
+      run.log,
+      task.id,
+      task.workflowStatus,
+      {
+        reason: `Automatic Attempt limit reached (${run.workflow.config.agent.maxAttempts}); retry explicitly to continue`,
+        since: run.attempt.finishedAt ?? this.#timestamp(),
+      },
+      {
+        source: "symphony-core",
+        idempotencyKey: `single-agent:attempt-limit:${run.attempt.id}`,
+      },
+    );
   }
 
   async #reloadWorkflow(): Promise<ProjectProfile> {
     if (!this.#projectRoot) throw new RuntimeError("conflict", "Project checkout is unavailable");
     try {
-      const workflow = await loadWorkflow(
-        this.#projectRoot,
-        this.#projectRoot,
-        this.#workspaceRoot,
-      );
+      const workflow = await loadWorkflow(this.#projectRoot, this.#workspaceRoot);
       this.#workflow = workflow;
-      if (workflow.location === "legacy" && !this.#legacyWorkflowLogged) {
-        this.#legacyWorkflowLogged = true;
-        await this.#operator({
-          operation: "workflow.legacy_path",
-          outcome: "blocked",
-          durationMs: 0,
-          errorKind: "deprecated_workflow_path",
-        });
-      }
       return workflow;
     } catch (error) {
       if (this.#workflow) {
@@ -1239,17 +1234,10 @@ export class RealSingleAgentOrchestration implements OrchestrationMode {
 
 async function loadWorkflow(
   projectRoot: string | undefined,
-  sourcePath: string,
   workspaceRoot: string,
 ): Promise<ProjectProfile> {
-  if (projectRoot) {
-    try {
-      return await loadProjectProfile({ cwd: projectRoot, workspaceRoot });
-    } catch (error) {
-      if (!(error instanceof WorkflowError) || error.code !== "missing_workflow_file") throw error;
-    }
-  }
-  return loadProjectProfile({ cwd: sourcePath, workspaceRoot });
+  if (!projectRoot) throw new RuntimeError("conflict", "Project checkout is unavailable");
+  return loadProjectProfile({ cwd: projectRoot, workspaceRoot });
 }
 
 function locateTask(task: TaskSummary): TaskLocator {
@@ -1287,7 +1275,7 @@ function createAgentRunner(
 ): AgentRunner {
   if (provider === "claude-code") {
     if (!workflow.config.claude.permissionMode) {
-      throw new Error("WORKFLOW.md requires claude.permission_mode");
+      throw new Error(".symphoneer/WORKFLOW.md requires claude.permission_mode");
     }
     return new ClaudeCodeAdapter({
       command: workflow.config.claude.command,
@@ -1300,7 +1288,7 @@ function createAgentRunner(
     });
   }
   const [command, ...args] = workflow.config.codex.command.trim().split(/\s+/);
-  if (!command) throw new Error("WORKFLOW.md has an empty Codex command");
+  if (!command) throw new Error(".symphoneer/WORKFLOW.md has an empty Codex command");
   return new CodexAppServerAdapter({
     command,
     args,
@@ -1365,6 +1353,7 @@ function corePolicy(workflow: ProjectProfile): CorePolicy {
     ...workflowEligibility(workflow),
     maxConcurrentAgents: workflow.config.agent.maxConcurrentAgents,
     maxConcurrentAgentsByState: workflow.config.agent.maxConcurrentAgentsByState,
+    maxAttempts: workflow.config.agent.maxAttempts,
     maxRetryBackoffMs: workflow.config.agent.maxRetryBackoffMs,
   };
 }
